@@ -1,15 +1,16 @@
 import { test, expect } from '@playwright/test'
-import { ANDINO_EMAIL, DEMO_PASSWORD, expectNoHorizontalOverflow, loginAs } from './helpers'
+import { createAccount, expectNoHorizontalOverflow, loginAs } from './helpers'
 
 test.describe('acceso', () => {
-  test('rechaza una contraseña incorrecta y acepta la de demostración', async ({ page }) => {
+  test('rechaza una contraseña incorrecta y acepta la correcta', async ({ page }) => {
+    const { email, password } = await createAccount(page)
+    await page.context().clearCookies()
     await page.goto('/login')
-    await page.locator('#email').fill(ANDINO_EMAIL)
-    await page.locator('#password').fill('otra-clave')
+    await page.locator('#email').fill(email)
+    await page.locator('#password').fill('contraseña-incorrecta-999')
     await page.getByRole('button', { name: 'Iniciar sesión' }).click()
     await expect(page.getByRole('alert')).toContainText('Correo o contraseña no válidos.')
-
-    await page.locator('#password').fill(DEMO_PASSWORD)
+    await page.locator('#password').fill(password)
     await page.getByRole('button', { name: 'Iniciar sesión' }).click()
     await expect(page).toHaveURL(/\/$/)
   })
@@ -30,7 +31,7 @@ test.describe('acceso', () => {
   test('valida campos vacíos sin enviar', async ({ page }) => {
     await page.goto('/login')
     await page.getByRole('button', { name: 'Iniciar sesión' }).click()
-    await expect(page.getByText('Ingresa tu correo corporativo.')).toBeVisible()
+    await expect(page.getByText('Escribe tu correo electrónico.')).toBeVisible()
   })
 })
 
@@ -77,7 +78,7 @@ test.describe('operaciones', () => {
 
 test.describe('aislamiento de tenants', () => {
   test('una operación de otra empresa no se muestra aunque se conozca su URL', async ({ page }) => {
-    await loginAs(page, ANDINO_EMAIL)
+    await loginAs(page)
     await page.goto('/operaciones/op-0408') // DO de Agroexport Pacífico
     await expect(page.getByText('Operación no encontrada')).toBeVisible()
     await expect(page.getByText('DO-26-0408')).toHaveCount(0)
@@ -86,10 +87,12 @@ test.describe('aislamiento de tenants', () => {
   test('el selector de empresa del entorno local cambia los datos', async ({ page }) => {
     // El selector de simulación se muestra desde xl (1280 px); en pantallas menores es una herramienta de escritorio.
     test.skip((page.viewportSize()?.width ?? 0) < 1280, 'selector de empresa visible desde 1280 px')
-    await loginAs(page, ANDINO_EMAIL)
+    await loginAs(page)
     await page.getByRole('combobox', { name: 'Cambiar empresa (entorno local)' }).selectOption('tn-pacifico')
     await expect(page.getByText('Agroexport Pacífico').first()).toBeVisible()
-    await page.goto('/operaciones/op-0408')
+    // Navegación interna: una recarga restablece la sesión real del servidor (la empresa de QA es solo de la sesión en memoria).
+    await page.locator('#global-search').fill('DO-26-0408')
+    await page.locator('#global-search').press('Enter')
     await expect(page.getByRole('heading', { name: 'DO-26-0408' })).toBeVisible()
   })
 })
@@ -193,7 +196,7 @@ test.describe('calidad de consola y responsive', () => {
       const errors: string[] = []
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
       page.on('pageerror', (e) => errors.push(String(e)))
-      await loginAs(page, ANDINO_EMAIL)
+      await loginAs(page)
       await page.goto(route)
       await page.waitForLoadState('networkidle')
       await expectNoHorizontalOverflow(page)

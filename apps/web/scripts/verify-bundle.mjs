@@ -29,6 +29,11 @@ const FORBIDDEN = [
   'authenticateDemo',
   '/__local-auth',
   'reviewer.config',
+  'passwordHash',
+  'users.json',
+  'reset-tokens',
+  'outbox.json',
+  'local/auth',
   'logixtic.portal.demo-session',
 ]
 

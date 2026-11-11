@@ -57,7 +57,7 @@ export function createMockRepository(options: MockRepositoryOptions = {}): Porta
   let commentsState: EventComment[] = structuredClone(eventComments)
   let quotesState: Quote[] = structuredClone(quotes)
   let documentsState: DocumentRecord[] = structuredClone(documents)
-  const usersState: User[] = [...users, ...(options.extraUsers ?? [])]
+  let usersState: User[] = [...users, ...(options.extraUsers ?? [])]
   let requestsState: Request[] = structuredClone(requests)
 
   const respond = async <T>(value: T): Promise<T> => {
@@ -75,6 +75,12 @@ export function createMockRepository(options: MockRepositoryOptions = {}): Porta
 
     async listUsers(tenantId) {
       return respond(usersState.filter((u) => u.tenantId === tenantId))
+    },
+    async replaceUser(user) {
+      // Inserta o actualiza un usuario de presentación local (cuentas creadas en desarrollo).
+      const exists = usersState.some((u) => u.id === user.id)
+      usersState = exists ? usersState.map((u) => (u.id === user.id ? user : u)) : [...usersState, user]
+      return respond(user)
     },
     async getUser(tenantId, userId) {
       return respond(usersState.find((u) => u.id === userId && u.tenantId === tenantId) ?? null)

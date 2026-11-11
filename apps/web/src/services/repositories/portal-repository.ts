@@ -34,6 +34,8 @@ export interface PortalRepository {
 
   listUsers(tenantId: ID): Promise<User[]>
   getUser(tenantId: ID, userId: ID): Promise<User | null>
+  /** Solo presentación local: inserta o actualiza un usuario (cuentas creadas en desarrollo). */
+  replaceUser?(user: User): Promise<User>
 
   listAddresses(tenantId: ID): Promise<Address[]>
   listContacts(tenantId: ID): Promise<Contact[]>

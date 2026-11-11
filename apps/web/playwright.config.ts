@@ -13,6 +13,8 @@ const BASE_URL = `http://127.0.0.1:${PORT}`
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  // En dev, la primera carga de cada módulo perezoso compila el archivo y el login usa scrypt: damos margen por prueba.
+  timeout: 60_000,
   // En dev, el primer acceso a cada chunk perezoso compila el módulo: damos margen a las aserciones.
   expect: { timeout: 15_000 },
   forbidOnly: Boolean(process.env.CI),

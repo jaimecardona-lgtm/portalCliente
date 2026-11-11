@@ -43,7 +43,7 @@ export interface User {
   tenantId: ID
   fullName: string
   email: string
-  role: 'Administrador' | 'Operativo' | 'Comercial' | 'Consulta'
+  role: 'Administrador' | 'Operativo' | 'Comercial' | 'Consulta' | 'Cliente'
   /** Solo para modo DEMO. Nunca se usa autenticación real. */
   demoPassword: string
 }

@@ -1,0 +1,37 @@
+import type { PortalRepository } from '@/services/repositories/portal-repository'
+import type { Session, User } from '@/types/domain'
+import { writeStoredSession } from './session-storage'
+import { toDomainUser, type AccountProfile } from './account-mapping'
+
+/**
+ * Acceso a la API local de autenticación.
+ * La importación es diferida y está protegida por import.meta.env.DEV: en producción devuelve null
+ * y el módulo no forma parte del bundle.
+ */
+export async function loadLocalAuthApi() {
+  if (!import.meta.env.DEV) return null
+  return import('@/services/local-auth-api')
+}
+
+/** Inserta la cuenta en el repositorio de presentación y devuelve la sesión correspondiente. */
+export async function sessionForAccount(repo: PortalRepository | null, account: AccountProfile): Promise<Session> {
+  const user: User = toDomainUser(account)
+  await repo?.replaceUser?.(user)
+  return { userId: user.id, tenantId: user.tenantId, simulated: false }
+}
+
+/**
+ * Al cargar la aplicación (desarrollo), restablece la sesión desde la cookie validada por el servidor.
+ * Si la cookie no existe o caducó, borra la sesión del navegador: la guarda de rutas redirigirá a login.
+ */
+export async function bootstrapLocalSession(repo: PortalRepository | null): Promise<void> {
+  if (!import.meta.env.DEV || !repo) return
+  const api = await loadLocalAuthApi()
+  if (!api) return
+  const account = await api.getSessionAccount()
+  if (!account) {
+    writeStoredSession(null)
+    return
+  }
+  writeStoredSession(await sessionForAccount(repo, account))
+}

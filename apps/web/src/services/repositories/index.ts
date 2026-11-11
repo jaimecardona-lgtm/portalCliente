@@ -1,5 +1,4 @@
 import { createContext, useContext } from 'react'
-import { fetchLocalReviewerProfile } from '@/services/local-reviewer-api'
 import type { PortalRepository } from './portal-repository'
 
 export type { PortalRepository } from './portal-repository'
@@ -17,9 +16,8 @@ export async function loadLocalRepository(): Promise<PortalRepository> {
   if (!import.meta.env.DEV) {
     throw new Error('El repositorio local solo está disponible en desarrollo.')
   }
-  // El usuario de revisión solo existe si se configuró en localhost (npm run setup:local-user).
-  const [{ createMockRepository }, reviewer] = await Promise.all([import('./mock-repository'), fetchLocalReviewerProfile()])
-  return createMockRepository({ extraUsers: reviewer ? [reviewer] : [] })
+  const { createMockRepository } = await import('./mock-repository')
+  return createMockRepository()
 }
 
 /** Repositorio disponible en la aplicación. Es null cuando no hay fuente de datos (producción sin backend). */

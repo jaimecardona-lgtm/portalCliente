@@ -4,6 +4,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import { RepositoryContext, loadLocalRepository, type PortalRepository } from '@/services/repositories'
 import { SessionProvider } from '@/features/auth/session-context'
 import { firstUserOfTenant } from '@/features/auth/local-auth'
+import { bootstrapLocalSession } from '@/features/auth/auth-gateway'
 import { ToastProvider } from '@/components/ui/toast'
 import { router } from '@/routes/router'
 
@@ -19,19 +20,25 @@ const queryClient = new QueryClient({
 
 /**
  * Raíz de la aplicación.
- * - Presentación local: carga el repositorio sintético antes de montar las rutas.
+ * - Desarrollo: carga el repositorio sintético y restablece la sesión desde la cookie del servidor local
+ *   antes de montar las rutas. Así una recarga conserva la sesión sin depender de datos del navegador.
  * - Producción: no hay fuente de datos local; las rutas bloquean el acceso hasta que exista backend.
  */
 export function App() {
   const [repo, setRepo] = useState<PortalRepository | null>(null)
+  const [ready, setReady] = useState(!import.meta.env.DEV)
   const [bootError, setBootError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
     let cancelled = false
     loadLocalRepository()
-      .then((r) => {
-        if (!cancelled) setRepo(r)
+      .then(async (r) => {
+        await bootstrapLocalSession(r)
+        if (!cancelled) {
+          setRepo(r)
+          setReady(true)
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) setBootError(err instanceof Error ? err.message : 'Error desconocido')
@@ -41,7 +48,7 @@ export function App() {
     }
   }, [])
 
-  if (import.meta.env.DEV && !repo) {
+  if (!ready) {
     return <BootScreen error={bootError} />
   }
 

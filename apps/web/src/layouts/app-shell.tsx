@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { useSession, tenantKey } from '@/features/auth/session-context'
+import { useEndSession } from '@/features/auth/use-end-session'
 import { LogixAssistant } from '@/features/assistant/logix-assistant'
 import { useRepository } from '@/services/repositories'
 import { FEATURES } from '@/config/runtime'
@@ -424,8 +425,7 @@ function ProfileMenu({
   userRole: string
   userEmail: string
 }) {
-  const { signOut } = useSession()
-  const navigate = useNavigate()
+  const endSession = useEndSession()
   const [open, setOpen] = useState(false)
   const initials = userName
     .split(' ')
@@ -462,12 +462,20 @@ function ProfileMenu({
           </div>
           <div className="p-1">
             <Link
+              to="/perfil"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface-muted"
+            >
+              Mi perfil
+            </Link>
+            <Link
               to="/cuenta"
               role="menuitem"
               onClick={() => setOpen(false)}
               className="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface-muted"
             >
-              Información de cuenta
+              Información de la empresa
             </Link>
             <button
               type="button"
@@ -475,8 +483,7 @@ function ProfileMenu({
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger-700 hover:bg-danger-50"
               onClick={() => {
                 setOpen(false)
-                void navigate({ to: '/login', search: { redirect: undefined } })
-                signOut()
+                endSession()
               }}
             >
               <LogOut className="size-4" aria-hidden />

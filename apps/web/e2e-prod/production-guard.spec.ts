@@ -83,3 +83,10 @@ test('el acceso de revisión local no está disponible en producción', async ({
   expect(body).not.toContain('us-reviewer')
   expect(body).not.toContain('"status":"ok"')
 })
+
+test('el alta de cuentas y la recuperación no están disponibles en producción', async ({ page }) => {
+  await page.goto('/registro')
+  await expect(page.getByRole('button', { name: 'Crear mi cuenta' })).toBeDisabled()
+  await page.goto('/recuperar-contrasena')
+  await expect(page.getByRole('button', { name: 'Enviar enlace de recuperación' })).toBeDisabled()
+})

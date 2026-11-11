@@ -2,6 +2,9 @@ import { lazy } from 'react'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/layouts/app-shell'
 import { LoginPage } from '@/features/auth/login-page'
+import { RegisterPage } from '@/features/auth/register-page'
+import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/recovery-pages'
+import { TermsPage, PrivacyPage } from '@/features/legal/legal-pages'
 import { readStoredSession } from '@/features/auth/session-storage'
 import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
@@ -17,6 +20,7 @@ import { NotFoundPage } from './not-found'
 
 const OperationsPage = lazy(() => import('@/features/operations/operations-page').then((m) => ({ default: m.OperationsPage })))
 const OperationDetailPage = lazy(() => import('@/features/operations/operation-detail-page').then((m) => ({ default: m.OperationDetailPage })))
+const ProfilePage = lazy(() => import('@/features/account/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/features/account/account-page').then((m) => ({ default: m.AccountPage })))
 const DocumentsPage = lazy(() => import('@/features/documents/documents-page').then((m) => ({ default: m.DocumentsPage })))
 const QuotesListPage = lazy(() => import('@/features/quotes/quotes-pages').then((m) => ({ default: m.QuotesListPage })))
@@ -39,10 +43,19 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: LoginPage,
-  validateSearch: (raw: Record<string, unknown>) => ({
-    redirect: typeof raw.redirect === 'string' ? raw.redirect : undefined,
-  }),
 })
+
+const registerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/registro', component: RegisterPage })
+const forgotRoute = createRoute({ getParentRoute: () => rootRoute, path: '/recuperar-contrasena', component: ForgotPasswordPage })
+const resetRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/restablecer-contrasena',
+  // El token viaja solo en el enlace temporal; no se guarda en el navegador.
+  validateSearch: (raw: Record<string, unknown>) => ({ token: typeof raw.token === 'string' ? raw.token.slice(0, 200) : undefined }),
+  component: ResetPasswordPage,
+})
+const termsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/terminos', component: TermsPage })
+const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/privacidad', component: PrivacyPage })
 
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -83,6 +96,7 @@ const operationDetailRoute = createRoute({
 })
 
 const accountRoute = createRoute({ getParentRoute: () => appRoute, path: '/cuenta', component: AccountPage })
+const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/perfil', component: ProfilePage })
 const documentsRoute = createRoute({ getParentRoute: () => appRoute, path: '/documentos', component: DocumentsPage })
 const quotesRoute = createRoute({ getParentRoute: () => appRoute, path: '/cotizaciones', component: QuotesListPage })
 
@@ -101,11 +115,17 @@ const marketplaceRoute = createRoute({ getParentRoute: () => appRoute, path: '/m
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  registerRoute,
+  forgotRoute,
+  resetRoute,
+  termsRoute,
+  privacyRoute,
   appRoute.addChildren([
     dashboardRoute,
     operationsRoute,
     operationDetailRoute,
     accountRoute,
+    profileRoute,
     documentsRoute,
     quotesRoute,
     quoteDetailRoute,

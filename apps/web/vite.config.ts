@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
-import { createLocalReviewerMiddleware } from './scripts/lib/local-reviewer-middleware.mjs'
+import { createLocalAuth } from './scripts/lib/local-auth/index.mjs'
 
 /** Proveedores de identidad permitidos en producción (debe coincidir con src/config/runtime.ts). */
 const ALLOWED_PRODUCTION_PROVIDERS = ['oidc']
@@ -33,8 +33,6 @@ function productionAccessGuard(mode: string, env: Record<string, string>): Plugi
   }
 }
 
-/** Configuración local del usuario de revisión (solo desarrollo; ver scripts/setup-local-user.mjs). */
-const REVIEWER_CONFIG = fileURLToPath(new URL('./local/reviewer.config.json', import.meta.url))
 
 /**
  * Registra el acceso de revisión solo en el servidor de desarrollo (vite dev).
@@ -46,7 +44,8 @@ function localReviewerAuth(): Plugin {
     apply: 'serve',
     configureServer(server) {
       if (server.config.mode === 'production') return
-      server.middlewares.use('/__local-auth', createLocalReviewerMiddleware({ configPath: REVIEWER_CONFIG }))
+      const auth = createLocalAuth({ rootDir: fileURLToPath(new URL('.', import.meta.url)) })
+      server.middlewares.use('/__local-auth', auth.middleware)
     },
   }
 }

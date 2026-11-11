@@ -52,6 +52,10 @@ export const SECTION_LABELS: Record<string, string> = {
   cotizaciones: 'Cotizaciones',
   solicitudes: 'Solicitudes',
   cuenta: 'Información de cuenta',
+  perfil: 'Mi perfil',
+  registro: 'Crear cuenta',
+  terminos: 'Términos y condiciones',
+  privacidad: 'Política de privacidad',
   marketplace: 'Marketplace',
   nueva: 'Nueva solicitud',
 }
