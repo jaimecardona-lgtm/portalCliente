@@ -19,6 +19,7 @@ from app.repositories import portal
 from app.schemas.portal import (
     CommentCreate,
     CommentOut,
+    ErrorEnvelope,
     EventOut,
     HealthOut,
     MembershipOut,
@@ -46,6 +47,29 @@ def _limit(request: Request, limit: Annotated[int | None, Query(ge=1, le=100)] =
 LimitDep = Annotated[int, Depends(_limit)]
 OffsetDep = Annotated[int, Query(ge=0, le=100_000)]
 
+# Respuestas de error documentadas en OpenAPI. Todas usan el sobre ErrorEnvelope.
+_ERR = {"model": ErrorEnvelope}
+AUTH_RESPONSES: dict[int | str, dict] = {
+    400: {**_ERR, "description": "Cabecera o parámetro no válido, o falta elegir empresa."},
+    401: {**_ERR, "description": "Falta el token, no es válido o ha caducado."},
+    403: {**_ERR, "description": "Sin membresía, empresa o perfil inactivo, o rol sin permiso."},
+    422: {**_ERR, "description": "Datos de entrada no válidos (solo ubicación y tipo del error)."},
+    503: {**_ERR, "description": "Autenticación no configurada en este entorno."},
+}
+
+
+def _responses(*extra: int) -> dict[int | str, dict]:
+    """Respuestas de autenticación más las de negocio indicadas (404 por recurso no visible)."""
+    out = dict(AUTH_RESPONSES)
+    for status in extra:
+        out[status] = {**_ERR, "description": NOT_FOUND_TEXT[status]}
+    return out
+
+
+NOT_FOUND_TEXT = {
+    404: "El recurso no existe o pertenece a otra empresa (ambos casos responden igual).",
+}
+
 
 @router.get("/health", response_model=HealthOut, tags=["sistema"])
 def health(request: Request) -> HealthOut:
@@ -53,7 +77,7 @@ def health(request: Request) -> HealthOut:
     return HealthOut(status="ok", version=settings.app_version)
 
 
-@api.get("/me", response_model=MeOut, tags=["sesión"])
+@api.get("/me", response_model=MeOut, tags=["sesión"], responses=_responses())
 def me(ctx: ContextDep) -> MeOut:
     return MeOut(
         user_id=ctx.user_id,
@@ -65,12 +89,12 @@ def me(ctx: ContextDep) -> MeOut:
     )
 
 
-@api.get("/tenants/current", response_model=TenantOut, tags=["empresa"])
+@api.get("/tenants/current", response_model=TenantOut, tags=["empresa"], responses=_responses())
 def current_tenant(ctx: ContextDep) -> TenantOut:
     return TenantOut(id=ctx.tenant_id, slug=ctx.tenant_slug, legal_name=ctx.tenant_legal_name)
 
 
-@api.get("/operations", response_model=list[OperationOut], tags=["operaciones"])
+@api.get("/operations", response_model=list[OperationOut], tags=["operaciones"], responses=_responses())
 def list_operations(
     ctx: ContextDep,
     session: DbDep,
@@ -81,7 +105,12 @@ def list_operations(
     return [OperationOut.model_validate(row) for row in rows]
 
 
-@api.get("/operations/{operation_id}", response_model=OperationOut, tags=["operaciones"])
+@api.get(
+    "/operations/{operation_id}",
+    response_model=OperationOut,
+    tags=["operaciones"],
+    responses=_responses(404),
+)
 def get_operation(operation_id: UUID, ctx: ContextDep, session: DbDep) -> OperationOut:
     row = portal.get_operation(session, ctx.tenant_id, operation_id)
     if row is None:
@@ -89,7 +118,12 @@ def get_operation(operation_id: UUID, ctx: ContextDep, session: DbDep) -> Operat
     return OperationOut.model_validate(row)
 
 
-@api.get("/operations/{operation_id}/events", response_model=list[EventOut], tags=["operaciones"])
+@api.get(
+    "/operations/{operation_id}/events",
+    response_model=list[EventOut],
+    tags=["operaciones"],
+    responses=_responses(404),
+)
 def list_events(operation_id: UUID, ctx: ContextDep, session: DbDep) -> list[EventOut]:
     if portal.get_operation(session, ctx.tenant_id, operation_id) is None:
         raise NotFound("La operación no existe.", code="operation_not_found")
@@ -101,6 +135,7 @@ def list_events(operation_id: UUID, ctx: ContextDep, session: DbDep) -> list[Eve
     "/operations/{operation_id}/events/{event_id}/comments",
     response_model=list[CommentOut],
     tags=["comentarios"],
+    responses=_responses(404),
 )
 def list_comments(operation_id: UUID, event_id: UUID, ctx: ContextDep, session: DbDep) -> list[CommentOut]:
     rows = comment_service.list_visible_comments(session, ctx, operation_id, event_id)
@@ -112,6 +147,7 @@ def list_comments(operation_id: UUID, event_id: UUID, ctx: ContextDep, session: 
     response_model=CommentOut,
     status_code=201,
     tags=["comentarios"],
+    responses=_responses(404),
 )
 def create_comment(
     operation_id: UUID,

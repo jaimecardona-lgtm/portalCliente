@@ -85,3 +85,18 @@ class CommentCreate(BaseModel):
 class Page(BaseModel):
     limit: int = Field(ge=1, le=100)
     offset: int = Field(ge=0)
+
+
+class ErrorBody(BaseModel):
+    """Cuerpo de error. Nunca incluye valores enviados por el cliente ni detalles internos."""
+
+    code: str
+    message: str
+    request_id: str
+    fields: list[dict[str, str]] | None = None
+
+
+class ErrorEnvelope(BaseModel):
+    """Formato único de error de la API (ver app/core/errors.py)."""
+
+    error: ErrorBody
