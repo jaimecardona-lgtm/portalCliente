@@ -9,3 +9,13 @@ playwright-report/
 blob-report/
 apps/web/local/
 apps/web/local/auth/
+
+# Backend FastAPI (fase 07): entorno local y artefactos de Python
+apps/api/.venv/
+apps/api/.env
+apps/api/.env.*
+!apps/api/.env.example
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
