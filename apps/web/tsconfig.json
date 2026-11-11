@@ -12,6 +12,7 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
     "isolatedModules": true,
+    "allowJs": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,

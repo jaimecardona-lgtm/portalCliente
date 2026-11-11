@@ -11,6 +11,7 @@ import { LOCAL_ACCESS_ENABLED } from '@/config/runtime'
 import { useOptionalRepository } from '@/services/repositories'
 import { useSession } from './session-context'
 import { authenticateDemo } from './local-auth'
+import { loginLocalReviewer } from '@/services/local-reviewer-api'
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, 'Ingresa tu correo corporativo.').email('Ingresa un correo válido.'),
@@ -47,6 +48,25 @@ export function LoginPage() {
       setFormError(ACCESS_UNAVAILABLE_MESSAGE)
       return
     }
+    // Solo en desarrollo: el usuario de revisión se verifica en el servidor de desarrollo (localhost).
+    if (import.meta.env.DEV) {
+      const reviewer = await loginLocalReviewer(values.email, values.password)
+      if (reviewer.status === 'ok') {
+        signIn({ userId: reviewer.user.id, tenantId: reviewer.user.tenantId, simulated: false })
+        toast({ title: `Bienvenido, ${reviewer.user.fullName.split(' ')[0]}` })
+        void navigate({ to: search.redirect && search.redirect.startsWith('/') ? search.redirect : '/' })
+        return
+      }
+      if (reviewer.status === 'invalid') {
+        setFormError('Correo o contraseña no válidos.')
+        return
+      }
+      if (reviewer.status === 'locked') {
+        setFormError('Demasiados intentos. Espera un minuto antes de volver a intentarlo.')
+        return
+      }
+    }
+
     const result = await authenticateDemo(repo, values.email, values.password)
     if (!result.ok) {
       setFormError('Correo o contraseña no válidos.')

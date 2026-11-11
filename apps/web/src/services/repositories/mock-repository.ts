@@ -11,13 +11,15 @@ import {
   tenants,
   users,
 } from '@/data/fixtures/demo-data'
-import type { DocumentRecord, DocumentStatus, EventComment, ID, Quote, Request } from '@/types/domain'
+import type { DocumentRecord, DocumentStatus, EventComment, ID, Quote, Request, User } from '@/types/domain'
 import { referenceNow } from '@/lib/clock'
 import type { NewEventCommentInput, NewRequestInput, PortalRepository } from './portal-repository'
 
 export interface MockRepositoryOptions {
   /** Latencia simulada para mostrar estados de carga. 0 en pruebas. */
   latencyMs?: number
+  /** Usuarios adicionales de presentación local (p. ej. el usuario de revisión configurado en localhost). */
+  extraUsers?: User[]
   /** Fecha de referencia para derivar estados documentales. */
   now?: Date
 }
@@ -55,6 +57,7 @@ export function createMockRepository(options: MockRepositoryOptions = {}): Porta
   let commentsState: EventComment[] = structuredClone(eventComments)
   let quotesState: Quote[] = structuredClone(quotes)
   let documentsState: DocumentRecord[] = structuredClone(documents)
+  const usersState: User[] = [...users, ...(options.extraUsers ?? [])]
   let requestsState: Request[] = structuredClone(requests)
 
   const respond = async <T>(value: T): Promise<T> => {
@@ -71,10 +74,10 @@ export function createMockRepository(options: MockRepositoryOptions = {}): Porta
     },
 
     async listUsers(tenantId) {
-      return respond(users.filter((u) => u.tenantId === tenantId))
+      return respond(usersState.filter((u) => u.tenantId === tenantId))
     },
     async getUser(tenantId, userId) {
-      return respond(users.find((u) => u.id === userId && u.tenantId === tenantId) ?? null)
+      return respond(usersState.find((u) => u.id === userId && u.tenantId === tenantId) ?? null)
     },
 
     async listAddresses(tenantId) {

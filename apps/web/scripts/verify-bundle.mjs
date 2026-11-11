@@ -27,6 +27,8 @@ const FORBIDDEN = [
   'Sesión DEMO',
   'Cerrar sesión DEMO',
   'authenticateDemo',
+  '/__local-auth',
+  'reviewer.config',
   'logixtic.portal.demo-session',
 ]
 

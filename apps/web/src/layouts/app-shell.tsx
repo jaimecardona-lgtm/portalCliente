@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
-import { Link, Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
   Bell,
@@ -64,9 +64,8 @@ export function AppShell() {
   useEffect(() => writeCollapsed(collapsed), [collapsed])
   useEffect(() => setDrawerOpen(false), [location.pathname])
 
-  if (!session) {
-    return <Navigate to="/login" search={{ redirect: location.pathname }} />
-  }
+  // La guarda de acceso vive en beforeLoad (router.tsx). Si no hay sesión, no se monta contenido.
+  if (!session) return null
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
@@ -102,6 +101,7 @@ export function AppShell() {
           companyName={tenant?.shortName ?? (isResolving ? 'Cargando…' : '—')}
           userName={user?.fullName ?? (isResolving ? 'Cargando…' : '—')}
           userRole={user?.role ?? ''}
+          userEmail={user?.email ?? ''}
         />
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
           <div className="mx-auto w-full max-w-[1400px]">
@@ -215,11 +215,13 @@ function Topbar({
   companyName,
   userName,
   userRole,
+  userEmail,
 }: {
   onOpenMenu: () => void
   companyName: string
   userName: string
   userRole: string
+  userEmail: string
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur-md">
@@ -245,7 +247,7 @@ function Topbar({
             </Suspense>
           )}
           <AlertsBadge />
-          <ProfileMenu companyName={companyName} userName={userName} userRole={userRole} />
+          <ProfileMenu companyName={companyName} userName={userName} userRole={userRole} userEmail={userEmail} />
         </div>
       </div>
     </header>
@@ -415,10 +417,12 @@ function ProfileMenu({
   companyName,
   userName,
   userRole,
+  userEmail,
 }: {
   companyName: string
   userName: string
   userRole: string
+  userEmail: string
 }) {
   const { signOut } = useSession()
   const navigate = useNavigate()
@@ -453,6 +457,7 @@ function ProfileMenu({
         <div role="menu" className="absolute right-0 z-40 mt-2 w-64 animate-slide-up overflow-hidden rounded-xl border border-line bg-surface shadow-pop">
           <div className="border-b border-line p-3">
             <p className="text-sm font-semibold text-ink">{userName}</p>
+            <p className="truncate text-xs text-ink-muted">{userEmail}</p>
             <p className="text-xs text-ink-muted">{userRole} · {companyName}</p>
           </div>
           <div className="p-1">
@@ -469,9 +474,9 @@ function ProfileMenu({
               role="menuitem"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger-700 hover:bg-danger-50"
               onClick={() => {
-                signOut()
                 setOpen(false)
                 void navigate({ to: '/login', search: { redirect: undefined } })
+                signOut()
               }}
             >
               <LogOut className="size-4" aria-hidden />

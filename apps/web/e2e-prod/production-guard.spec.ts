@@ -76,3 +76,10 @@ test('el login se adapta sin desbordamiento horizontal', async ({ page }) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(1)
 })
+
+test('el acceso de revisión local no está disponible en producción', async ({ request }) => {
+  const response = await request.get('/__local-auth/reviewer')
+  const body = await response.text()
+  expect(body).not.toContain('us-reviewer')
+  expect(body).not.toContain('"status":"ok"')
+})
