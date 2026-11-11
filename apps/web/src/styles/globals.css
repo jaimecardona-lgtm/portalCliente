@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/*
+ * DESIGN TOKENS — Logixtic Client Portal
+ * Todos los colores de la aplicación salen de estas variables.
+ * No introducir colores hexadecimales sueltos en componentes.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Marca */
+  --color-midnight: #091629;
+  --color-navy: #12233d;
+  --color-navy-700: #1b3257;
+  --color-navy-500: #2c4a78;
+  --color-blue: #2563eb;
+  --color-blue-600: #1d4fd6;
+  --color-blue-50: #eaf1ff;
+  --color-cyan: #22c7f2;
+  --color-cyan-50: #e6f9fe;
+
+  /* Superficies y texto */
+  --color-canvas: #f5f8fc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0f4fa;
+  --color-line: #e1e8f2;
+  --color-line-strong: #c9d5e5;
+  --color-ink: #11223a;
+  --color-ink-soft: #4a5b74;
+  --color-ink-muted: #7a8aa3;
+
+  /* Semántica */
+  --color-success: #10b981;
+  --color-success-50: #e8faf3;
+  --color-success-700: #0a7d58;
+  --color-warning: #f59e0b;
+  --color-warning-50: #fff6e5;
+  --color-warning-700: #9a5d00;
+  --color-danger: #ef4444;
+  --color-danger-50: #fdeeee;
+  --color-danger-700: #b42323;
+  --color-info-50: #eef2ff;
+  --color-info-700: #3730a3;
+
+  /* Radios y sombras */
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(9 22 41 / 0.04), 0 4px 16px -6px rgb(9 22 41 / 0.08);
+  --shadow-pop: 0 12px 40px -12px rgb(9 22 41 / 0.28);
+
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-cyan-50);
+  }
+}
+
+@layer components {
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-surface-muted) 25%, #e7edf6 37%, var(--color-surface-muted) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 8px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Respeto a movimiento reducido: sin animaciones ni transiciones decorativas. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
