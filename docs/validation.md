@@ -1,56 +1,68 @@
 # Validación ejecutada
 
-Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos.
+Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos desde `apps/web`.
 
-## Fase 02 — auditoría UX/UI y refinamiento
+## Fase 03 — interfaz corporativa y preparación de entrega
 
-| Comando (desde `apps/web`) | Resultado |
+| Comando | Resultado |
 |---|---|
 | `npm run typecheck` | Sin errores |
-| `npm test` | 6 archivos, **51 pruebas aprobadas** |
-| `npm run build` | Correcto. Chunk principal 540 kB (167 kB gzip); cada módulo pesado en chunk propio |
-| `PW_CHANNEL=chrome npm run test:e2e` | **53 aprobadas, 1 omitida** (selector de simulación en móvil, visible desde 1280 px) |
+| `npm test` | 8 archivos, **61 pruebas aprobadas** (configuración de acceso, funciones por entorno, control de texto visible) |
+| `npm run build` sin configuración | **Falla de forma intencional** con mensaje claro (`falta VITE_AUTH_PROVIDER`) |
+| `npm run build:verify` | Correcto. Bundle verificado: 18 archivos, sin datos sintéticos ni autenticación local. Chunk principal 481 kB (151 kB gzip) |
+| `PW_CHANNEL=chrome npm run test:e2e` | **55 aprobadas, 1 omitida** (selector de empresa visible desde 1280 px) |
+| `PW_CHANNEL=chrome npm run test:e2e:prod` | **14 aprobadas** sobre el build de producción |
 
-### Pruebas E2E (`apps/web/e2e/`)
+### Qué verifican las E2E de producción
 
-Se ejecutan en dos proyectos: escritorio 1440×900 y móvil 390×844. Usan solo datos DEMO sintéticos. El servidor de desarrollo se levanta automáticamente.
+- Sin sesión, todas las rutas protegidas redirigen a login.
+- El login no muestra cuentas, contraseñas ni textos de demostración.
+- Las credenciales sintéticas no crean sesión: el formulario queda deshabilitado.
+- El lanzador de Logix no aparece activo fuera de la sesión.
+- Sin errores de consola en el login y sin desbordamiento horizontal.
 
-Cubren:
-- Acceso: contraseña incorrecta, acceso correcto, redirección a login sin sesión (guarda de ruta), validación de campos vacíos.
-- Torre de control: indicadores y ausencia de scroll horizontal; el enlace "Saltar al contenido" recibe foco con Tab.
-- Operaciones: filtro por estado que se refleja en la URL y se conserva tras recargar; búsqueda por DO.
-- Aislamiento: DO de otra empresa por URL → "no encontrada"; el selector SIMULACIÓN cambia de empresa (escritorio).
-- Conversaciones: responder a un comentario crea un mensaje con `data-parent-id` del comentario padre dentro del mismo evento; validación de mensajes cortos.
+### Qué verifican las E2E de presentación (desarrollo)
+
+- Login, redirección sin sesión y validación de campos.
+- Torre de control, filtros que se reflejan en la URL, búsqueda por DO.
+- Aislamiento: un DO de otra empresa por URL muestra "no encontrada"; el selector de empresa de QA cambia los datos.
+- Hilos de comentarios: responder crea un mensaje con `parentCommentId` del comentario padre dentro del mismo evento.
 - Cotizaciones: vencida sin decisión; pendiente vigente con confirmación.
-- Formularios: validación de nueva solicitud antes de enviar.
-- Diálogos: se cierra con Escape y devuelve el foco al botón que lo abrió.
-- Logix: respuesta sobre operaciones activas; Escape cierra el panel.
-- Responsive: diez rutas autenticadas sin desbordamiento horizontal.
+- Formularios, diálogo con Escape y devolución de foco, panel Logix.
+- Diez rutas autenticadas sin desbordamiento horizontal ni errores de consola.
 
-### Defectos encontrados y corregidos
+### Defectos encontrados y corregidos en esta fase
 
-1. **Redirección sin sesión colgaba la aplicación.** Al abrir una ruta protegida sin sesión, el router no montaba nada (DOM de 15 elementos, también en producción). Se corrigió con una guarda `beforeLoad` en el layout autenticado; ver `docs/architecture.md`.
-2. **Desbordamiento horizontal en operaciones** por un `sr-only` absoluto en la última celda de la tabla. Se corrigió con `relative` en la celda.
-3. **Tabla de operaciones recortada** con nueve columnas visibles en 1440 px. Origen y destino se unieron en una columna "Ruta"; tipo queda fuera por defecto.
-4. **Fechas de solo día** desplazadas un día (corregido en fase 01, cubierto por pruebas).
-5. **Pruebas E2E frágiles** por esperas insuficientes en el primer acceso a chunks perezosos; ahora esperan el estado real de la página y el timeout de `expect` es de 15 s.
+1. **El bundle de producción incluía fixtures.** La bandera de entorno llegaba a través de constantes y funciones, y el compilador no podía eliminar la rama. Corrección: `import.meta.env.DEV` en los puntos de cruce, y el selector de empresa en su propio módulo con carga diferida. Lo detectó `verify:bundle`.
+2. **La prueba de texto visible fallaba al cargar**: usaba `import.meta.url`, que en jsdom no es una URL de archivo. Corregido con la carpeta de trabajo de Vitest.
+3. **Nombres sintéticos con la palabra "Demo"** visibles en el dashboard y en la cuenta. Renombrados a nombres ficticios sin esa marca.
+4. **Expectativa incorrecta en la prueba de producción**: el lanzador de Logix solo existe dentro de la shell autenticada.
+5. **Build de producción sin configuración**: antes compilaba y servía datos locales. Ahora falla con un mensaje explícito.
 
 ### Capturas
 
-Línea base y después, en escritorio y móvil, para dashboard, operaciones, detalle, documentos, cotizaciones, solicitudes, login y panel Logix:
+- Login, dashboard, detalle DO, operaciones, documentos, cotizaciones, solicitudes y panel Logix, en escritorio (1440 × 900) y móvil (390 × 844).
+- Antes (fase 02): `scratchpad/shots/before/`. Después (fase 03): `scratchpad/shots/final/`.
+- Las capturas de fase 03 provienen del entorno de desarrollo y muestran el selector de empresa de QA. La producción no puede capturarse sin backend.
 
-- Antes: `scratchpad/shots/before/`
-- Después: `scratchpad/shots/after/`
+## Fase 02 — auditoría UX/UI y refinamiento
 
-(Ruta relativa a la carpeta de sesión; no se versionan binarios en el repositorio.)
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | Sin errores |
+| `npm test` | 6 archivos, 51 pruebas aprobadas |
+| `npm run build` | Correcto (entonces sin verificación de configuración). Chunk principal 540 kB |
+| `PW_CHANNEL=chrome npm run test:e2e` | 53 aprobadas, 1 omitida |
+
+Defectos corregidos: redirección sin sesión que dejaba la aplicación en blanco (causa: `<Navigate>` dentro del layout autenticado; corregido con guarda `beforeLoad`), desbordamiento horizontal por un `sr-only` absoluto en una celda de tabla, tabla recortada con nueve columnas, fechas de solo día desplazadas un día, pruebas frágiles por esperas insuficientes.
 
 ## Fase 01 — resumen
 
-51 pruebas unitarias, typecheck y build aprobados en la entrega inicial. Detalle en el historial de commits.
+51 pruebas unitarias, typecheck y build aprobados en la entrega inicial.
 
 ## Limitaciones de la validación
 
-- No hay auditoría automatizada de accesibilidad (axe). Roles, etiquetas, foco y `aria-*` se revisaron por código y con las pruebas E2E anteriores.
+- No hay auditoría automatizada de accesibilidad (axe). Roles, etiquetas, foco y `aria-*` se revisaron por código y con las pruebas E2E.
 - Solo Chromium. No se probó Firefox ni Safari.
-- Las capturas "después" se tomaron con el servidor de desarrollo; el build de producción se verificó con `vite preview` para la guarda de ruta.
-- El chunk principal sigue por encima de 500 kB; el aviso de Vite permanece.
+- El chunk principal sigue por encima de 500 kB sin gzip; el aviso de Vite permanece.
+- Las pruebas de producción verifican el bloqueo de acceso, no un flujo de autenticación real: aún no existe.

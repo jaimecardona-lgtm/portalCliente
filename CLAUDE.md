@@ -29,6 +29,14 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 - `src/layouts/` — shell autenticada (sidebar, topbar, drawer móvil).
 - `src/routes/router.tsx` — rutas TanStack Router (code-based, sin generación de árbol).
 
+## Entornos y acceso (fase 03)
+
+- `src/config/runtime.ts` decide el modo: `local` (solo `vite dev`) o `blocked` (producción). Producción nunca concede acceso sin proveedor real implementado.
+- En código de interfaz, la rama de desarrollo se escribe con `import.meta.env.DEV` literal. Así el compilador elimina fixtures, repositorio local, selector de empresa y motor de Logix del bundle.
+- Las funciones incompletas se controlan con `FEATURES`. En producción todas están desactivadas.
+- No escribir en la interfaz términos de prototipo o demostración: `src/test/visible-copy.test.ts` lo verifica.
+- Credenciales de presentación: solo en `docs/ENTREGA_TECNICA_ENRIQUE.md`. No mostrarlas en pantalla.
+
 ## Reglas de dominio (no negociables)
 
 1. **Todo acceso a datos recibe `tenantId`** y el repositorio filtra por él. Un ID de otra empresa devuelve `null` / lista vacía.

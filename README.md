@@ -2,7 +2,7 @@
 
 Portal B2B para clientes de Logixtic: torre de control, operaciones (DO), timeline con conversaciones por evento, documentos, cotizaciones, solicitudes y asistente **Logix**.
 
-> **Estado:** Fase 01 — frontend ejecutable en modo **DEMO** con datos sintéticos. No hay backend, autenticación real ni conexión a sistemas productivos.
+> **Estado:** interfaz corporativa con datos sintéticos en desarrollo. Sin backend, autenticación real ni conexión a sistemas productivos.
 
 ## Estructura
 
@@ -30,21 +30,19 @@ npm run dev         # http://127.0.0.1:5173
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest (modo de ejecución única)
 npm run test:e2e    # Playwright, escritorio y móvil (con Chrome instalado: PW_CHANNEL=chrome)
-npm run build       # typecheck + build de producción
+npm run build       # build de producción (requiere VITE_AUTH_PROVIDER y VITE_API_BASE_URL)
+npm run build:verify  # build con configuración de verificación + inspección del bundle
 npm run preview     # sirve el build generado
 ```
 
-## Acceso DEMO
+## Entornos
 
-En `/login` aparecen dos cuentas sintéticas, una por empresa. La contraseña DEMO (`Demo-2026`) está visible a propósito: **no es un secreto**. Es solo un guardia de demostración y no implementa seguridad real.
-
-- `ana.torres@andino.demo.test` → Textiles Andinos Demo S.A.S.
-- `carla.nino@pacifico.demo.test` → Agroexport Pacífico Demo Ltda.
-
-El selector **SIMULACIÓN** de la barra superior permite cambiar de empresa solo en modo DEMO.
+- **Desarrollo (`npm run dev`)**: presentación local con datos sintéticos. Las credenciales de prueba están documentadas solo para el equipo técnico en `docs/ENTREGA_TECNICA_ENRIQUE.md`.
+- **Producción (`npm run build`)**: exige un proveedor de identidad y una API configurados. Sin ellos el build falla, y aun configurado el acceso permanece bloqueado hasta implementar el backend.
 
 ## Documentación
 
+- [Entrega técnica para revisión (Enrique)](docs/ENTREGA_TECNICA_ENRIQUE.md)
 - [Arquitectura y decisiones](docs/architecture.md)
 - [Validación ejecutada](docs/validation.md)
 - [Integración con FastAPI](docs/fastapi-integration.md)

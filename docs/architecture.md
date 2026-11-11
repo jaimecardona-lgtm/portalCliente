@@ -65,6 +65,13 @@ El layout autenticado (`AppShell`) redirige a `/login` si no hay sesión.
 - Si la pregunta menciona un DO que no pertenece a la empresa, responde que no está disponible.
 - `logix-assistant.tsx` toma como contexto la operación abierta cuando la ruta es `/operaciones/:id`.
 
+## Entornos y acceso
+
+- `src/config/runtime.ts` define dos modos: `local` (solo `vite dev`, datos sintéticos) y `blocked` (producción). Producción exige `VITE_AUTH_PROVIDER` y `VITE_API_BASE_URL`. Sin ellos el build falla (`vite.config.ts`, plugin `logixtic-production-access-guard`). Aun configurados, el acceso permanece bloqueado porque el proveedor aún no está implementado.
+- `FEATURES` activa las funciones por entorno. En producción todas quedan desactivadas.
+- En código de interfaz, la rama de desarrollo usa `import.meta.env.DEV` literal. El compilador elimina de producción el repositorio local (`mock-repository`, fixtures), el selector de empresa de QA (`layouts/local-tenant-switcher.tsx`) y el motor de Logix.
+- `scripts/verify-bundle.mjs` inspecciona `dist/` y falla si encuentra cadenas de fixtures o de acceso local. Se ejecuta con `npm run build:verify`.
+
 ## Carga y rendimiento
 
 - Login, torre de control y la shell se cargan en el bundle inicial. El resto de pantallas se cargan con `lazy()` por ruta, con un `Suspense` en el layout.
