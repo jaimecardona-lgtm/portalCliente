@@ -184,6 +184,18 @@ Para ejecutar E2E con Chrome instalado en el equipo, anteponer `PW_CHANNEL=chrom
 | `VITE_AUTH_PROVIDER` | `oidc` (único valor permitido hoy) | Sí |
 | `VITE_API_BASE_URL` | URL https de la API FastAPI | Sí |
 
+### Usuario local de revisión (fase 04)
+
+Acceso de revisión para una persona concreta, solo en `vite dev` y solo desde localhost:
+
+- Se configura con `npm run setup:local-user`. La contraseña se pide sin mostrarla y se guarda como hash scrypt con sal en `apps/web/local/reviewer.config.json` (ignorado por Git).
+- La verificación ocurre en el servidor de desarrollo mediante un middleware que no existe en el build (`configureServer` solo se ejecuta con `vite dev`). Las peticiones de otro origen se rechazan. Tras 5 intentos fallidos, el acceso se bloquea 60 segundos.
+- El usuario queda asignado a una empresa sintética (Textiles Andinos) con rol operativo. No tiene permisos administrativos.
+- **No es un mecanismo de autenticación seguro.** No debe usarse con clientes reales ni desplegarse.
+- La contraseña nunca se escribe en código, fixtures, variables `VITE_*`, documentación ni Git.
+
+Preparación para Supabase (Auth, `profiles`, `tenants`, `tenant_memberships`, Storage) en `docs/supabase-preparation.md`. No hay conexión ni migraciones.
+
 ### Credenciales de presentación local (**solo equipo técnico**)
 
 Válidas únicamente en `vite dev`. No existen en el build de producción. Son datos sintéticos.

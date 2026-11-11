@@ -35,6 +35,25 @@ npm run build:verify  # build con configuración de verificación + inspección 
 npm run preview     # sirve el build generado
 ```
 
+## Usuario local de revisión (solo localhost)
+
+Acceso para revisar el portal en `npm run dev`. No es un mecanismo de autenticación para clientes reales, y nunca forma parte del build de producción.
+
+1. Configura tu usuario y elige una contraseña temporal (mínimo 12 caracteres). La contraseña no se muestra ni se guarda en claro:
+
+   ```bash
+   cd apps/web
+   npm run setup:local-user
+   ```
+
+2. Inicia el portal y entra con tu correo y la contraseña que elegiste:
+
+   ```bash
+   npm run dev   # http://127.0.0.1:5173/login
+   ```
+
+La configuración queda en `apps/web/local/reviewer.config.json` (ignorada por Git). Para cambiar la contraseña: `npm run setup:local-user -- --force`.
+
 ## Entornos
 
 - **Desarrollo (`npm run dev`)**: presentación local con datos sintéticos. Las credenciales de prueba están documentadas solo para el equipo técnico en `docs/ENTREGA_TECNICA_ENRIQUE.md`.
@@ -43,6 +62,7 @@ npm run preview     # sirve el build generado
 ## Documentación
 
 - [Entrega técnica para revisión (Enrique)](docs/ENTREGA_TECNICA_ENRIQUE.md)
+- [Preparación para Supabase](docs/supabase-preparation.md)
 - [Arquitectura y decisiones](docs/architecture.md)
 - [Validación ejecutada](docs/validation.md)
 - [Integración con FastAPI](docs/fastapi-integration.md)

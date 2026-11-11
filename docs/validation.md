@@ -2,6 +2,37 @@
 
 Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos desde `apps/web`.
 
+## Fase 04 — usuario local de revisión
+
+| Comando | Resultado |
+|---|---|
+| `npm run setup:local-user` (entrada por tubería en la verificación) | Correcto. Valores por defecto aplicados; correo conservado tal cual; contraseña corta rechazada; la contraseña en claro no aparece en el archivo |
+| `npm run typecheck` | Sin errores |
+| `npm test` | 9 archivos, **72 pruebas aprobadas** (hash, reglas de contraseña, configuración, middleware: origen, bloqueo tras 5 intentos, perfil sin credencial) |
+| `npm run build:verify` | Correcto. Bundle verificado sin `__local-auth` ni `reviewer.config` |
+| `PW_CHANNEL=chrome npm run test:e2e` | 55 aprobadas. Las 17 de revisión se omiten sin `REVIEWER_E2E_PASSWORD` |
+| `REVIEWER_E2E_PASSWORD=… npm run test:e2e -- reviewer` | **16 aprobadas** (8 escenarios en escritorio y móvil) |
+| `PW_CHANNEL=chrome npm run test:e2e:prod` | **16 aprobadas**, incluido el endpoint de revisión inexistente en producción |
+
+### Escenarios de revisión verificados
+
+1. Configuración del usuario y contraseña elegida por el usuario (`setup:local-user`).
+2. Inicio de sesión con las credenciales configuradas.
+3. Rechazo de contraseña incorrecta.
+4. Perfil visible: nombre, correo, empresa asignada (Textiles Andinos).
+5. Dashboard, operaciones, detalle DO, documentos, cotizaciones y solicitudes.
+6. Publicación de un comentario en un evento local.
+7. Aislamiento: operación y cotización de otra empresa por URL no disponibles.
+8. Solicitud local creada y visible en el historial.
+9. Asistente Logix responde con datos de la empresa asignada.
+10. Cierre de sesión y bloqueo de rutas protegidas.
+
+### Defectos encontrados y corregidos
+
+1. **El cierre de sesión dejaba la aplicación colgada** (el navegador se caía). Causa: una redirección (`<Navigate>`) renderizada dentro de la shell autenticada mientras la sesión se borraba. Corrección: la shell no renderiza redirecciones, y "Cerrar sesión" navega al login antes de borrar la sesión. Lo detectó la prueba E2E de cierre de sesión.
+2. **Redirección con `redirect=` residual** tras cerrar sesión. Corrección: se eliminó el efecto de redirección de la shell; la guarda de acceso queda en `beforeLoad`.
+3. **Pruebas de revisión**: selector ambiguo en móvil y una interacción con el menú que requería esperar la animación de apertura.
+
 ## Fase 03 — interfaz corporativa y preparación de entrega
 
 | Comando | Resultado |
