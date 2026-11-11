@@ -1,6 +1,41 @@
 # Validación ejecutada
 
 Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos desde `apps/web`.
+## Fase 06 — handoff, documentación de código y checkpoint v0.1.0-alpha.1
+
+| Comando | Resultado |
+|---|---|
+| `npm run typecheck` | Sin errores |
+| `npm test` | 10 archivos, **88 pruebas aprobadas** |
+| `npm run build:verify` | Correcto. 21 archivos sin cadenas de acceso local |
+| `PW_CHANNEL=chrome npm run test:e2e` | **87 aprobadas, 1 omitida** (selector de empresa en móvil) |
+| `PW_CHANNEL=chrome npm run test:e2e:prod` | **18 aprobadas** |
+
+### Inspección del repositorio (Git y seguridad)
+
+- Rama `feat/client-portal-v1`, árbol limpio al empezar. Historial de fases 01 a 05 sin reescribir.
+- No hay archivos de `apps/web/local/`, `.env`, `node_modules`, `dist`, capturas ni resultados de Playwright en el índice (`git ls-files`).
+- `apps/web/local/auth/users.json` está ignorado (`git check-ignore`).
+- No hay nombres ni correos personales en el historial (búsqueda en todas las ramas).
+- Contraseñas de prueba: aparecen en pruebas E2E, pruebas unitarias y en los fixtures sintéticos. Son cadenas de prueba para cuentas sintéticas (dominio `.example`) y **no son credenciales reales**. Se documentan así en `CONTRIBUTING.md`.
+- El remoto `origin` apunta a un repositorio que el responsable indica como **público**: no se ha hecho ningún push.
+
+### Defectos y ajustes de esta fase
+
+1. Copy de la pantalla de enlace caducado: "(duran 15 minutos)" se corrigió a "(caducan a los 15 minutos)".
+2. Documentación de código: se añadieron cabeceras de módulo (responsabilidad, dependencias, contrato, errores, seguridad y decisiones no evidentes) a 27 archivos de `auth`, `operations`, `account`, `documents`, `quotes`, `requests`, `services`, `routes` y `scripts/lib/local-auth`, y bloques de función en los puntos clave. No se modificó código ejecutable: `typecheck`, pruebas y build pasan sin cambios de comportamiento.
+3. Documentación obsoleta: `architecture.md` describía el inicio de sesión DEMO y el selector "SIMULACIÓN" como si fueran el estado actual. Se reescribió con el estado real.
+
+### Observación de estabilidad
+
+- Una primera ejecución de E2E de desarrollo, justo después de editar muchos archivos, tuvo dos pruebas de sesión con tiempo agotado (1 min). La misma suite, con el servidor caliente, pasó completa. El servidor de cuentas responde en unos 120 ms por registro o login válido. El problema es la compilación en frío del servidor de desarrollo, no la autenticación.
+
+### Limitaciones
+
+- Ninguna prueba cubre un proveedor de identidad real ni un backend: no existen todavía.
+- Sin auditoría automatizada de accesibilidad. Solo Chromium.
+- El almacén de desarrollo contiene cuentas acumuladas por las pruebas (dominio `pruebas.example`). No se han borrado; el procedimiento está en `docs/autenticacion-local.md`.
+
 ## Fase 05 — autenticación web con JSON local
 
 | Comando | Resultado |

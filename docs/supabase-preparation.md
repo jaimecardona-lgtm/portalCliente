@@ -61,3 +61,26 @@ Hoy: `apps/web/local/auth/users.json` (cuentas) y `sessions.json` (sesiones por 
 5. Las sesiones locales no se migran: caducan.
 
 Interfaces que deben sustituirse sin reconstruir páginas: `AuthService`, `UserRepository`, `SessionService`, `TenantMembershipRepository` (ver `src/services/auth/contracts.ts`).
+
+## Mapa de identidad, tenant y dominio (contrato previsto)
+
+Este mapa describe el diseño previsto. Ninguna de estas tablas existe todavía.
+
+| Concepto | En Supabase | Clave y regla |
+|---|---|---|
+| Persona autenticada | `auth.users` (Supabase Auth) | Identificador de la persona. |
+| Perfil del portal | `profiles` | Mismo identificador que `auth.users`. Nombre y correo visibles. |
+| Empresa cliente | `tenants` | `tenant_id` único. Razón social, NIT, país, gestor de cuenta. |
+| Acceso a una empresa | `tenant_memberships` | `(user_id, tenant_id)`, rol y estado. **Fuente de verdad** del aislamiento. |
+| Operación (DO) | `operations` | `tenant_id` obligatorio. Datos sincronizados desde Logixtic (a definir). |
+| Evento de seguimiento | `operation_events` | `tenant_id`, `operation_id`. Un cambio de estado crea un evento nuevo. |
+| Comentario y respuesta | `event_comments` | `tenant_id`, `operation_id`, `event_id`, `parent_comment_id`, `visibility`. |
+| Documento y versión | `documents`, `document_versions` | `tenant_id`. Archivo en Storage con URL firmada. |
+| Cotización y decisión | `quotes`, `quote_decisions` | `tenant_id`. Decisión validada por vigencia y estado en el servidor. |
+| Solicitud y adjuntos | `requests`, `attachments` | `tenant_id`. Adjuntos validados antes de almacenarse. |
+
+**Datos que se consultan desde Logixtic**: operaciones, eventos de seguimiento, documentos oficiales y cotizaciones emitidas (fuente de verdad: Logixtic).
+
+**Datos propios del portal**: perfiles, empresas y membresías del portal, comentarios de clientes, solicitudes, decisiones de cliente, aceptación de términos y preferencias.
+
+**Pendiente de definir con Logixtic**: forma de sincronización (consulta o replicación), fuente de verdad de cada estado y tratamiento de cambios simultáneos.

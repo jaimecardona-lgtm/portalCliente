@@ -1,137 +1,183 @@
-# Entrega técnica — Portal de Clientes Logixtic
+# Entrega técnica — Logixtic Client Portal (v0.1.0-alpha.1)
 
-**Para:** Enrique (revisión técnica del frontend y de la integración con backend)
-**Repositorio:** `portalCliente` · rama `feat/client-portal-v1` (commits locales, sin push)
-**Estado en una frase:** interfaz completa y revisada visualmente, con datos sintéticos. **No tiene autenticación real ni conexión a Logixtic. No debe usarse con clientes reales hasta cumplir la sección 11.**
+**Para:** equipo de desarrollo de Enrique (continuación de integraciones e implementación empresarial).
+**Repositorio:** `jaimecardona-lgtm/portalCliente` · rama de trabajo `feat/client-portal-v1`.
+**Estado en una frase:** interfaz funcional y verificada con datos sintéticos, con autenticación **solo de desarrollo**. **No hay backend, ni autenticación real, ni integración con Logixtic. No debe usarse con clientes reales hasta cumplir la sección 11.**
+
+Esta es la referencia principal de transferencia. Complementan este documento `docs/architecture.md`, `docs/fastapi-integration.md`, `docs/supabase-preparation.md`, `docs/autenticacion-local.md` y `docs/validation.md`.
 
 ---
 
-## 1. Arquitectura frontend
+## 1. Objetivo del sistema
 
-Aplicación SPA en `apps/web`. Capas, de arriba abajo:
+Portal B2B donde las empresas clientes de Logixtic consultan sus operaciones logísticas (DO), el seguimiento por evento, sus documentos, cotizaciones y solicitudes, y se comunican con su equipo de operaciones mediante conversaciones ligadas a cada evento.
 
+Objetivos de la versión actual:
+
+- Validar la experiencia y la arquitectura del frontend antes de conectar los sistemas reales.
+- Dejar contratos claros para FastAPI, Supabase y la integración con Logixtic.
+- Ofrecer un entorno de revisión donde cualquier persona del equipo pueda crear una cuenta y recorrer el portal.
+
+## 2. Arquitectura actual
+
+Detalle en `docs/architecture.md`. Resumen:
+
+```text
+Navegador: páginas (src/features) → repositorio (PortalRepository) → datos locales sintéticos
+                                  → cliente de autenticación local → /__local-auth (solo dev)
+
+Servidor de desarrollo (solo `vite dev`): scripts/lib/local-auth → JSON en apps/web/local/auth/
+
+Futuro: Supabase Auth + PostgreSQL, FastAPI, Supabase Storage, Logixtic.
 ```
-Páginas y componentes (src/features/*, src/layouts, src/components)
-        │  useRepository() · useSession() · tenantKey()
-        ▼
-Repositorio tipado (src/services/repositories/portal-repository.ts)
-        │
-        ├── Repositorio local (mock-repository.ts) — solo desarrollo, carga diferida
-        └── Repositorio remoto — PENDIENTE (FastAPI)
-```
 
-- **Entornos explícitos** (`src/config/runtime.ts`):
-  - `local`: solo en `vite dev`. Usa datos sintéticos y un acceso de presentación.
-  - `blocked`: el build de producción. Sin proveedor de identidad real, no concede acceso.
-- **Guarda de acceso** en `beforeLoad` del layout autenticado (`src/routes/router.tsx`). Sin acceso habilitado, ninguna pantalla autenticada se monta.
-- **Funciones por entorno** (`buildFeatures`): en producción todas las funciones sensibles o incompletas quedan desactivadas.
-- **Código de presentación excluido de producción**: `import.meta.env.DEV` se sustituye en el build, y los módulos de fixtures, el repositorio local, el selector de empresa y el motor de Logix no entran al bundle. Se verifica con `npm run verify:bundle` (ver sección 12).
-- **Control de texto visible**: `src/test/visible-copy.test.ts` falla si aparecen términos de prototipo o demostración en la interfaz.
+Puntos clave:
 
-## 2. Stack tecnológico
+- **Un único contrato de datos**, `PortalRepository`. Las pantallas no conocen si los datos son locales o remotos.
+- **Dos modos explícitos**: `local` (solo desarrollo) y `blocked` (producción). La decisión está en `src/config/runtime.ts`.
+- **Código de desarrollo fuera de producción**: el compilador elimina fixtures, repositorio local, autenticación local, selector de empresa de QA y motor de Logix. Se comprueba con `npm run build:verify`.
+- **Guarda de acceso** en `beforeLoad` del layout autenticado (`src/routes/router.tsx`).
+
+## 3. Componentes implementados
+
+| Módulo | Ruta(s) | Estado |
+|---|---|---|
+| Acceso: login, registro, recuperación, perfil | `/login`, `/registro`, `/recuperar-contrasena`, `/restablecer-contrasena`, `/perfil` | Implementado. Solo desarrollo. Producción bloqueada. |
+| Textos legales | `/terminos`, `/privacidad` | Borrador estructurado, pendiente de aprobación jurídica |
+| Torre de control | `/` | Implementada, con datos sintéticos |
+| Operaciones y detalle DO | `/operaciones`, `/operaciones/:id` | Implementadas. Timeline y conversaciones por evento. |
+| Información de la empresa | `/cuenta` | Implementada (solo lectura) |
+| Gestión documental | `/documentos` | Implementada. Carga y vista previa solo en desarrollo. |
+| Cotizaciones | `/cotizaciones`, `/cotizaciones/:id` | Implementadas. Decisión solo en desarrollo. |
+| Solicitudes | `/solicitudes`, `/solicitudes/nueva` | Implementadas. Envío solo en desarrollo. |
+| Asistente Logix | Panel en la shell | Motor de reglas solo en desarrollo. En producción, lanzador deshabilitado. |
+| Marketplace | `/marketplace` | Vista futura. Oculta en producción. |
+
+## 4. Funcionalidades de desarrollo local
+
+Solo existen en `vite dev`. **No están en el build de producción.**
+
+- Registro e inicio de sesión con cuentas creadas en el navegador. Las cuentas se guardan en `apps/web/local/auth/users.json`, con contraseñas en hash scrypt.
+- Recuperación de contraseña con enlace local de 15 minutos, consultable desde la bandeja de localhost.
+- Repositorio con datos sintéticos (empresas, operaciones, eventos, comentarios, documentos, cotizaciones y solicitudes).
+- Selector de empresa de QA ("Entorno local") para revisar el aislamiento entre empresas.
+- Escrituras en memoria (decisiones, solicitudes, versiones documentales, comentarios): se pierden al recargar y no generan efecto en ningún sistema.
+- Motor de reglas de Logix sobre los datos locales. No es un modelo de lenguaje.
+
+## 5. Funcionalidades pendientes (requieren backend)
+
+- Autenticación real y renovación de sesión (Supabase Auth).
+- Lectura de operaciones, eventos, comentarios, documentos, cotizaciones, solicitudes y empresa desde FastAPI.
+- Persistencia de comentarios, solicitudes, decisiones de cotización y versiones documentales, con auditoría.
+- Decisiones de cotización con efecto comercial.
+- Subida, almacenamiento y vista previa de adjuntos y documentos.
+- Recuperación de contraseña por correo real.
+- Servicio de consulta de Logix con controles de autorización.
+- Marketplace (funcionalidad futura).
+
+## 6. Dependencias técnicas
 
 | Área | Tecnología | Versión instalada |
 |---|---|---|
 | Build | Vite | 8.3.8 |
 | Lenguaje | TypeScript estricto | 7.0.2 |
 | UI | React | 19.3.1 |
-| Rutas | TanStack Router (code-based) | 1.170.46 |
-| Datos | TanStack Query | 5.107.1 |
-| Estilos | Tailwind CSS v4 (`@tailwindcss/vite`) | 4.3.5 |
+| Rutas | TanStack Router (definición por código) | 1.170.46 |
+| Datos en cliente | TanStack Query | 5.107.1 |
+| Estilos | Tailwind CSS v4 | 4.3.5 |
 | Iconos | lucide-react | 1.72.0 |
 | Formularios | React Hook Form + Zod | 7.92.0 / 4.6.7 |
-| Tipografía | Inter autohospedada (`@fontsource-variable/inter`) | 5.3.x |
-| Pruebas unitarias | Vitest + Testing Library + jsdom | 5.1.0 / 16.3.3 / 31.0.0 |
-| Pruebas E2E | Playwright Test | 1.65.x |
+| Tipografía | Inter autohospedada | 5.x |
+| Pruebas | Vitest 5.1.0, Testing Library, jsdom, Playwright Test 1.65.x | |
 
-Versiones exactas en `apps/web/package-lock.json`.
+Versiones exactas en `apps/web/package-lock.json`. Versiones mínimas: Node 22, npm 10.
 
-## 3. Módulos implementados
+## 7. Integraciones futuras
 
-| Módulo | Ruta | Estado |
+| Integración | Estado | Notas |
 |---|---|---|
-| Login | `/login` | Diseño final. Acceso local en desarrollo; producción bloqueada. |
-| Torre de control | `/` | Indicadores, seguimiento por ETA, alertas, rutas, actividad. Calculado sobre datos del tenant. |
-| Operaciones | `/operaciones` | Filtros y búsqueda en la URL, columnas configurables, orden, vista de tarjetas en móvil. |
-| Detalle DO | `/operaciones/:id` | Cabecera con ruta y progreso, timeline por evento, hilos de conversación por evento. |
-| Documentos | `/documentos` | Vigentes, por vencer, vencidos; búsqueda; historial. Carga y vista previa solo local. |
-| Cotizaciones | `/cotizaciones`, `/cotizaciones/:id` | Listado y detalle. Decisión solo si el estado y la vigencia lo permiten, y solo local. |
-| Solicitudes | `/solicitudes`, `/solicitudes/nueva` | Historial. Formulario validado; envío solo local. |
-| Información de cuenta | `/cuenta` | Solo lectura. Los cambios se solicitan por solicitud. |
-| Marketplace | `/marketplace` | Solo local. En producción la ruta responde como no encontrada. |
-| Asistente Logix | Panel en la shell | Motor de reglas solo local. En producción, lanzador deshabilitado. |
+| Supabase Auth | Pendiente | Correo y contraseña; recuperación por correo. |
+| Supabase PostgreSQL | Pendiente | Sin tablas ni migraciones. Ver sección 10. |
+| Supabase Storage | Pendiente | Adjuntos y documentos con URLs firmadas. |
+| FastAPI | Pendiente | Servicio independiente. Ver sección 11. |
+| Logixtic (operaciones, eventos, documentos oficiales, cotizaciones) | Pendiente | Sin conexión. Fuente de verdad y sincronización a definir. |
 
-## 4. Funcionalidades de desarrollo local
+No hay ninguna integración activa. Ningún texto de la interfaz debe afirmar lo contrario.
 
-Existen únicamente en `vite dev`. **No están presentes en el build de producción.**
+## 8. Consideraciones de seguridad
 
-- **Cuentas de desarrollo** creadas desde `/registro` en el servidor local (ver `docs/autenticacion-local.md`).
-- **Repositorio local** con fixtures sintéticos (`src/data/fixtures/demo-data.ts`) y latencia simulada para estados de carga.
-- **Selector de empresa de QA** en la barra superior, etiquetado "Entorno local". Permite revisar el aislamiento entre empresas.
-- **Motor de reglas de Logix** sobre los datos locales del tenant activo. No es un modelo de lenguaje.
-- **Decisiones de cotización, envío de solicitudes y cargas documentales**: se registran solo en memoria. Se pierden al recargar. No generan transacciones ni notifican a nadie.
+- **Autenticación de desarrollo**: no es seguridad. Solo acepta conexiones de localhost. Sus límites están en `docs/autenticacion-local.md`.
+- **Aislamiento por tenant en el frontend**: es de presentación. La autorización real debe aplicarla FastAPI en cada acceso.
+- **Producción**: `npm run build` falla sin `VITE_AUTH_PROVIDER` y `VITE_API_BASE_URL`. Aun configurados, el acceso queda bloqueado porque el proveedor no está implementado.
+- **Sesiones**: la sesión del navegador no concede acceso por sí sola. La cookie la valida el servidor.
+- **Datos**: no se usan datos reales de clientes. Los datos locales de autenticación están fuera de Git.
+- **Repositorio público**: no subir credenciales, cuentas, capturas con información privada ni archivos confidenciales. Ver `CONTRIBUTING.md`.
+- **Textos legales**: borradores. Razón social, NIT, dirección, plazos y canales aparecen como pendientes en `src/content/legal/legal-meta.json`.
 
-## 5. Funcionalidades que requieren backend
+## 9. Flujo de desarrollo
 
-Ninguna de las siguientes funciones existe en producción hasta implementar el backend:
+1. Crear una rama desde `main` o desde la rama de hito. Convenciones en `CONTRIBUTING.md`.
+2. Trabajar con `npm run dev` en `apps/web`.
+3. Antes de confirmar: `npm run typecheck`, `npm test`, y según el cambio, `npm run build:verify`, `npm run test:e2e` y `npm run test:e2e:prod`.
+4. Commits en Conventional Commits, con cuerpo que explique el porqué.
+5. Documentación actualizada en el mismo cambio cuando cambie un contrato, una ruta o un flujo.
 
-- Autenticación real, gestión de sesión y renovación de tokens.
-- Lectura de operaciones, eventos, comentarios, documentos, cotizaciones, solicitudes y empresa desde FastAPI.
-- Persistencia de comentarios y respuestas.
-- Decisiones de cotización que generen efecto comercial.
-- Envío de solicitudes, con adjuntos almacenados de forma segura.
-- Carga y versionado de documentos, con almacenamiento y vista previa.
-- Asistente Logix conectado al backend, con controles de autorización.
-- Recuperación de contraseña.
-- Marketplace.
+## 10. Plan de migración a Supabase
 
-## 6. Estado de autenticación
+Detalle en `docs/supabase-preparation.md`. Secuencia propuesta:
 
-- **No existe autenticación real** en el frontend.
-- **Desarrollo**: cuentas locales creadas desde el navegador, con sesión por cookie HttpOnly validada por el servidor de desarrollo. No es seguridad real.
-- **Producción**: `npm run build` falla si faltan `VITE_AUTH_PROVIDER` (valor `oidc`) y `VITE_API_BASE_URL` (URL https). Aunque la configuración esté completa, el acceso queda bloqueado porque el proveedor `oidc` **aún no está implementado** (`IMPLEMENTED_AUTH_PROVIDERS` está vacío en `src/config/runtime.ts`).
-- Ninguna sesión guardada en el navegador concede acceso en producción. La clave de sesión no es una prueba de identidad: FastAPI debe validar el token en cada petición.
+1. Crear el proyecto de Supabase y configurar Auth (correo y contraseña, políticas, confirmación).
+2. Diseñar y revisar las migraciones de `profiles`, `tenants` y `tenant_memberships`.
+3. Migrar perfiles y membresías del JSON. **Las contraseñas no se migran**: cada persona establece la suya en Supabase Auth mediante invitación o restablecimiento.
+4. Definir las tablas del dominio (operaciones, eventos, comentarios, documentos, cotizaciones, solicitudes, adjuntos), todas con `tenant_id`.
+5. Definir políticas de Row Level Security junto con las reglas de FastAPI, y probarlas con usuarios de cada tenant.
+6. Sustituir `AuthService`, `UserRepository`, `SessionService` y `TenantMembershipRepository` (contratos en `src/services/auth/contracts.ts`) por las implementaciones reales.
 
-## 7. Estado de integración con Logixtic
+## 11. Plan de integración con FastAPI
 
-- **Sin integración.** No hay conexión con sistemas productivos, ERP, TMS, facturación ni con el sitio corporativo.
-- El frontend no envía datos a ningún servicio externo. No hay llamadas a APIs de IA.
-- Las "alertas" y "progreso" se calculan a partir de los datos que se le entreguen. No hay seguimiento en tiempo real.
-- Los textos de la interfaz evitan afirmar seguimiento en tiempo real o consultas a sistemas que aún no existen.
+Detalle en `docs/fastapi-integration.md`. Secuencia propuesta:
 
-## 8. Modelo multi-tenant
+1. Implementar `createHttpRepository` cumpliendo `PortalRepository`.
+2. Implementar la verificación de token de Supabase y la resolución de la membresía activa en cada petición.
+3. Implementar los endpoints de lectura, después los de escritura, cada uno con pruebas de autorización por rol y por tenant.
+4. Implementar el servicio de consulta de Logix con los mismos controles.
+5. Sustituir la carga local por la remota en `loadRemoteRepository`, sin cambiar las pantallas.
+
+**Ningún endpoint descrito en la documentación existe todavía.** Son contratos previstos.
+
+## 12. Criterios de aceptación
+
+Antes de habilitar usuarios reales, todos los criterios siguientes deben cumplirse:
+
+- [ ] Proveedor de identidad implementado en el frontend, con cierre de sesión y renovación de tokens.
+- [ ] FastAPI valida identidad, membresía, rol y tenant en cada endpoint y en cada recurso.
+- [ ] Repositorio remoto implementado y probado contra los contratos de `fastapi-integration.md`.
+- [ ] Ninguna lectura omite el tenant. Pruebas de acceso cruzado entre empresas en API y en interfaz.
+- [ ] Comentarios internos nunca visibles para clientes, verificado en el servidor.
+- [ ] Persistencia de comentarios, solicitudes, decisiones y versiones documentales, con auditoría.
+- [ ] Adjuntos validados en el servidor (tipo, tamaño, contenido) y almacenados fuera de la vista pública.
+- [ ] Revisión de seguridad (OWASP ASVS) y registro de accesos sin datos personales.
+- [ ] Auditoría de accesibilidad automatizada y revisión manual con lectores de pantalla.
+- [ ] Textos legales aprobados y datos del responsable completados.
+- [ ] Pruebas E2E contra staging con datos no productivos.
+- [ ] Chunk principal reducido o justificado (hoy 481 kB sin gzip).
+- [ ] Repositorio privado antes de cualquier publicación del historial con datos de prueba.
+
+## 13. Modelo multi-tenant
 
 - Todo modelo de dominio lleva `tenantId` (`src/types/domain.ts`).
 - Todas las lecturas del repositorio reciben `tenantId` y filtran por él. Un ID de otra empresa devuelve `null` o lista vacía.
-- Las claves de caché de TanStack Query incluyen `tenantId` (`tenantKey`), así la caché no mezcla empresas.
-- Las pruebas verifican que un DO de otra empresa no es accesible por URL, que los adjuntos y eventos ajenos no se devuelven, y que no es posible comentar sobre un evento de otro tenant.
-- **Limitación**: el aislamiento del frontend es de presentación. No es seguridad. FastAPI debe determinar el tenant a partir del token, nunca de un parámetro de la URL.
+- Las claves de caché de TanStack Query incluyen `tenantId`.
+- Las pruebas comprueban que un DO o una cotización de otra empresa no se muestra por URL, y que no es posible comentar sobre un evento de otro tenant.
+- En desarrollo, la cuenta creada en el registro se asigna a la empresa sintética `tn-andino`. El servidor fija esa asignación; el cliente no puede elegir otra.
 
-## 9. Contratos previstos para FastAPI
-
-El frontend consume un contrato tipado (`PortalRepository`). Cada método debe mapearse a un endpoint. Ver el detalle en `docs/fastapi-integration.md`.
-
-| Método del repositorio | Endpoint previsto |
-|---|---|
-| `listOperations` | `GET /operations` |
-| `getOperation` | `GET /operations/{id}` (404 si no pertenece al tenant) |
-| `listOperationEvents` | `GET /operations/{id}/events` |
-| `listEventComments` | `GET /operations/{id}/events/{eventId}/comments` |
-| `addEventComment` | `POST /operations/{id}/events/{eventId}/comments` |
-| `listDocuments`, `addDocumentVersion` | `GET /documents`, `POST /documents/{id}/versions` |
-| `listQuotes`, `decideQuote` | `GET /quotes`, `POST /quotes/{id}/decision` |
-| `listRequests`, `createRequest` | `GET /requests`, `POST /requests` |
-| `getUser`, `getTenant`, `listAddresses`, `listContacts` | `GET /me`, `GET /tenant`, `GET /tenant/addresses`, `GET /tenant/contacts` |
-
-Los campos se mapean de `snake_case` (FastAPI) a `camelCase` (cliente).
-
-## 10. Modelo de eventos y comentarios anidados
+## 14. Modelo de eventos y comentarios anidados
 
 **Evento** (`OperationEvent`): identificador, operación, tenant, fecha y hora, autor, tipo (`status_change`, `news`, `document`, `action_required`), estado anterior y nuevo cuando aplica, título, descripción, adjuntos y visibilidad.
 
 **Comentario** (`EventComment`): `id`, `tenant_id`, `operation_id`, `event_id`, `parent_comment_id`, `author_id`, `body`, `created_at`, `visibility`.
 
-Reglas, todas cubiertas por pruebas:
+Reglas, cubiertas por pruebas:
 
 1. Todo comentario pertenece a un evento. No existe una pestaña general de comentarios.
 2. Las respuestas usan `parent_comment_id` y se muestran anidadas.
@@ -141,72 +187,59 @@ Reglas, todas cubiertas por pruebas:
 6. Un comentario cuyo padre pertenece a otro evento se rechaza.
 7. Los hilos de distintos eventos o empresas están completamente separados.
 
-## 11. Requisitos antes de habilitar usuarios reales
-
-Ninguno de estos puntos está resuelto hoy:
-
-- [ ] Proveedor de identidad elegido e implementado en el frontend (flujo OIDC o equivalente), con cierre de sesión y renovación de tokens.
-- [ ] FastAPI validando identidad, pertenencia a tenant y permisos **en cada endpoint y en cada acceso a recurso**.
-- [ ] Repositorio remoto implementado y verificado contra los contratos de la sección 9.
-- [ ] Eliminación del acceso de presentación de cualquier ruta compartida (ya excluido del build de producción).
-- [ ] Persistencia real de comentarios, solicitudes, decisiones de cotización y versiones documentales, con auditoría.
-- [ ] Almacenamiento de adjuntos con validación de tipo y tamaño en el servidor y análisis antimalware.
-- [ ] Revisión de seguridad (OWASP ASVS) y pruebas de autorización por rol y tenant contra la API.
-- [ ] Auditoría de accesibilidad automatizada (axe) y revisión manual con lectores de pantalla.
-- [ ] Política de contraseñas, bloqueo por intentos y recuperación de acceso gestionada por el proveedor.
-- [ ] Textos legales, política de privacidad y tratamiento de datos personales de contactos.
-- [ ] Monitoreo de errores en producción sin enviar datos personales.
-- [ ] Pruebas E2E contra un entorno de staging con datos no productivos.
-- [ ] Reducción del chunk principal (481 kB sin gzip; ver sección 13).
-
-## 12. Comandos de instalación, pruebas y ejecución
+## 15. Comandos de instalación, pruebas y ejecución
 
 Desde `apps/web`:
 
 ```bash
-npm install                  # instalar dependencias
-npm run dev                  # desarrollo en http://127.0.0.1:5173
+npm install                  # dependencias
+npm run dev                  # http://127.0.0.1:5173 (acceso local activo)
 npm run typecheck            # TypeScript estricto
-npm test                     # pruebas unitarias (Vitest)
-npm run test:e2e             # E2E de presentación (escritorio y móvil)
-npm run build                # build de producción: FALLA sin configuración real (es intencional)
-npm run build:verify         # build con configuración de verificación + inspección del bundle
-npm run verify:bundle        # solo inspección de dist/ (después de un build)
+npm test                     # pruebas unitarias
+npm run build:verify         # build de verificación + inspección del bundle
+npm run test:e2e             # E2E de desarrollo (escritorio y móvil)
 npm run test:e2e:prod        # E2E del build de producción (requiere build:verify)
+npm run build                # build de producción: FALLA sin configuración real (intencional)
 ```
 
-Para ejecutar E2E con Chrome instalado en el equipo, anteponer `PW_CHANNEL=chrome`. Sin esa variable, `npx playwright install chromium`.
+Con Chrome instalado, anteponer `PW_CHANNEL=chrome` a los comandos de E2E. Sin esa variable: `npx playwright install chromium`.
 
-### Configuración de producción
+Configuración de producción (obligatoria para `npm run build`):
 
-| Variable | Valor | Obligatoria |
+| Variable | Valor | Notas |
 |---|---|---|
-| `VITE_AUTH_PROVIDER` | `oidc` (único valor permitido hoy) | Sí |
-| `VITE_API_BASE_URL` | URL https de la API FastAPI | Sí |
+| `VITE_AUTH_PROVIDER` | `oidc` | Único valor reconocido hoy. El proveedor aún no está implementado. |
+| `VITE_API_BASE_URL` | URL `https://` de FastAPI | Obligatoria. |
 
-### Cuentas de desarrollo (fase 05)
+Las variables `VITE_*` son públicas en el bundle. **Nunca** poner secretos en ellas.
 
-- Las cuentas se crean desde `/registro` en el navegador. No hay script de terminal (`setup:local-user` queda descontinuado).
-- El servidor de desarrollo guarda las cuentas en `apps/web/local/auth/users.json`: contraseñas solo como hash scrypt con sal, sesiones y tokens solo como hash, y escrituras atómicas.
-- La sesión va en cookie HttpOnly, SameSite=Strict, validada por el servidor (12 h, o 14 días con "recordar sesión").
-- Recuperación de contraseña sin correo real: el enlace de 15 minutos se consulta en la bandeja local (solo localhost).
-- Todo el mecanismo existe solo en `vite dev`. El build de producción lo excluye y lo verifica `npm run build:verify`.
-- Detalle completo: `docs/autenticacion-local.md`.
+## 16. Requisitos de despliegue
 
-## Anexo A. Verificación realizada en esta entrega
+No hay despliegue. Requisitos para cuando exista:
 
-Resultados reales, ejecutados el día de la entrega. Ver `docs/validation.md` para el detalle.
+- Node 22 y npm 10 para el build.
+- Hosting estático para `apps/web/dist`, con cabeceras de seguridad (CSP, HSTS, `X-Content-Type-Options`).
+- Backend FastAPI desplegado con HTTPS y acceso a Supabase.
+- Ningún componente de desarrollo en el artefacto: `npm run build:verify` debe pasar sobre el artefacto final.
+- Repositorio privado y revisión de commits antes de cualquier publicación.
+
+## Anexo A. Verificación de esta entrega
+
+Ejecutado sobre el código de `v0.1.0-alpha.1`. Detalle en `docs/validation.md` (Fase 06).
 
 - `npm run typecheck`: sin errores.
-- `npm test`: 8 archivos, 61 pruebas aprobadas.
-- `npm run build:verify`: build correcto y bundle sin datos sintéticos ni autenticación local (18 archivos).
-- `npm run test:e2e` (presentación): 55 aprobadas, 1 omitida por diseño (selector de empresa visible desde 1280 px).
-- `npm run test:e2e:prod`: 14 aprobadas. Confirman que el login de producción no muestra cuentas ni contraseñas, que las rutas protegidas redirigen, que el acceso con credenciales sintéticas no crea sesión, y que no hay errores de consola.
+- `npm test`: 10 archivos, **88 pruebas aprobadas**.
+- `npm run build:verify`: correcto; 21 archivos sin cadenas de acceso local.
+- `npm run test:e2e`: **87 aprobadas, 1 omitida** por diseño (selector de empresa visible desde 1280 px).
+- `npm run test:e2e:prod`: **18 aprobadas**.
 
 ## Anexo B. Limitaciones conocidas
 
-- El chunk principal pesa 481 kB (151 kB gzip). Vite avisa por encima de 500 kB sin gzip.
-- Solo se verificó en Chromium.
-- No hay auditoría automatizada de accesibilidad (axe).
-- Las capturas de esta entrega provienen del entorno de desarrollo; incluyen el selector de empresa de QA. La producción no puede capturarse hasta contar con backend.
-- Carga de archivos y vistas previas no están implementadas fuera de la presentación local.
+- Sin backend ni repositorio remoto.
+- Sin integración con Logixtic.
+- Sin correo real para la recuperación de contraseña.
+- Adjuntos y vistas previas no implementados fuera de la presentación local.
+- Sin auditoría automatizada de accesibilidad. Solo Chromium.
+- Chunk principal de 481 kB (151 kB gzip).
+- Los textos legales son borradores pendientes de aprobación.
+- Las pruebas E2E pueden agotar el tiempo por prueba la primera vez tras cambios grandes, por compilación en frío del servidor de desarrollo.

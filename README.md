@@ -1,65 +1,106 @@
-# Portal de Clientes Logixtic
+# Logixtic Client Portal
 
-Portal B2B para clientes de Logixtic: torre de control, operaciones (DO), timeline con conversaciones por evento, documentos, cotizaciones, solicitudes y asistente **Logix**.
+Portal B2B para clientes de Logixtic: torre de control, operaciones (DO) con seguimiento por evento, conversaciones por evento, documentos, cotizaciones, solicitudes e información de la cuenta, con un asistente de consulta **Logix**.
 
-> **Estado:** interfaz corporativa con datos sintéticos en desarrollo. Sin backend, autenticación real ni conexión a sistemas productivos.
+> **Versión:** `v0.1.0-alpha.1` — hito interno. Interfaz funcional con datos sintéticos y autenticación de desarrollo. **No hay backend, autenticación real ni integración con Logixtic.** No usar con clientes reales. Detalles en [CHANGELOG.md](CHANGELOG.md) y en la [entrega técnica](docs/ENTREGA_TECNICA_ENRIQUE.md).
+
+## Funcionalidades disponibles (desarrollo)
+
+| Área | Qué permite hoy |
+|---|---|
+| Acceso | Registro (`/registro`), inicio de sesión, cierre de sesión, sesión que se mantiene al recargar, recuperación de contraseña con enlace local, perfil y cambio de contraseña |
+| Torre de control | Indicadores, seguimiento por ETA, alertas, rutas y actividad |
+| Operaciones | Listado con filtros y búsqueda, detalle DO con timeline y conversaciones por evento |
+| Documentos | Vigentes, por vencer, vencidos, historial |
+| Cotizaciones | Detalle de conceptos y decisión condicionada por estado y vigencia (local) |
+| Solicitudes | Historial y formulario validado (envío local) |
+| Empresa | Información de la cuenta en solo lectura |
+| Logix | Asistente por reglas sobre los datos de la empresa (local) |
+| Legal | Términos y privacidad (borradores pendientes de aprobación) |
+
+Las acciones marcadas como "local" solo cambian datos en el entorno de desarrollo. No generan transacciones ni notifican a nadie.
+
+## Stack
+
+- **Frontend** (`apps/web`): React 19, TypeScript estricto, Vite 8, TanStack Router y Query, Tailwind CSS v4, React Hook Form + Zod, Inter autohospedada.
+- **Pruebas**: Vitest y Testing Library; Playwright Test para E2E de desarrollo y del build de producción.
+- **Previsto**: Supabase Auth y PostgreSQL, FastAPI (`apps/api`, aún sin código).
+
+## Requisitos
+
+- Node.js 22 o superior (probado con 22.22.0).
+- npm 10 o superior (probado con 10.6.0).
+- Para E2E con Chrome instalado: `PW_CHANNEL=chrome`. Sin esa variable: `npx playwright install chromium`.
+
+## Instalación y ejecución
+
+```bash
+cd apps/web
+npm install
+npm run dev              # http://127.0.0.1:5173
+```
+
+1. Abre `http://127.0.0.1:5173/registro` y crea tu cuenta.
+2. Entrarás al portal, asignado a una empresa sintética.
+3. Después, inicia sesión desde `http://127.0.0.1:5173/login`.
+
+Las cuentas se guardan en `apps/web/local/auth/` (ignorado por Git). Detalles en [docs/autenticacion-local.md](docs/autenticacion-local.md).
+
+## Comandos
+
+Desde `apps/web`:
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Servidor de desarrollo, con el acceso local activo |
+| `npm run typecheck` | Comprobación de tipos (TypeScript estricto) |
+| `npm test` | Pruebas unitarias (Vitest) |
+| `npm run test:e2e` | E2E de desarrollo (escritorio y móvil). Levanta el servidor automáticamente |
+| `npm run build` | Build de producción. **Falla sin `VITE_AUTH_PROVIDER` y `VITE_API_BASE_URL`** |
+| `npm run build:verify` | Build con configuración de verificación y comprobación del bundle |
+| `npm run verify:bundle` | Solo inspecciona `dist/` |
+| `npm run test:e2e:prod` | E2E sobre el build de producción (requiere `build:verify`) |
+| `npm run preview` | Sirve el último build |
 
 ## Estructura
 
 ```text
 portalCliente/
 ├── apps/
-│   ├── web/          # SPA React + TypeScript (Vite, TanStack Router/Query, Tailwind v4)
-│   └── api/          # Reservado para FastAPI (solo README por ahora)
-├── docs/             # Arquitectura, validación y guía de integración
-├── CLAUDE.md         # Reglas de trabajo para asistentes de código
-└── README.md
+│   ├── web/                 SPA React + TypeScript
+│   │   ├── src/             Aplicación (features, services, routes, layouts, types…)
+│   │   ├── scripts/lib/local-auth/   Servidor de autenticación de desarrollo
+│   │   ├── e2e/, e2e-prod/  Pruebas Playwright
+│   │   └── local/           Datos de desarrollo (ignorado por Git)
+│   └── api/                 Reservado para FastAPI (sin código todavía)
+├── docs/                    Documentación técnica (ver abajo)
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+└── CLAUDE.md                Reglas de trabajo para asistentes de código
 ```
 
-## Requisitos
+## Estado del proyecto
 
-- Node.js 22+ (probado con v22.22.0)
-- npm 10+ (probado con 10.6.0)
-
-## Comandos (desde `apps/web`)
-
-```bash
-cd apps/web
-npm install
-npm run dev         # http://127.0.0.1:5173
-npm run typecheck   # tsc --noEmit
-npm test            # Vitest (modo de ejecución única)
-npm run test:e2e    # Playwright, escritorio y móvil (con Chrome instalado: PW_CHANNEL=chrome)
-npm run build       # build de producción (requiere VITE_AUTH_PROVIDER y VITE_API_BASE_URL)
-npm run build:verify  # build con configuración de verificación + inspección del bundle
-npm run preview     # sirve el build generado
-```
-
-## Cuenta de desarrollo
-
-No hace falta configurar nada en la terminal. Con `npm run dev`:
-
-1. Abre `http://127.0.0.1:5173/registro` y crea tu cuenta.
-2. Entrarás al portal, con tu empresa de prueba asignada.
-3. Después, usa `http://127.0.0.1:5173/login`. Para recuperar la contraseña, consulta la bandeja local en `/__local-auth/outbox` (solo desde este equipo).
-
-Los datos se guardan en `apps/web/local/auth/` (ignorado por Git). Detalles, endpoints y límites: `docs/autenticacion-local.md`. Este acceso es solo para desarrollo y nunca forma parte del build de producción.
-
-## Entornos
-
-- **Desarrollo (`npm run dev`)**: presentación local con datos sintéticos. Las credenciales de prueba están documentadas solo para el equipo técnico en `docs/ENTREGA_TECNICA_ENRIQUE.md`.
-- **Producción (`npm run build`)**: exige un proveedor de identidad y una API configurados. Sin ellos el build falla, y aun configurado el acceso permanece bloqueado hasta implementar el backend.
+| Pieza | Estado |
+|---|---|
+| Interfaz (todas las pantallas) | Implementada, con datos sintéticos |
+| Autenticación de desarrollo | Implementada. Solo `vite dev` |
+| Autenticación real (Supabase Auth) | Pendiente |
+| Base de datos (Supabase PostgreSQL) | Pendiente. Sin tablas ni migraciones |
+| Backend (FastAPI) | Pendiente. Solo contratos previstos |
+| Integración con Logixtic | Pendiente. Sin conexión |
+| Producción | Bloqueada por diseño hasta cumplir los requisitos de la entrega |
 
 ## Documentación
 
-- [Entrega técnica para revisión (Enrique)](docs/ENTREGA_TECNICA_ENRIQUE.md)
+- [Entrega técnica para el equipo de Enrique](docs/ENTREGA_TECNICA_ENRIQUE.md): referencia principal de transferencia.
+- [Arquitectura](docs/architecture.md)
 - [Autenticación local de desarrollo](docs/autenticacion-local.md)
+- [Integración con FastAPI (contratos previstos)](docs/fastapi-integration.md)
 - [Preparación para Supabase](docs/supabase-preparation.md)
-- [Arquitectura y decisiones](docs/architecture.md)
 - [Validación ejecutada](docs/validation.md)
-- [Integración con FastAPI](docs/fastapi-integration.md)
-- [Reglas para asistentes](CLAUDE.md)
+- [Guía de contribución](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Reglas para asistentes](CLAUDE.md)
 
 ## Advertencia de seguridad
 
-El aislamiento por tenant del frontend es **presentación y demostración**. La seguridad real (identidad, pertenencia a tenant y permisos por endpoint) debe aplicarla FastAPI en cada solicitud.
+El aislamiento por tenant del frontend es de **presentación**: no es seguridad. La autorización real (identidad, pertenencia a la empresa y permisos en cada acceso) debe aplicarla FastAPI, y el acceso local de desarrollo no debe usarse con clientes reales.

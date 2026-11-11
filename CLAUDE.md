@@ -4,7 +4,8 @@ Guía para trabajar en este repositorio. Léela antes de tocar código.
 
 ## Alcance actual
 
-- Fase 01: frontend DEMO en `apps/web`. Sin backend, sin auth real, sin producción.
+- Versión `v0.1.0-alpha.1` (ver `CHANGELOG.md`): interfaz con datos sintéticos en `apps/web`. Sin backend, sin auth real, sin integración con Logixtic, sin producción.
+- Para contribuir, sigue `CONTRIBUTING.md` (ramas, Conventional Commits, pruebas y seguridad del repositorio).
 - Repositorio en la rama `feat/client-portal-v1`. No hacer push ni merge sin pedido explícito.
 - No eliminar archivos existentes sin confirmación. No tocar aplicaciones reales de Lovable o Logixtic.
 
@@ -69,7 +70,7 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 
 - Unitarias: `*.test.ts` junto al código (`npm test`). Priorizar aislamiento de tenants, hilos, filtros y reglas de cotización.
 - E2E: `apps/web/e2e/`, Playwright con dos proyectos (escritorio y móvil). Ejecutar con `PW_CHANNEL=chrome npm run test:e2e` para usar Chrome instalado, o sin variable tras `npx playwright install chromium`. Levanta el servidor de dev automáticamente.
-- Las pruebas usan solo datos DEMO. No añadir credenciales reales ni datos de clientes.
+- Las pruebas usan solo datos sintéticos. No añadir credenciales reales ni datos de clientes.
 - Al esperar elementos, esperar el estado de la página (contador, encabezado), no solo el texto: el primer acceso a un chunk perezoso puede tardar varios segundos.
 
 ## Trampas conocidas
