@@ -48,8 +48,9 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://127.0.0.1:5173", "http://localhost:5173"]
     )
 
-    # Documentación OpenAPI (Swagger). Desactivable en producción.
-    docs_enabled: bool = True
+    # Documentación OpenAPI (Swagger). Sin valor explícito: activa fuera de producción y desactivada en
+    # producción. En producción solo se activa si DOCS_ENABLED=true lo pide de forma explícita.
+    docs_enabled: bool | None = None
 
     # Límites de negocio.
     max_comment_length: int = Field(default=2000, ge=1, le=10000)
@@ -69,9 +70,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "En producción se requiere SUPABASE_URL y SUPABASE_JWT_SECRET o SUPABASE_JWKS_URL."
                 )
-            if self.docs_enabled:
-                # Por defecto la documentación se desactiva en producción; debe activarse de forma explícita.
-                object.__setattr__(self, "docs_enabled", False)
+        if self.docs_enabled is None:
+            # Valor por defecto: documentación fuera de producción; en producción, desactivada.
+            object.__setattr__(self, "docs_enabled", self.app_env != "production")
         return self
 
     @property

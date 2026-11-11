@@ -61,8 +61,18 @@ def test_production_requires_real_auth_configuration() -> None:
 
 
 def test_production_disables_docs_by_default() -> None:
-    settings = _settings(app_env="production", docs_enabled=True)
+    settings = _settings(app_env="production")
     assert settings.docs_enabled is False
+
+
+def test_production_docs_require_explicit_opt_in() -> None:
+    settings = _settings(app_env="production", docs_enabled=True)
+    assert settings.docs_enabled is True
+
+
+def test_development_enables_docs_by_default() -> None:
+    settings = _settings(app_env="development")
+    assert settings.docs_enabled is True
 
 
 def test_auth_not_configured_without_supabase_values() -> None:
