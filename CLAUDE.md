@@ -50,11 +50,14 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 
 ## Testing
 
-- Pruebas unitarias en `*.test.ts` junto al código. Priorizar aislamiento de tenants, hilos, filtros y reglas de cotización.
-- Pruebas de ruta/componente: el recorrido visual se hace con Playwright contra el servidor de desarrollo (ver `docs/validation.md`).
+- Unitarias: `*.test.ts` junto al código (`npm test`). Priorizar aislamiento de tenants, hilos, filtros y reglas de cotización.
+- E2E: `apps/web/e2e/`, Playwright con dos proyectos (escritorio y móvil). Ejecutar con `PW_CHANNEL=chrome npm run test:e2e` para usar Chrome instalado, o sin variable tras `npx playwright install chromium`. Levanta el servidor de dev automáticamente.
+- Las pruebas usan solo datos DEMO. No añadir credenciales reales ni datos de clientes.
+- Al esperar elementos, esperar el estado de la página (contador, encabezado), no solo el texto: el primer acceso a un chunk perezoso puede tardar varios segundos.
 
 ## Trampas conocidas
 
 - TypeScript 7: `baseUrl` fue eliminado; `paths` se resuelve relativo al `tsconfig`.
-- Vite avisa de chunk > 500 kB: pendiente de code-splitting por ruta.
-- Google Fonts puede no resolver sin internet; la app cae a la fuente del sistema.
+- La guarda de sesión va en `beforeLoad` del layout `app`, no en un `<Navigate>` dentro de la shell (ver `docs/architecture.md`).
+- Chunk principal de 540 kB: aviso de Vite conocido.
+- Una tabla dentro de un contenedor con scroll: cualquier `sr-only` o elemento absoluto dentro de una celda debe llevar `relative` para no ampliar el ancho del documento.

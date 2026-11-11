@@ -65,9 +65,20 @@ El layout autenticado (`AppShell`) redirige a `/login` si no hay sesión.
 - Si la pregunta menciona un DO que no pertenece a la empresa, responde que no está disponible.
 - `logix-assistant.tsx` toma como contexto la operación abierta cuando la ruta es `/operaciones/:id`.
 
+## Carga y rendimiento
+
+- Login, torre de control y la shell se cargan en el bundle inicial. El resto de pantallas se cargan con `lazy()` por ruta, con un `Suspense` en el layout.
+- Inter se sirve desde `@fontsource-variable/inter` (sin peticiones a Google Fonts).
+
+## Guarda de sesión
+
+La protección de rutas vive en `beforeLoad` del layout `app` (`routes/router.tsx`), que redirige a `/login?redirect=…` si no hay sesión guardada. `AppShell` mantiene una segunda comprobación para cuando la sesión cambia en caliente.
+
+Esto no es opcional: un `<Navigate>` dentro del componente de un layout sin ruta (`id` sin `path`) dejó el router sin renderizar nada cuando no había sesión. Mantén la guarda en `beforeLoad`.
+
 ## Limitaciones conocidas
 
-- Sin code-splitting por ruta: el bundle principal ronda 634 kB (188 kB gzip).
-- Google Fonts depende de red; sin internet se usa la fuente del sistema.
+- El chunk principal pesa 540 kB (167 kB gzip). Pendiente: dividir dependencias (react, tanstack, zod) en chunks estables.
+- El selector de simulación de empresa solo se muestra desde 1280 px (`xl`).
 - Adjuntos en solicitudes y cargas documentales son solo metadatos en memoria.
 - La navegación por teclado y la revisión de contraste se verificaron por inspección del código, no con una auditoría automatizada.

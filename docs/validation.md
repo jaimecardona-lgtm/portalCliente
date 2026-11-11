@@ -1,43 +1,56 @@
-# Validación ejecutada — Fase 01
+# Validación ejecutada
 
-Todas las cifras de esta página provienen de ejecuciones reales en el equipo de desarrollo (Windows 11, Node 22.22.0, npm 10.6.0). Se listan también las limitaciones.
+Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos.
 
-## Comandos y resultados
+## Fase 02 — auditoría UX/UI y refinamiento
 
-| Comando | Resultado |
+| Comando (desde `apps/web`) | Resultado |
 |---|---|
-| `npm run typecheck` (`tsc --noEmit`) | Sin errores |
-| `npm test` (`vitest run`) | 6 archivos, **51 pruebas aprobadas**, 0 fallidas |
-| `npm run build` | Build correcto. Aviso: chunk principal de 634 kB (189 kB gzip) |
-| `npm run dev` | Sirve en `http://127.0.0.1:5173` |
+| `npm run typecheck` | Sin errores |
+| `npm test` | 6 archivos, **51 pruebas aprobadas** |
+| `npm run build` | Correcto. Chunk principal 540 kB (167 kB gzip); cada módulo pesado en chunk propio |
+| `PW_CHANNEL=chrome npm run test:e2e` | **53 aprobadas, 1 omitida** (selector de simulación en móvil, visible desde 1280 px) |
 
-## Pruebas unitarias
+### Pruebas E2E (`apps/web/e2e/`)
 
-- `mock-repository.test.ts` — aislamiento por tenant (listados, IDs cruzados, adjuntos, eventos ajenos), comentarios internos ocultos, respuestas con `parentCommentId`, rechazo de respuestas cruzadas entre eventos, cotizaciones vencidas, solicitudes.
-- `filters.test.ts` — estados, búsqueda por DO/booking/puerto, pendientes, rango de fechas, combinación AND, orden con vacíos al final, parseo y serialización de la URL.
-- `thread-utils.test.ts` — anidado, separación por evento, padre huérfano, orden cronológico, conteo.
-- `logix-engine.test.ts` — respuestas sobre datos del tenant, DO ajenos marcados como no disponibles, contexto de operación.
-- `demo-auth.test.ts` — credenciales, rechazo de contraseñas arbitrarias, campos vacíos, almacenamiento bloqueado.
-- `format.test.ts` — fechas de solo día sin desplazamiento de zona horaria (error corregido durante la validación: "ETA 24-nov" se mostraba como "04-nov").
+Se ejecutan en dos proyectos: escritorio 1440×900 y móvil 390×844. Usan solo datos DEMO sintéticos. El servidor de desarrollo se levanta automáticamente.
 
-## Recorrido en navegador (Playwright + Chrome)
+Cubren:
+- Acceso: contraseña incorrecta, acceso correcto, redirección a login sin sesión (guarda de ruta), validación de campos vacíos.
+- Torre de control: indicadores y ausencia de scroll horizontal; el enlace "Saltar al contenido" recibe foco con Tab.
+- Operaciones: filtro por estado que se refleja en la URL y se conserva tras recargar; búsqueda por DO.
+- Aislamiento: DO de otra empresa por URL → "no encontrada"; el selector SIMULACIÓN cambia de empresa (escritorio).
+- Conversaciones: responder a un comentario crea un mensaje con `data-parent-id` del comentario padre dentro del mismo evento; validación de mensajes cortos.
+- Cotizaciones: vencida sin decisión; pendiente vigente con confirmación.
+- Formularios: validación de nueva solicitud antes de enviar.
+- Diálogos: se cierra con Escape y devuelve el foco al botón que lo abrió.
+- Logix: respuesta sobre operaciones activas; Escape cierra el panel.
+- Responsive: diez rutas autenticadas sin desbordamiento horizontal.
 
-Script ejecutado contra el servidor de desarrollo, en escritorio (1440 px) y móvil (390 px). **47 comprobaciones aprobadas, 0 fallidas, 0 errores de consola.**
+### Defectos encontrados y corregidos
 
-Cubre: validación y rechazo en login; acceso; carga de torre de control, operaciones, detalle, cotizaciones, detalle de cotización, documentos, solicitudes, nueva solicitud, cuenta, marketplace y 404; filtro por estado que actualiza el contador; DO de otra empresa abierto por URL muestra "Operación no encontrada"; ausencia de scroll horizontal de página en todas las pantallas comprobadas.
+1. **Redirección sin sesión colgaba la aplicación.** Al abrir una ruta protegida sin sesión, el router no montaba nada (DOM de 15 elementos, también en producción). Se corrigió con una guarda `beforeLoad` en el layout autenticado; ver `docs/architecture.md`.
+2. **Desbordamiento horizontal en operaciones** por un `sr-only` absoluto en la última celda de la tabla. Se corrigió con `relative` en la celda.
+3. **Tabla de operaciones recortada** con nueve columnas visibles en 1440 px. Origen y destino se unieron en una columna "Ruta"; tipo queda fuera por defecto.
+4. **Fechas de solo día** desplazadas un día (corregido en fase 01, cubierto por pruebas).
+5. **Pruebas E2E frágiles** por esperas insuficientes en el primer acceso a chunks perezosos; ahora esperan el estado real de la página y el timeout de `expect` es de 15 s.
 
-Defectos encontrados y corregidos durante la validación:
+### Capturas
 
-1. Fechas de solo día desplazadas un día hacia atrás.
-2. Scroll horizontal de página causado por un `sr-only` absoluto dentro de la última celda de la tabla de operaciones.
-3. Rejilla de filtros aplastada en escritorio.
-4. Progreso del detalle DO con un hito de desfase respecto al estado.
-5. Migas mostraban IDs internos en lugar del número DO.
-6. Botón de Logix tapaba el contenido en móvil.
+Línea base y después, en escritorio y móvil, para dashboard, operaciones, detalle, documentos, cotizaciones, solicitudes, login y panel Logix:
+
+- Antes: `scratchpad/shots/before/`
+- Después: `scratchpad/shots/after/`
+
+(Ruta relativa a la carpeta de sesión; no se versionan binarios en el repositorio.)
+
+## Fase 01 — resumen
+
+51 pruebas unitarias, typecheck y build aprobados en la entrega inicial. Detalle en el historial de commits.
 
 ## Limitaciones de la validación
 
-- No se ejecutó auditoría automatizada de accesibilidad (axe) ni prueba de navegación por teclado completa; se revisó por inspección de código (roles, etiquetas, foco visible, `aria-*`).
-- No hay pruebas E2E en el repositorio: el recorrido anterior es un script de verificación local, no está versionado.
-- Google Fonts no resolvió en el entorno de prueba (sin internet); las capturas usan la fuente del sistema.
-- Las pantallas se revisaron en escritorio y móvil; no se probaron tabletas ni navegadores distintos de Chrome.
+- No hay auditoría automatizada de accesibilidad (axe). Roles, etiquetas, foco y `aria-*` se revisaron por código y con las pruebas E2E anteriores.
+- Solo Chromium. No se probó Firefox ni Safari.
+- Las capturas "después" se tomaron con el servidor de desarrollo; el build de producción se verificó con `vite preview` para la guarda de ruta.
+- El chunk principal sigue por encima de 500 kB; el aviso de Vite permanece.

@@ -29,6 +29,7 @@ npm install
 npm run dev         # http://127.0.0.1:5173
 npm run typecheck   # tsc --noEmit
 npm test            # Vitest (modo de ejecución única)
+npm run test:e2e    # Playwright, escritorio y móvil (con Chrome instalado: PW_CHANNEL=chrome)
 npm run build       # typecheck + build de producción
 npm run preview     # sirve el build generado
 ```
