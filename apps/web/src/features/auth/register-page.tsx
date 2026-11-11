@@ -1,3 +1,14 @@
+/**
+ * Registro de cuenta (/registro).
+ *
+ * Responsabilidad: recoger nombre, correo, contraseña y aceptación de términos, y crear la cuenta en el
+ * servidor local. Tras el alta, la sesión queda iniciada y la cuenta disponible en el repositorio.
+ * Contrato: la versión de términos enviada es la de src/content/legal/legal-meta.json. El servidor la
+ * compara con la vigente y rechaza versiones antiguas.
+ * Seguridad: el formulario NO permite elegir empresa ni rol; los fija el servidor (tn-andino, client).
+ * Errores: correo ya registrado (409) se muestra en el campo de correo; otros errores de validación del
+ * servidor se muestran en el campo correspondiente.
+ */
 import { Link, Navigate, useNavigate } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'

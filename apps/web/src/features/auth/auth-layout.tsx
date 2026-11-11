@@ -1,3 +1,12 @@
+/**
+ * Estructura visual compartida de las pantallas públicas de acceso (login, registro, recuperación).
+ *
+ * Responsabilidad: panel de marca a la izquierda, contenedor del formulario a la derecha y el campo de
+ * contraseña con mostrar/ocultar e indicador de seguridad.
+ * Contrato de PasswordInput: recibe el registro de React Hook Form (UseFormRegisterReturn) y el valor
+ * actual para calcular la fortaleza. No valida por sí mismo; la validación vive en cada formulario.
+ * Accesibilidad: el botón de mostrar/ocultar expone aria-pressed; los errores llegan por Field.
+ */
 import { useState, type ReactNode } from 'react'
 import type { UseFormRegisterReturn } from 'react-hook-form'
 import { Link } from '@tanstack/react-router'

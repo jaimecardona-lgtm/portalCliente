@@ -1,3 +1,16 @@
+/**
+ * Contexto de sesión de la aplicación.
+ *
+ * Responsabilidad: mantener la sesión activa ({ userId, tenantId }) y resolver el usuario y la empresa
+ * desde el repositorio para las pantallas. Expone signIn, signOut y el cambio de empresa de QA.
+ * Dependencias: useOptionalRepository (puede no haber repositorio en producción), session-storage.
+ * Contrato: useSession debe usarse dentro de SessionProvider. user y tenant son null mientras cargan.
+ * Aislamiento: todas las consultas de identidad usan una clave que incluye tenantId, así la caché no
+ * mezcla empresas. El cambio de empresa es solo de QA (FEATURES.tenantSwitcher) y una recarga restaura
+ * la sesión real del servidor.
+ * Decisión no evidente: la sesión del navegador no concede acceso por sí sola; la guarda de rutas la
+ * combina con la cookie validada en el arranque.
+ */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { FEATURES } from '@/config/runtime'
@@ -76,6 +89,10 @@ export function SessionProvider({ children, firstUserOf }: { children: ReactNode
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
 
+/**
+ * Acceso al contexto de sesión. Debe usarse dentro de SessionProvider.
+ * @throws Error si se usa fuera del proveedor (error de programación, no de usuario).
+ */
 export function useSession(): SessionContextValue {
   const ctx = useContext(SessionContext)
   if (!ctx) throw new Error('useSession debe usarse dentro de SessionProvider')

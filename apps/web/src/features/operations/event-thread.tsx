@@ -1,3 +1,14 @@
+/**
+ * Conversación de un evento del timeline (hilo de comentarios anidados).
+ *
+ * Modelo: cada comentario pertenece a un evento (eventId) y puede responder a otro comentario del mismo
+ * evento (parentCommentId). Los mensajes NO cambian el estado de la operación.
+ * Responsabilidad: listar el hilo, publicar un mensaje raíz o una respuesta y mostrar autor, fecha y rol.
+ * Contrato: solo se muestran comentarios con visibility = 'client'. Los internos se filtran en el cliente
+ * y nunca deben llegar a un cliente desde el servidor.
+ * Validación: entre 2 y 1000 caracteres. El servidor (FastAPI) deberá validar también el evento y la
+ * pertenencia al tenant; el frontend no es una barrera de autorización.
+ */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CornerDownRight, MessageSquare, Send, User2, Headphones } from 'lucide-react'

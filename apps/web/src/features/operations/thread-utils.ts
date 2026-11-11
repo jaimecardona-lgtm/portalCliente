@@ -1,3 +1,12 @@
+/**
+ * Utilidades puras para construir hilos de comentarios anidados.
+ *
+ * buildThread: a partir de la lista de comentarios de un evento, construye el árbol por parentCommentId.
+ * Un comentario cuyo padre no existe en el evento se trata como raíz, para no perder mensajes.
+ * countThread: cuenta mensajes del árbol, incluidas las respuestas.
+ * isVisibleToClient: regla de visibilidad para el portal de clientes; los comentarios internos no se muestran.
+ * Estas funciones no acceden a datos ni a la red, por lo que son fáciles de probar y reutilizar.
+ */
 import type { EventComment, ID, Visibility } from '@/types/domain'
 
 export interface ThreadNode {

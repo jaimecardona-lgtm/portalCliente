@@ -1,3 +1,10 @@
+/**
+ * Cierre de sesión compartido por el menú de perfil y la página de perfil.
+ *
+ * Orden de operaciones (importante): primero se navega a /login, después se borra la sesión del contexto y,
+ * en desarrollo, se pide al servidor que invalide la cookie. Invertir el orden provocó redirecciones
+ * residuales y bloqueos en pruebas; ver docs/validation.md (fase 04).
+ */
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import { useSession } from './session-context'

@@ -1,3 +1,13 @@
+/**
+ * Gestión documental (/documentos): vigentes, próximos a vencer y vencidos.
+ *
+ * Responsabilidad: listar documentos del tenant, filtrar por estado y categoría, mostrar historial y
+ * registrar una nueva versión (solo en desarrollo).
+ * Estado documental: se deriva de la fecha de vencimiento frente a la referencia temporal (ver
+ * deriveDocumentStatus en el repositorio). La pantalla no guarda el estado calculado.
+ * Restricciones: la vista previa del archivo y la carga real no están implementadas; los botones aparecen
+ * solo cuando la función está activa (FEATURES) y los textos lo indican.
+ */
 import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, Eye, History, UploadCloud, FolderOpen, ChevronDown, FileCheck2 } from 'lucide-react'

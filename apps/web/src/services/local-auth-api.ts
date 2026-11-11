@@ -66,6 +66,14 @@ export async function registerAccount(input: {
   return { status: 'unavailable' }
 }
 
+/**
+ * Verifica credenciales en el servidor local de desarrollo y, si son correctas, establece la cookie de sesión.
+ *
+ * @param email Correo; el servidor lo normaliza (minúsculas y espacios).
+ * @param password Contraseña en claro, solo viaja por HTTPS local y nunca se registra.
+ * @param remember true para una sesión de 14 días; false para 12 horas.
+ * @returns ok con la cuenta; invalid (genérico), locked (demasiados intentos) o unavailable.
+ */
 export async function loginAccount(email: string, password: string, remember: boolean): Promise<ApiResult<{ user: AccountProfile }>> {
   const { http, data } = await call('POST', '/login', { email, password, remember })
   if (http === 0) return { status: 'unavailable' }

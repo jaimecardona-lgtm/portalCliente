@@ -1,3 +1,14 @@
+/**
+ * Repositorio de presentación local: implementa PortalRepository en memoria con los fixtures sintéticos.
+ *
+ * Reglas que cumple toda lectura: recibe tenantId y filtra por él. Un ID de otra empresa devuelve null
+ * o una lista vacía, nunca datos ajenos.
+ * Escrituras: solo en memoria y solo para la sesión de navegador actual. Se pierden al recargar. No
+ * generan ningún efecto en sistemas externos.
+ * Fecha de referencia: referenceNow() (lib/clock) hace reproducibles los estados documentales y de
+ * vigencia en desarrollo.
+ * Usuarios: parte de los fixtures y puede incorporar la cuenta de la sesión mediante replaceUser.
+ */
 import {
   addresses,
   attachments,

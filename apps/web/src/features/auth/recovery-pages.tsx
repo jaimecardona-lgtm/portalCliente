@@ -1,3 +1,12 @@
+/**
+ * Recuperación de contraseña: solicitud (/recuperar-contrasena) y restablecimiento (/restablecer-contrasena).
+ *
+ * Responsabilidad: pedir el enlace y definir una nueva contraseña con el token recibido en la URL.
+ * Seguridad: la solicitud responde igual exista o no la cuenta. El token viaja solo en el enlace temporal,
+ * se usa una vez y caduca a los 15 minutos. No se muestra en pantalla ni se guarda en el navegador.
+ * Honestidad de la interfaz: la pantalla no afirma que se haya enviado un correo; en desarrollo indica
+ * dónde consultar el enlace (bandeja local, solo localhost).
+ */
 import { useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
@@ -150,7 +159,7 @@ export function ResetPasswordPage() {
       <AuthLayout>
         <h1 className="text-3xl font-bold tracking-tight text-ink">Enlace no válido</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
-          El enlace no es válido, ya se usó o venció (duran 15 minutos). Solicita uno nuevo.
+          El enlace no es válido, ya se usó o venció (caducan a los 15 minutos). Solicita uno nuevo.
         </p>
         <Link to="/recuperar-contrasena" className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-lg bg-blue text-[15px] font-medium text-white hover:bg-blue-600">
           Solicitar un nuevo enlace

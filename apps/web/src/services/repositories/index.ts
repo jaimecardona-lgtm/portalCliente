@@ -1,3 +1,14 @@
+/**
+ * Fábrica y acceso al repositorio de datos de la aplicación.
+ *
+ * - loadLocalRepository: crea el repositorio de presentación local con datos sintéticos. Solo en desarrollo;
+ *   la importación dinámica impide que los fixtures entren en el bundle de producción.
+ * - RepositoryContext / useRepository / useOptionalRepository: acceso desde los componentes.
+ *   useRepository lanza error si no hay repositorio; úsalo solo en rutas que ya pasaron la guarda de acceso.
+ *
+ * Para FastAPI se añadirá un repositorio remoto con la misma interfaz (PortalRepository); las pantallas
+ * no deben cambiar.
+ */
 import { createContext, useContext } from 'react'
 import type { PortalRepository } from './portal-repository'
 

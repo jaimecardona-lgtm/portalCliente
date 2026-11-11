@@ -1,3 +1,12 @@
+/**
+ * Copia de la sesión en sessionStorage (solo conveniencia del navegador).
+ *
+ * Responsabilidad: leer y escribir { userId, tenantId, simulated } de forma tolerante a fallos.
+ * Restricciones: el almacenamiento puede no estar disponible (modo privado, bloqueado). Todas las
+ * operaciones capturan excepciones. Un valor corrupto se ignora.
+ * Seguridad: el contenido NO es una prueba de identidad ni contiene credenciales. Un usuario malicioso
+ * que modifique esta copia no obtiene datos: el servidor valida la cookie y el repositorio filtra por tenant.
+ */
 import type { Session } from '@/types/domain'
 
 export const SESSION_STORAGE_KEY = 'logixtic.portal.session'

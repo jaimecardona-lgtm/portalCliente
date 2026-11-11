@@ -1,3 +1,10 @@
+/**
+ * Estados de operación y su presentación.
+ *
+ * Responsabilidad: definir el orden de los estados, su tono visual, su icono y su posición en el flujo
+ * (step). Cambiar el orden afecta al cálculo de progreso del detalle y del dashboard.
+ * Accesibilidad: cada estado se identifica por texto e icono, nunca solo por color.
+ */
 import { AlertTriangle, CheckCircle2, CircleDot, Clock, Anchor, Ship, Archive, type LucideIcon } from 'lucide-react'
 import type { OperationStatus } from '@/types/domain'
 import type { Tone } from '@/components/ui/primitives'

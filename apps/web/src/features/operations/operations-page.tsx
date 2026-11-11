@@ -1,3 +1,13 @@
+/**
+ * Listado de operaciones (/operaciones).
+ *
+ * Responsabilidad: tabla con columnas configurables, orden, búsqueda y filtros; versión de tarjetas en móvil.
+ * Estado y URL: los filtros viven en los parámetros de la URL (compartibles y persistentes al recargar).
+ * Las columnas visibles se guardan en localStorage como preferencia del usuario; si el almacenamiento falla,
+ * se usan las columnas por defecto.
+ * Restricciones: los datos vienen del repositorio del tenant activo. La tabla usa un contenedor con
+ * scroll horizontal; los elementos sr-only de sus celdas deben tener posicionamiento relativo.
+ */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'

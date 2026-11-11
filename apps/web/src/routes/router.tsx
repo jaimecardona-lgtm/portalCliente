@@ -1,3 +1,16 @@
+/**
+ * Mapa de rutas del portal (TanStack Router, definición por código).
+ *
+ * Tres grupos:
+ * - Públicas: /login, /registro, /recuperar-contrasena, /restablecer-contrasena, /terminos, /privacidad.
+ * - Autenticadas: bajo el layout "app" (AppShell). Su beforeLoad exige acceso local habilitado y una
+ *   sesión guardada; si no, redirige a /login con el destino original.
+ * - Marketplace: visible solo con FEATURES.marketplace; en otro caso responde como no encontrada.
+ *
+ * Decisión no evidente: la guarda vive en beforeLoad y no como <Navigate> dentro de la shell. Un
+ * redireccionamiento durante el render dejó la aplicación colgada en un bucle (ver docs/validation.md).
+ * Las pantallas pesadas se cargan con lazy() por ruta; la shell envuelve el contenido en Suspense.
+ */
 import { lazy } from 'react'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/layouts/app-shell'

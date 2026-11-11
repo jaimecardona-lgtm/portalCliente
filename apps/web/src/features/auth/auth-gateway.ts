@@ -1,3 +1,14 @@
+/**
+ * Puente entre la interfaz de autenticación y la API local de desarrollo.
+ *
+ * Responsabilidad: cargar de forma diferida la API local, convertir la cuenta del servidor al modelo de
+ * usuario de la aplicación y restablecer la sesión del navegador al arrancar.
+ * Dependencias: account-mapping (conversión), session-storage (sesión del navegador), repositorio local.
+ * Restricciones: loadLocalAuthApi devuelve null fuera de desarrollo; el import dinámico impide que
+ * el cliente de autenticación llegue al bundle de producción (verificado con verify:bundle).
+ * Decisión no evidente: la sessionStorage es solo una copia de conveniencia. La identidad real la
+ * decide la cookie HttpOnly que valida el servidor.
+ */
 import type { PortalRepository } from '@/services/repositories/portal-repository'
 import type { Session, User } from '@/types/domain'
 import { writeStoredSession } from './session-storage'

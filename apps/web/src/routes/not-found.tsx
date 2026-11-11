@@ -1,3 +1,6 @@
+/**
+ * Pantalla de ruta inexistente (404). No consulta datos ni requiere sesión.
+ */
 import { Link } from '@tanstack/react-router'
 import { Compass } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'

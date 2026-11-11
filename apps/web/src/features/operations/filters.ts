@@ -1,3 +1,12 @@
+/**
+ * Filtros, orden y parseo de la URL del listado de operaciones.
+ *
+ * Responsabilidad: convertir los parámetros de la URL en filtros tipados, aplicarlos y ordenar.
+ * Contrato de parseOperationSearch: acepta un objeto de búsqueda sin confiar en él. Valores inválidos
+ * (estado desconocido, fecha mal formada, orden no reconocido) se descartan en lugar de lanzar error.
+ * Regla de fechas: el rango usa el ETD, o la fecha de creación si no hay ETD. Los ISO son de solo día.
+ * Decisión no evidente: los valores vacíos siempre se ordenan al final, sin importar la dirección.
+ */
 import type { Operation, OperationStatus } from '@/types/domain'
 import { OPERATION_STATUSES } from './status'
 
@@ -82,6 +91,11 @@ export function referenceDate(op: Operation): string {
   return op.etd ?? op.createdAt
 }
 
+/**
+ * Aplica los filtros y el orden a la lista de operaciones ya obtenida del repositorio.
+ * Es una función pura: no consulta datos ni modifica la lista original.
+ * @returns Nueva lista filtrada y ordenada.
+ */
 export function applyOperationFilters(ops: Operation[], f: OperationFilters): Operation[] {
   const term = f.q.trim().toLowerCase()
   const filtered = ops.filter((op) => {

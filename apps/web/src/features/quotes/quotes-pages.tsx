@@ -1,3 +1,12 @@
+/**
+ * Cotizaciones: listado (/cotizaciones) y detalle con decisión (/cotizaciones/:id).
+ *
+ * Responsabilidad: mostrar conceptos, condiciones y observaciones; permitir aceptar o rechazar solo si
+ * canDecideQuote lo permite y FEATURES.quoteDecisions está activa.
+ * Flujo de decisión: confirmación explícita, llamada al repositorio y actualización de las consultas
+ * del tenant. En desarrollo la decisión se registra en el repositorio local y no genera transacción comercial.
+ * Errores: si el repositorio rechaza la decisión (estado o vigencia), se muestra el motivo.
+ */
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'

@@ -1,3 +1,15 @@
+/**
+ * Contrato de acceso a datos del portal (PortalRepository).
+ *
+ * Es el único punto por el que las pantallas leen o escriben datos. Hay dos implementaciones previstas:
+ * - Local (mock): desarrollo con datos sintéticos.
+ * - Remota (FastAPI): pendiente. Debe cumplir este mismo contrato sin cambios en las pantallas.
+ *
+ * Reglas para cualquier implementación:
+ * - Todos los métodos reciben tenantId explícito y deben filtrar por él.
+ * - El acceso a un recurso de otra empresa se trata como inexistente.
+ * - La autorización definitiva (identidad, membresía, rol) corresponde al backend, no al frontend.
+ */
 import type {
   Address,
   Attachment,

@@ -1,3 +1,14 @@
+/**
+ * Perfil del usuario autenticado (/perfil).
+ *
+ * Responsabilidad: mostrar la cuenta, editar el nombre y cambiar la contraseña.
+ * Dependencias: API local de autenticación (solo desarrollo, cargada con loadLocalAuthApi),
+ * repositorio local para reflejar el nombre en la barra superior, y useEndSession para cerrar sesión.
+ * Contrato: el nombre es el único campo editable. Empresa y rol se muestran y nunca se envían al servidor.
+ * Seguridad: el servidor valida la sesión en cada petición y decide tenant y rol; esta pantalla no es
+ * una barrera de autorización. Tras cambiar la contraseña, el servidor cierra las demás sesiones.
+ * Decisión no evidente: sin la API local (producción) la pantalla queda sin datos y no intenta leer nada.
+ */
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'

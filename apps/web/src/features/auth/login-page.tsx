@@ -1,3 +1,13 @@
+/**
+ * Inicio de sesión (/login).
+ *
+ * Flujo: validación con Zod en el cliente, envío al servidor local (solo desarrollo) y, si la respuesta es
+ * correcta, sincronización de la cuenta con el repositorio y de la sesión del navegador.
+ * Errores: el servidor responde siempre con un mensaje genérico ante credenciales incorrectas, para no
+ * revelar si el correo existe. El bloqueo tras varios intentos se muestra como estado aparte.
+ * Restricciones: fuera de desarrollo el formulario queda deshabilitado con un aviso neutro.
+ * Decisión no evidente: "Recordar sesión" solo cambia la duración de la cookie (14 días); sin él, 12 horas.
+ */
 import { useState } from 'react'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'

@@ -1,3 +1,12 @@
+/**
+ * Solicitudes: historial (/solicitudes) y formulario de nueva solicitud (/solicitudes/nueva).
+ *
+ * Validación: requestSchema (Zod) fija asunto de 5 a 120 caracteres y descripción de 20 a 2000. El servidor
+ * debe validar de nuevo.
+ * Adjuntos: se seleccionan y se validan tipo y tamaño en el cliente (máximo 3 archivos de 5 MB). Aún no se
+ * suben: se incorporarán con la integración documental (ver docs/ENTREGA_TECNICA_ENRIQUE.md).
+ * Fuera de desarrollo, el formulario se sustituye por un aviso de función no disponible.
+ */
 import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'

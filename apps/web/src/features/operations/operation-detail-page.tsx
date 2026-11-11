@@ -1,3 +1,14 @@
+/**
+ * Detalle de una operación (DO) (/operaciones/:id).
+ *
+ * Responsabilidad: cabecera con número DO, ruta, progreso, fechas logísticas y responsable; timeline de
+ * eventos con sus conversaciones; datos logísticos y documentos vinculados a eventos.
+ * Aislamiento: la operación se busca siempre por el tenant de la sesión. Un identificador de otra empresa
+ * devuelve "no encontrada" sin revelar que existe.
+ * Dependencias: repositorio (getOperation, listOperationEvents, listAttachments, listEventComments),
+ * EventTimeline (componente genérico) y EventThread (conversaciones).
+ * Decisión no evidente: el progreso usa milestoneIndex, que agrupa "En puerto" y "En aduana" en un mismo hito.
+ */
 import { useMemo, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQueries, useQuery } from '@tanstack/react-query'

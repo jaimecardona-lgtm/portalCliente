@@ -1,3 +1,12 @@
+/**
+ * Información de la cuenta de la empresa (/cuenta): datos generales, direcciones y contactos.
+ *
+ * Responsabilidad: presentar datos del tenant activo en modo solo lectura. Los cambios se solicitan
+ * mediante el módulo de solicitudes; esta pantalla no modifica datos.
+ * Dependencias: useRepository (listTenant, listAddresses, listContacts) y useSession para el tenant.
+ * Contrato: no recibe parámetros; todas las consultas incluyen tenantId de la sesión.
+ * Errores: si la consulta de empresa falla se muestra ErrorState con reintento.
+ */
 import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
