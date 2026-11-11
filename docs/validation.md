@@ -1,6 +1,43 @@
 # Validación ejecutada
 
 Todas las cifras provienen de ejecuciones reales en Windows 11 con Node 22.22.0, npm 10.6.0 y Google Chrome instalado. Los comandos se listan para reproducirlos desde `apps/web`.
+## Fase 05 — autenticación web con JSON local
+
+| Comando | Resultado |
+|---|---|
+| `npm test` | 10 archivos, **88 pruebas aprobadas**: almacén JSON (escrituras concurrentes sin pérdida, sin temporales, persistencia entre instancias), servicio (registro, bloqueo tras 5 intentos, sesiones de 12 h y 14 días, recuperación de un solo uso y caducidad, perfil, cambio de contraseña), HTTP (loopback, orígenes, tamaño, tipo de contenido, bandeja solo local), migración de la configuración anterior |
+| `npm run typecheck` | Sin errores |
+| `npm run build:verify` | Correcto. 21 archivos sin cadenas de acceso local (`__local-auth`, `passwordHash`, `users.json`, `outbox`) |
+| `PW_CHANNEL=chrome npm run test:e2e` | **87 aprobadas, 1 omitida** (selector de empresa en móvil) |
+| `PW_CHANNEL=chrome npm run test:e2e:prod` | **18 aprobadas** |
+
+### Flujos verificados en navegador (E2E `auth.spec.ts` y verificación manual)
+
+1. Registro desde `/registro` sin ningún comando; entrada automática al portal.
+2. Términos obligatorios; correo repetido; regla y indicador de contraseña.
+3. Inicio de sesión tras limpiar la cookie; rechazo de contraseña incorrecta con mensaje genérico.
+4. La sesión se mantiene al recargar; la recarga restablece la sesión desde el servidor.
+5. Acceso a dashboard y operaciones; bloqueo de rutas protegidas sin sesión.
+6. Perfil: consulta, edición del nombre con reflejo en la barra superior, cambio de contraseña y acceso con la nueva.
+7. Recuperación: solicitud con respuesta genérica, enlace desde la bandeja local, restablecimiento y enlace invalidado.
+8. Términos y privacidad consultables sin sesión; datos del responsable marcados como pendientes.
+9. Cierre de sesión y bloqueo posterior.
+10. Aislamiento: un DO de otra empresa no está disponible por URL.
+11. **Reinicio**: cuenta creada, servidor de desarrollo detenido y levantado de nuevo. El login correcto responde 200, la contraseña incorrecta 401, y el archivo no contiene la contraseña en claro.
+
+### Defectos encontrados y corregidos
+
+1. **Ambigüedad de selectores** en las pruebas (toast y nombre en el perfil; enlaces de términos repetidos). Corregido con selectores exactos.
+2. **El selector de empresa de QA** se restablece con la recarga: la sesión real es la del servidor. Comportamiento intencional; la prueba navega internamente.
+3. **Pruebas con tiempo agotado** (30 s) en la primera carga tras reiniciar el servidor: compilación de módulos perezosos y scrypt en paralelo. El tiempo por prueba pasó a 60 s en desarrollo. Repetidas con el servidor caliente, pasan.
+4. **Documentación**: una sustitución con comillas invertidas en un comando de shell dejó texto corrupto en este registro. Corregido reescribiendo la sección.
+
+### Limitaciones de la validación
+
+- No se probó el envío real de correos (no existe proveedor).
+- Los límites de intentos viven en memoria: se reinician con el servidor.
+- Las cuentas acumuladas en `apps/web/local/auth/users.json` provienen de las pruebas E2E (dominio `pruebas.example`). Se pueden eliminar deteniendo Vite y borrando esa carpeta.
+
 
 ## Fase 04 — usuario local de revisión
 

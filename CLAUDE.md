@@ -37,6 +37,15 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 - No escribir en la interfaz términos de prototipo o demostración: `src/test/visible-copy.test.ts` lo verifica.
 - Credenciales de presentación: solo en `docs/ENTREGA_TECNICA_ENRIQUE.md`. No mostrarlas en pantalla.
 
+## Autenticación local (fase 05)
+
+- Cuentas de desarrollo en `apps/web/local/auth/` (JSON). Se crean desde `/registro`. Ver `docs/autenticacion-local.md`.
+- Toda operación de usuario pasa por el servidor de desarrollo (`scripts/lib/local-auth/`). El navegador nunca lee ni escribe el JSON.
+- El servidor decide tenant (`tn-andino`) y rol (`client`). No aceptar tenant ni rol del cliente.
+- Nunca registrar en logs contraseñas, hashes ni tokens. Sesiones y tokens de recuperación se guardan solo como hash.
+- Las rutas de autenticación locales y sus contratos (`src/services/auth/contracts.ts`) deben poder sustituirse por Supabase Auth sin reconstruir las páginas.
+- `setup:local-user` quedó descontinuado: no reintroducir un registro por terminal.
+
 ## Reglas de dominio (no negociables)
 
 1. **Todo acceso a datos recibe `tenantId`** y el repositorio filtra por él. Un ID de otra empresa devuelve `null` / lista vacía.

@@ -35,24 +35,15 @@ npm run build:verify  # build con configuración de verificación + inspección 
 npm run preview     # sirve el build generado
 ```
 
-## Usuario local de revisión (solo localhost)
+## Cuenta de desarrollo
 
-Acceso para revisar el portal en `npm run dev`. No es un mecanismo de autenticación para clientes reales, y nunca forma parte del build de producción.
+No hace falta configurar nada en la terminal. Con `npm run dev`:
 
-1. Configura tu usuario y elige una contraseña temporal (mínimo 12 caracteres). La contraseña no se muestra ni se guarda en claro:
+1. Abre `http://127.0.0.1:5173/registro` y crea tu cuenta.
+2. Entrarás al portal, con tu empresa de prueba asignada.
+3. Después, usa `http://127.0.0.1:5173/login`. Para recuperar la contraseña, consulta la bandeja local en `/__local-auth/outbox` (solo desde este equipo).
 
-   ```bash
-   cd apps/web
-   npm run setup:local-user
-   ```
-
-2. Inicia el portal y entra con tu correo y la contraseña que elegiste:
-
-   ```bash
-   npm run dev   # http://127.0.0.1:5173/login
-   ```
-
-La configuración queda en `apps/web/local/reviewer.config.json` (ignorada por Git). Para cambiar la contraseña: `npm run setup:local-user -- --force`.
+Los datos se guardan en `apps/web/local/auth/` (ignorado por Git). Detalles, endpoints y límites: `docs/autenticacion-local.md`. Este acceso es solo para desarrollo y nunca forma parte del build de producción.
 
 ## Entornos
 
@@ -62,6 +53,7 @@ La configuración queda en `apps/web/local/reviewer.config.json` (ignorada por G
 ## Documentación
 
 - [Entrega técnica para revisión (Enrique)](docs/ENTREGA_TECNICA_ENRIQUE.md)
+- [Autenticación local de desarrollo](docs/autenticacion-local.md)
 - [Preparación para Supabase](docs/supabase-preparation.md)
 - [Arquitectura y decisiones](docs/architecture.md)
 - [Validación ejecutada](docs/validation.md)

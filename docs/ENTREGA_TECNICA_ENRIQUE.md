@@ -65,7 +65,7 @@ Versiones exactas en `apps/web/package-lock.json`.
 
 Existen únicamente en `vite dev`. **No están presentes en el build de producción.**
 
-- **Acceso de presentación** con usuarios sintéticos (ver sección 12, credenciales para el equipo técnico).
+- **Cuentas de desarrollo** creadas desde `/registro` en el servidor local (ver `docs/autenticacion-local.md`).
 - **Repositorio local** con fixtures sintéticos (`src/data/fixtures/demo-data.ts`) y latencia simulada para estados de carga.
 - **Selector de empresa de QA** en la barra superior, etiquetado "Entorno local". Permite revisar el aislamiento entre empresas.
 - **Motor de reglas de Logix** sobre los datos locales del tenant activo. No es un modelo de lenguaje.
@@ -88,7 +88,7 @@ Ninguna de las siguientes funciones existe en producción hasta implementar el b
 ## 6. Estado de autenticación
 
 - **No existe autenticación real** en el frontend.
-- **Desarrollo**: acceso de presentación contra usuarios sintéticos. Su contraseña no es un secreto y no protege nada.
+- **Desarrollo**: cuentas locales creadas desde el navegador, con sesión por cookie HttpOnly validada por el servidor de desarrollo. No es seguridad real.
 - **Producción**: `npm run build` falla si faltan `VITE_AUTH_PROVIDER` (valor `oidc`) y `VITE_API_BASE_URL` (URL https). Aunque la configuración esté completa, el acceso queda bloqueado porque el proveedor `oidc` **aún no está implementado** (`IMPLEMENTED_AUTH_PROVIDERS` está vacío en `src/config/runtime.ts`).
 - Ninguna sesión guardada en el navegador concede acceso en producción. La clave de sesión no es una prueba de identidad: FastAPI debe validar el token en cada petición.
 
@@ -184,30 +184,14 @@ Para ejecutar E2E con Chrome instalado en el equipo, anteponer `PW_CHANNEL=chrom
 | `VITE_AUTH_PROVIDER` | `oidc` (único valor permitido hoy) | Sí |
 | `VITE_API_BASE_URL` | URL https de la API FastAPI | Sí |
 
-### Usuario local de revisión (fase 04)
+### Cuentas de desarrollo (fase 05)
 
-Acceso de revisión para una persona concreta, solo en `vite dev` y solo desde localhost:
-
-- Se configura con `npm run setup:local-user`. La contraseña se pide sin mostrarla y se guarda como hash scrypt con sal en `apps/web/local/reviewer.config.json` (ignorado por Git).
-- La verificación ocurre en el servidor de desarrollo mediante un middleware que no existe en el build (`configureServer` solo se ejecuta con `vite dev`). Las peticiones de otro origen se rechazan. Tras 5 intentos fallidos, el acceso se bloquea 60 segundos.
-- El usuario queda asignado a una empresa sintética (Textiles Andinos) con rol operativo. No tiene permisos administrativos.
-- **No es un mecanismo de autenticación seguro.** No debe usarse con clientes reales ni desplegarse.
-- La contraseña nunca se escribe en código, fixtures, variables `VITE_*`, documentación ni Git.
-
-Preparación para Supabase (Auth, `profiles`, `tenants`, `tenant_memberships`, Storage) en `docs/supabase-preparation.md`. No hay conexión ni migraciones.
-
-### Credenciales de presentación local (**solo equipo técnico**)
-
-Válidas únicamente en `vite dev`. No existen en el build de producción. Son datos sintéticos.
-
-| Empresa (sintética) | Correo | Contraseña |
-|---|---|---|
-| Textiles Andinos S.A.S. | `ana.torres@textilesandinos.example` | `Demo-2026` |
-| Agroexport Pacífico Ltda. | `carla.nino@agroexport-pacifico.example` | `Demo-2026` |
-
-La contraseña no es un secreto ni protege datos reales. No debe reutilizarse en ningún otro entorno.
-
----
+- Las cuentas se crean desde `/registro` en el navegador. No hay script de terminal (`setup:local-user` queda descontinuado).
+- El servidor de desarrollo guarda las cuentas en `apps/web/local/auth/users.json`: contraseñas solo como hash scrypt con sal, sesiones y tokens solo como hash, y escrituras atómicas.
+- La sesión va en cookie HttpOnly, SameSite=Strict, validada por el servidor (12 h, o 14 días con "recordar sesión").
+- Recuperación de contraseña sin correo real: el enlace de 15 minutos se consulta en la bandeja local (solo localhost).
+- Todo el mecanismo existe solo en `vite dev`. El build de producción lo excluye y lo verifica `npm run build:verify`.
+- Detalle completo: `docs/autenticacion-local.md`.
 
 ## Anexo A. Verificación realizada en esta entrega
 

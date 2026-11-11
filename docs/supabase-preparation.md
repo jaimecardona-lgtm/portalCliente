@@ -49,3 +49,15 @@ Las tablas de dominio (`operations`, `operation_events`, `event_comments`, `docu
 3. Definir las políticas RLS junto con las reglas de FastAPI, y probarlas con usuarios de cada tenant.
 4. Implementar en FastAPI la verificación de token y la resolución de membresía.
 5. Implementar el repositorio remoto y retirar el acceso local de revisión del flujo.
+
+## Migración de perfiles y membresías (fase 05)
+
+Hoy: `apps/web/local/auth/users.json` (cuentas) y `sessions.json` (sesiones por hash). Mañana: `profiles` y `tenant_memberships` en PostgreSQL, con Supabase Auth como proveedor de credenciales.
+
+1. Exportar cuentas sin `passwordHash`: id, nombre, correo normalizado, tenant, rol, estado, fechas y versión de términos aceptada.
+2. Crear las cuentas en Supabase Auth con un enlace de invitación o restablecimiento. **No migrar hashes**: cada persona establece su credencial en el sistema definitivo.
+3. Insertar `profiles` con el mismo identificador que `auth.users` y una membresía activa por tenant en `tenant_memberships`.
+4. Mapear la aceptación de términos a una tabla de consentimientos (o columnas de `profiles`) conservando la versión.
+5. Las sesiones locales no se migran: caducan.
+
+Interfaces que deben sustituirse sin reconstruir páginas: `AuthService`, `UserRepository`, `SessionService`, `TenantMembershipRepository` (ver `src/services/auth/contracts.ts`).
