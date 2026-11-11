@@ -1,5 +1,4 @@
 import {
-  DEMO_NOW,
   addresses,
   attachments,
   contacts,
@@ -13,6 +12,7 @@ import {
   users,
 } from '@/data/fixtures/demo-data'
 import type { DocumentRecord, DocumentStatus, EventComment, ID, Quote, Request } from '@/types/domain'
+import { referenceNow } from '@/lib/clock'
 import type { NewEventCommentInput, NewRequestInput, PortalRepository } from './portal-repository'
 
 export interface MockRepositoryOptions {
@@ -49,7 +49,7 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 export function createMockRepository(options: MockRepositoryOptions = {}): PortalRepository {
   const latency = options.latencyMs ?? DEFAULT_LATENCY_MS
   // Fecha de referencia fija del DEMO: los indicadores y estados son reproducibles.
-  const now = options.now ?? new Date(DEMO_NOW)
+  const now = options.now ?? referenceNow()
 
   // Copias de trabajo para que las escrituras DEMO no alteren los fixtures originales.
   let commentsState: EventComment[] = structuredClone(eventComments)

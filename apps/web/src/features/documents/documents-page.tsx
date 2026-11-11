@@ -8,7 +8,8 @@ import { Dialog } from '@/components/ui/dialog'
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton, type Tone, inputClass } from '@/components/ui/primitives'
 import { cn, daysUntil, formatDate } from '@/lib/format'
 import type { DocumentRecord, DocumentStatus } from '@/types/domain'
-import { DEMO_NOW } from '@/data/fixtures/demo-data'
+import { referenceNow } from '@/lib/clock'
+import { FEATURES } from '@/config/runtime'
 
 type Tab = 'all' | DocumentStatus
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -30,7 +31,7 @@ export function DocumentsPage() {
   const tenantId = session?.tenantId ?? ''
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const now = useMemo(() => new Date(DEMO_NOW), [])
+  const now = useMemo(() => referenceNow(), [])
 
   const [tab, setTab] = useState<Tab>('all')
   const [term, setTerm] = useState('')
@@ -71,7 +72,7 @@ export function DocumentsPage() {
       <header>
         <p className="text-xs font-semibold tracking-[0.16em] text-blue uppercase">Cumplimiento</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Gestión documental</h1>
-        <p className="mt-1 text-sm text-ink-muted">Vigencias y versiones de los documentos de su empresa. En DEMO se usan archivos sintéticos.</p>
+        <p className="mt-1 text-sm text-ink-muted">Vigencias y versiones de los documentos de su empresa. </p>
       </header>
 
       <Card className="p-3 sm:p-4">
@@ -144,12 +145,16 @@ export function DocumentsPage() {
                       <div><dt className="text-xs text-ink-muted">Vence</dt><dd className={cn('tabular', doc.status === 'vencido' ? 'font-semibold text-danger-700' : 'text-ink-soft')}>{formatDate(doc.expiresAt)}{doc.status !== 'vencido' && <span className="ml-1 text-xs text-ink-muted">({days} d)</span>}</dd></div>
                     </dl>
                     <div className="flex flex-wrap gap-2 md:shrink-0">
-                      <Button variant="secondary" size="sm" onClick={() => setPreviewId(doc.id)} disabled={!doc.attachmentId} title={doc.attachmentId ? undefined : 'Este documento no tiene archivo adjunto en DEMO'}>
-                        <Eye className="size-3.5" aria-hidden /> Consultar archivo
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => setUploadFor(doc)}>
-                        <UploadCloud className="size-3.5" aria-hidden /> Cargar actualización
-                      </Button>
+                      {FEATURES.documentPreview && (
+                        <Button variant="secondary" size="sm" onClick={() => setPreviewId(doc.id)} disabled={!doc.attachmentId} title={doc.attachmentId ? undefined : 'Este documento aún no tiene archivo asociado'}>
+                          <Eye className="size-3.5" aria-hidden /> Consultar archivo
+                        </Button>
+                      )}
+                      {FEATURES.documentUpload && (
+                        <Button variant="secondary" size="sm" onClick={() => setUploadFor(doc)}>
+                          <UploadCloud className="size-3.5" aria-hidden /> Cargar actualización
+                        </Button>
+                      )}
                       <Button variant="ghost" size="sm" aria-expanded={expanded} aria-controls={`hist-${doc.id}`} onClick={() => setOpenHistory(expanded ? null : doc.id)}>
                         <History className="size-3.5" aria-hidden /> Historial
                         <ChevronDown className={cn('size-3.5 transition-transform duration-200', expanded && 'rotate-180')} aria-hidden />
@@ -181,7 +186,7 @@ export function DocumentsPage() {
             <div className="min-w-0">
               <p className="font-semibold text-ink break-all">{previewAttachment?.name ?? 'Archivo sin nombre'}</p>
               <p className="mt-1 text-sm text-ink-muted">{previewAttachment ? `${previewAttachment.sizeKb} KB · ${previewAttachment.mimeType}` : 'Sin metadatos'}</p>
-              <p className="mt-3 rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-soft">Vista previa DEMO: el archivo es sintético y no se descarga desde este entorno.</p>
+              <p className="mt-3 rounded-lg bg-surface-muted px-3 py-2 text-xs text-ink-soft">La vista previa estará disponible con la integración documental.</p>
             </div>
           </div>
         </Dialog>
@@ -195,7 +200,7 @@ export function DocumentsPage() {
             if (!user) return
             await repo.addDocumentVersion(tenantId, uploadFor.id, { fileName: name, note, uploadedBy: user.fullName })
             await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'documents') })
-            toast({ title: 'Actualización registrada', description: `${uploadFor.name} · nueva versión ${uploadFor.version + 1} (DEMO, sin archivo real).` })
+            toast({ title: 'Actualización registrada', description: `${uploadFor.name} · nueva versión ${uploadFor.version + 1} registrada en el entorno local.` })
             setUploadFor(null)
           }}
         />

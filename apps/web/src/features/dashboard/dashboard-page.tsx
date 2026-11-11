@@ -23,14 +23,14 @@ import { OperationStatusBadge } from '@/components/ui/status-badge'
 import { cn, daysUntil, formatDate, formatRelative } from '@/lib/format'
 import { STATUS_META } from '@/features/operations/status'
 import type { Operation, OperationEvent, DocumentRecord, Quote } from '@/types/domain'
-import { DEMO_NOW } from '@/data/fixtures/demo-data'
+import { referenceNow } from '@/lib/clock'
 import { isVisibleToClient } from '@/features/operations/thread-utils'
 
 export function DashboardPage() {
   const repo = useRepository()
   const { session, user, tenant, isResolving } = useSession()
   const tenantId = session?.tenantId ?? ''
-  const now = useMemo(() => new Date(DEMO_NOW), [])
+  const now = useMemo(() => referenceNow(), [])
 
   const ops = useQuery({ queryKey: tenantKey(tenantId, 'operations'), queryFn: () => repo.listOperations(tenantId), enabled: Boolean(tenantId) })
   const docs = useQuery({ queryKey: tenantKey(tenantId, 'documents'), queryFn: () => repo.listDocuments(tenantId), enabled: Boolean(tenantId) })

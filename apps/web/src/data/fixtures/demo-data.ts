@@ -1,3 +1,4 @@
+import { LOCAL_REFERENCE_ISO } from '@/lib/clock'
 import type {
   Address,
   Attachment,
@@ -20,13 +21,13 @@ import type {
 
 export const DEMO_PASSWORD = 'Demo-2026'
 
-/** Fecha de referencia del modo DEMO (coherente con los fixtures). */
-export const DEMO_NOW = '2026-11-11T09:00:00-05:00'
+/** Fecha de referencia de los datos sintéticos (coherente con los fixtures). */
+export const DEMO_NOW = LOCAL_REFERENCE_ISO
 
 export const tenants: Tenant[] = [
   {
     id: 'tn-andino',
-    legalName: 'Textiles Andinos Demo S.A.S.',
+    legalName: 'Textiles Andinos S.A.S.',
     shortName: 'Textiles Andinos',
     taxId: '900.000.001-1',
     country: 'Colombia',
@@ -37,7 +38,7 @@ export const tenants: Tenant[] = [
   },
   {
     id: 'tn-pacifico',
-    legalName: 'Agroexport Pacífico Demo Ltda.',
+    legalName: 'Agroexport Pacífico Ltda.',
     shortName: 'Agroexport Pacífico',
     taxId: '900.000.002-2',
     country: 'Colombia',
@@ -53,7 +54,7 @@ export const users: User[] = [
     id: 'us-ana',
     tenantId: 'tn-andino',
     fullName: 'Ana Lucía Torres',
-    email: 'ana.torres@andino.demo.test',
+    email: 'ana.torres@textilesandinos.example',
     role: 'Administrador',
     demoPassword: DEMO_PASSWORD,
   },
@@ -61,7 +62,7 @@ export const users: User[] = [
     id: 'us-luis',
     tenantId: 'tn-andino',
     fullName: 'Luis Felipe Mora',
-    email: 'luis.mora@andino.demo.test',
+    email: 'luis.mora@textilesandinos.example',
     role: 'Operativo',
     demoPassword: DEMO_PASSWORD,
   },
@@ -69,7 +70,7 @@ export const users: User[] = [
     id: 'us-carla',
     tenantId: 'tn-pacifico',
     fullName: 'Carla Niño',
-    email: 'carla.nino@pacifico.demo.test',
+    email: 'carla.nino@agroexport-pacifico.example',
     role: 'Administrador',
     demoPassword: DEMO_PASSWORD,
   },
@@ -77,7 +78,7 @@ export const users: User[] = [
     id: 'us-diego',
     tenantId: 'tn-pacifico',
     fullName: 'Diego Restrepo',
-    email: 'diego.restrepo@pacifico.demo.test',
+    email: 'diego.restrepo@agroexport-pacifico.example',
     role: 'Comercial',
     demoPassword: DEMO_PASSWORD,
   },
@@ -92,11 +93,11 @@ export const addresses: Address[] = [
 
 export const contacts: Contact[] = [
   { id: 'ct-1', tenantId: 'tn-andino', fullName: 'Mariana Rojas', role: 'Ejecutiva de cuenta', email: 'mrojas@logixtic.demo.test', phone: '+57 601 000 0101', kind: 'commercial' },
-  { id: 'ct-2', tenantId: 'tn-andino', fullName: 'Ana Lucía Torres', role: 'Gerente de comercio exterior', email: 'ana.torres@andino.demo.test', phone: '+57 310 000 0101', kind: 'commercial' },
+  { id: 'ct-2', tenantId: 'tn-andino', fullName: 'Ana Lucía Torres', role: 'Gerente de comercio exterior', email: 'ana.torres@textilesandinos.example', phone: '+57 310 000 0101', kind: 'commercial' },
   { id: 'ct-3', tenantId: 'tn-andino', fullName: 'Jorge Peña', role: 'Coordinador de operaciones', email: 'jpena@logixtic.demo.test', phone: '+57 601 000 0102', kind: 'operational' },
-  { id: 'ct-4', tenantId: 'tn-andino', fullName: 'Luis Felipe Mora', role: 'Analista de logística', email: 'luis.mora@andino.demo.test', phone: '+57 310 000 0102', kind: 'operational' },
+  { id: 'ct-4', tenantId: 'tn-andino', fullName: 'Luis Felipe Mora', role: 'Analista de logística', email: 'luis.mora@textilesandinos.example', phone: '+57 310 000 0102', kind: 'operational' },
   { id: 'ct-5', tenantId: 'tn-pacifico', fullName: 'Sebastián Gil', role: 'Ejecutivo de cuenta', email: 'sgil@logixtic.demo.test', phone: '+57 602 000 0201', kind: 'commercial' },
-  { id: 'ct-6', tenantId: 'tn-pacifico', fullName: 'Carla Niño', role: 'Directora de exportaciones', email: 'carla.nino@pacifico.demo.test', phone: '+57 315 000 0201', kind: 'commercial' },
+  { id: 'ct-6', tenantId: 'tn-pacifico', fullName: 'Carla Niño', role: 'Directora de exportaciones', email: 'carla.nino@agroexport-pacifico.example', phone: '+57 315 000 0201', kind: 'commercial' },
   { id: 'ct-7', tenantId: 'tn-pacifico', fullName: 'Andrea Vélez', role: 'Coordinadora de embarques', email: 'avelez@logixtic.demo.test', phone: '+57 602 000 0202', kind: 'operational' },
 ]
 

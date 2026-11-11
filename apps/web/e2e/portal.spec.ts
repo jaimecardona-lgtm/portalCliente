@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test'
 import { ANDINO_EMAIL, DEMO_PASSWORD, expectNoHorizontalOverflow, loginAs } from './helpers'
 
-test.describe('acceso DEMO', () => {
+test.describe('acceso', () => {
   test('rechaza una contraseña incorrecta y acepta la de demostración', async ({ page }) => {
     await page.goto('/login')
     await page.locator('#email').fill(ANDINO_EMAIL)
     await page.locator('#password').fill('otra-clave')
-    await page.getByRole('button', { name: 'Acceder a la plataforma' }).click()
-    await expect(page.getByRole('alert')).toContainText('no válidos para el modo DEMO')
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+    await expect(page.getByRole('alert')).toContainText('Correo o contraseña no válidos.')
 
     await page.locator('#password').fill(DEMO_PASSWORD)
-    await page.getByRole('button', { name: 'Acceder a la plataforma' }).click()
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
     await expect(page).toHaveURL(/\/$/)
   })
 
@@ -19,10 +19,18 @@ test.describe('acceso DEMO', () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
+  test('el login no muestra cuentas, contraseñas ni textos de demostración', async ({ page }) => {
+    await page.goto('/login')
+    await expect(page.getByRole('heading', { level: 1, name: 'Bienvenido a Logixtic' })).toBeVisible()
+    const body = await page.locator('body').innerText()
+    expect(body).not.toMatch(/Demo-2026|textilesandinos.example|agroexport-pacifico.example|Cuentas de demostración|Rellenar|Modo DEMO|Textiles Andinos/)
+    await expect(page.locator('input[value="Demo-2026"]')).toHaveCount(0)
+  })
+
   test('valida campos vacíos sin enviar', async ({ page }) => {
     await page.goto('/login')
-    await page.getByRole('button', { name: 'Acceder a la plataforma' }).click()
-    await expect(page.getByText('Ingrese su correo corporativo.')).toBeVisible()
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click()
+    await expect(page.getByText('Ingresa tu correo corporativo.')).toBeVisible()
   })
 })
 
@@ -75,11 +83,11 @@ test.describe('aislamiento de tenants', () => {
     await expect(page.getByText('DO-26-0408')).toHaveCount(0)
   })
 
-  test('el selector SIMULACIÓN cambia de empresa y los datos cambian con ella', async ({ page }) => {
+  test('el selector de empresa del entorno local cambia los datos', async ({ page }) => {
     // El selector de simulación se muestra desde xl (1280 px); en pantallas menores es una herramienta de escritorio.
-    test.skip((page.viewportSize()?.width ?? 0) < 1280, 'selector de simulación visible desde 1280 px')
+    test.skip((page.viewportSize()?.width ?? 0) < 1280, 'selector de empresa visible desde 1280 px')
     await loginAs(page, ANDINO_EMAIL)
-    await page.getByRole('combobox', { name: 'Cambiar empresa (solo simulación DEMO)' }).selectOption('tn-pacifico')
+    await page.getByRole('combobox', { name: 'Cambiar empresa (entorno local)' }).selectOption('tn-pacifico')
     await expect(page.getByText('Agroexport Pacífico').first()).toBeVisible()
     await page.goto('/operaciones/op-0408')
     await expect(page.getByRole('heading', { name: 'DO-26-0408' })).toBeVisible()
@@ -161,7 +169,7 @@ test.describe('formularios y diálogos', () => {
 test.describe('asistente Logix', () => {
   test('responde con datos del tenant activo', async ({ page }) => {
     await loginAs(page)
-    await page.getByRole('button', { name: 'Abrir asistente Logix (modo DEMO)' }).click()
+    await page.getByRole('button', { name: 'Abrir asistente Logix' }).click()
     await expect(page.getByRole('region', { name: 'Asistente Logix' }).or(page.getByLabel('Asistente Logix'))).toBeVisible()
     await page.getByLabel('Escriba su pregunta para Logix').fill('¿Cuántas operaciones activas tengo?')
     await page.keyboard.press('Enter')
@@ -170,22 +178,26 @@ test.describe('asistente Logix', () => {
 
   test('Escape cierra el panel', async ({ page }) => {
     await loginAs(page)
-    await page.getByRole('button', { name: 'Abrir asistente Logix (modo DEMO)' }).click()
+    await page.getByRole('button', { name: 'Abrir asistente Logix' }).click()
     await expect(page.getByLabel('Escriba su pregunta para Logix')).toBeFocused()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Abrir asistente Logix (modo DEMO)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Abrir asistente Logix' })).toBeVisible()
   })
 })
 
-test.describe('responsive sin desbordamiento', () => {
+test.describe('calidad de consola y responsive', () => {
   const routes = ['/', '/operaciones', '/operaciones/op-0412', '/documentos', '/cotizaciones', '/cotizaciones/qt-1001', '/solicitudes', '/solicitudes/nueva', '/cuenta', '/marketplace']
 
   for (const route of routes) {
-    test(`sin scroll horizontal en ${route}`, async ({ page }) => {
+    test(`sin scroll horizontal ni errores de consola en ${route}`, async ({ page }) => {
+      const errors: string[] = []
+      page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+      page.on('pageerror', (e) => errors.push(String(e)))
       await loginAs(page, ANDINO_EMAIL)
       await page.goto(route)
       await page.waitForLoadState('networkidle')
       await expectNoHorizontalOverflow(page)
+      expect(errors).toEqual([])
     })
   }
 })

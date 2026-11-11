@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Bot, FlaskConical, Send, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bot, Send, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { cn } from '@/lib/format'
+import { FEATURES } from '@/config/runtime'
 import { LogoMark } from '@/components/brand/logo'
 import { answerLogixQuestion, SUGGESTED_QUESTIONS, type LogixAnswer } from './logix-engine'
 
@@ -17,6 +18,31 @@ interface Message {
 }
 
 export function LogixAssistant() {
+  if (!FEATURES.assistant) return <LogixLauncherUnavailable />
+  return <LogixPanel />
+}
+
+/** Lanzador visual deshabilitado mientras el asistente no está conectado a su backend. */
+function LogixLauncherUnavailable() {
+  return (
+    <button
+      type="button"
+      disabled
+      aria-disabled="true"
+      aria-label="Asistente Logix, próximamente disponible"
+      title="Próximamente"
+      className="fixed right-3 bottom-3 z-40 flex h-12 items-center gap-2 rounded-full bg-midnight/80 pr-4 pl-2 text-white/70 shadow-pop ring-1 ring-white/10 sm:right-6 sm:bottom-6"
+    >
+      <span className="grid size-8 place-items-center rounded-full bg-white/10">
+        <LogoMark className="size-5 opacity-70" />
+      </span>
+      <span className="text-sm font-semibold">Logix</span>
+      <span className="rounded-full bg-white/10 px-1.5 py-px text-[9px] font-bold tracking-wide uppercase">Próximamente</span>
+    </button>
+  )
+}
+
+function LogixPanel() {
   const { session, tenant } = useSession()
   const repo = useRepository()
   const location = useLocation()
@@ -43,7 +69,7 @@ export function LogixAssistant() {
   const welcome = useMemo<string>(() => {
     const name = tenant?.shortName ?? 'su empresa'
     if (contextOp) return `Estoy viendo ${contextOp.doNumber}. Puedo explicarle su estado, ETA y pendientes.`
-    return `Hola, soy Logix. Puedo responder sobre operaciones, documentos y cotizaciones de ${name}.`
+    return `Hola, soy Logix. Puedo orientarte sobre operaciones, documentos y cotizaciones de ${name}.`
   }, [tenant?.shortName, contextOp])
 
   useEffect(() => {
@@ -100,14 +126,13 @@ export function LogixAssistant() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Abrir asistente Logix (modo DEMO)"
+          aria-label="Abrir asistente Logix"
           className="fixed right-3 bottom-3 z-40 flex h-12 items-center gap-2 rounded-full bg-midnight pr-3 pl-2 sm:right-6 sm:bottom-6 sm:pr-4 text-white shadow-pop ring-1 ring-white/10 transition-transform duration-200 hover:-translate-y-0.5"
         >
           <span className="grid size-8 place-items-center rounded-full bg-white/10">
             <LogoMark className="size-5" />
           </span>
           <span className="hidden text-sm font-semibold sm:inline">Logix</span>
-          <span className="hidden rounded-full bg-warning px-1.5 py-px text-[9px] font-bold tracking-wide text-midnight uppercase sm:inline">DEMO</span>
         </button>
       )}
 
@@ -130,7 +155,7 @@ export function LogixAssistant() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Logix</p>
               <p className="flex items-center gap-1 text-[11px] text-white/60">
-                <FlaskConical className="size-3" aria-hidden /> Modo DEMO · datos sintéticos
+                Asistente de operaciones
               </p>
             </div>
             <button type="button" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? 'Expandir Logix' : 'Minimizar Logix'} className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white">

@@ -2,7 +2,8 @@ import type { DocumentRecord, Operation, Quote } from '@/types/domain'
 import { daysUntil, formatDate, formatMoney } from '@/lib/format'
 
 /**
- * Motor DEMO de Logix. NO usa ningún LLM.
+ * Motor de respuestas de Logix basado en reglas. NO usa ningún modelo de lenguaje.
+ * Solo en desarrollo: en producción el asistente permanece deshabilitado hasta conectar su backend.
  * Responde solo con datos del tenant activo que se le pasan.
  * Cuando exista el servicio FastAPI, esta función se reemplaza por una llamada al backend
  * que aplique las mismas restricciones de tenant y permisos.
@@ -85,7 +86,7 @@ export function answerLogixQuestion(question: string, data: LogixData, contextOp
     return { text: `Cotizaciones pendientes (${pending.length}):\n${lines}` }
   }
 
-  return unavailable('No tengo esa información en los datos DEMO autorizados para su empresa. Puede preguntarme por operaciones, documentos o cotizaciones.')
+  return unavailable('No tengo esa información disponible. Puedo orientarte sobre operaciones, documentos y cotizaciones.')
 }
 
 export function describeOperation(op: Operation): LogixAnswer {

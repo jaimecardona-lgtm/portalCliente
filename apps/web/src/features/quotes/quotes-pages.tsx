@@ -8,7 +8,8 @@ import { useToast } from '@/components/ui/toast'
 import { Badge, Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton, type Tone } from '@/components/ui/primitives'
 import { cn, formatDate, formatMoney, formatNumber, daysUntil } from '@/lib/format'
 import type { Quote, QuoteStatus } from '@/types/domain'
-import { DEMO_NOW } from '@/data/fixtures/demo-data'
+import { referenceNow } from '@/lib/clock'
+import { FEATURES } from '@/config/runtime'
 import { canDecideQuote, effectiveQuoteStatus, quoteSubtotal } from './quote-rules'
 
 const QUOTE_TONE: Record<QuoteStatus, Tone> = {
@@ -22,7 +23,7 @@ export function QuotesListPage() {
   const repo = useRepository()
   const { session } = useSession()
   const tenantId = session?.tenantId ?? ''
-  const now = useMemo(() => new Date(DEMO_NOW), [])
+  const now = useMemo(() => referenceNow(), [])
   const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) })
 
   return (
@@ -86,7 +87,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
   const tenantId = session?.tenantId ?? ''
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const now = useMemo(() => new Date(DEMO_NOW), [])
+  const now = useMemo(() => referenceNow(), [])
   const [confirming, setConfirming] = useState<'Aceptada' | 'Rechazada' | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -121,7 +122,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
       await repo.decideQuote(tenantId, q.id, value)
       await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'quote', quoteId) })
       await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'quotes') })
-      toast({ title: value === 'Aceptada' ? 'Cotización aceptada' : 'Cotización rechazada', description: `${q.number} · registrado en modo DEMO. No se ejecutó ninguna transacción real.`, tone: value === 'Aceptada' ? 'success' : 'info' })
+      toast({ title: value === 'Aceptada' ? 'Cotización aceptada' : 'Cotización rechazada', description: `${q.number} · decisión registrada en el entorno local. No genera una transacción comercial.`, tone: value === 'Aceptada' ? 'success' : 'info' })
       setConfirming(null)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No se pudo registrar la decisión.')
@@ -206,7 +207,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
                 <p className="text-sm text-ink-soft">
                   ¿Confirma que desea <strong className="text-ink">{confirming === 'Aceptada' ? 'aceptar' : 'rechazar'}</strong> la cotización {q.number}?
                 </p>
-                <p className="flex items-start gap-2 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700"><Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />Modo DEMO: la decisión solo se registra localmente.</p>
+                <p className="flex items-start gap-2 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700"><Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />La decisión se registra en el entorno local y no genera una transacción comercial.</p>
                 <div className="flex gap-2">
                   <Button variant={confirming === 'Aceptada' ? 'primary' : 'danger'} loading={busy} onClick={() => void decide(confirming)} className="flex-1">
                     {confirming === 'Aceptada' ? <Check className="size-4" aria-hidden /> : <X className="size-4" aria-hidden />} Confirmar
@@ -214,7 +215,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
                   <Button variant="secondary" onClick={() => setConfirming(null)} disabled={busy}>Volver</Button>
                 </div>
               </div>
-            ) : decision.allowed ? (
+            ) : decision.allowed && FEATURES.quoteDecisions ? (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-ink-soft">Esta cotización está vigente y puede decidirse.</p>
                 <div className="flex gap-2">
@@ -224,7 +225,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                <p className="flex items-start gap-2 text-sm text-ink-soft"><CalendarClock className="mt-0.5 size-4 shrink-0 text-ink-muted" aria-hidden />{decision.reason}</p>
+                <p className="flex items-start gap-2 text-sm text-ink-soft"><CalendarClock className="mt-0.5 size-4 shrink-0 text-ink-muted" aria-hidden />{decision.allowed ? 'Para decidir sobre esta cotización, contacta a tu ejecutivo de cuenta.' : decision.reason}</p>
               </div>
             )}
             {actionError && <p role="alert" className="mt-3 text-sm text-danger-700">{actionError}</p>}

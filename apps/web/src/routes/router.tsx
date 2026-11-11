@@ -2,7 +2,8 @@ import { lazy } from 'react'
 import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/layouts/app-shell'
 import { LoginPage } from '@/features/auth/login-page'
-import { readStoredSession } from '@/features/auth/demo-auth'
+import { readStoredSession } from '@/features/auth/session-storage'
+import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { parseOperationSearch, toSearchParams } from '@/features/operations/filters'
 import { NotFoundPage } from './not-found'
@@ -11,7 +12,7 @@ import { NotFoundPage } from './not-found'
  * Rutas del portal.
  * - Login y torre de control se cargan en el bundle inicial (primera pantalla).
  * - El resto de módulos se carga bajo demanda por ruta (code splitting).
- * Las rutas autenticadas viven bajo el layout `app`, que valida la sesión DEMO.
+ * Las rutas autenticadas viven bajo el layout `app`, que exige acceso habilitado y sesión.
  */
 
 const OperationsPage = lazy(() => import('@/features/operations/operations-page').then((m) => ({ default: m.OperationsPage })))
@@ -23,6 +24,11 @@ const QuoteDetailPage = lazy(() => import('@/features/quotes/quotes-pages').then
 const RequestsListPage = lazy(() => import('@/features/requests/requests-pages').then((m) => ({ default: m.RequestsListPage })))
 const NewRequestPage = lazy(() => import('@/features/requests/requests-pages').then((m) => ({ default: m.NewRequestPage })))
 const MarketplacePage = lazy(() => import('@/features/marketplace/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
+
+/** Marketplace solo existe cuando su función está activa. En otro caso responde como ruta inexistente. */
+function MarketplaceRoute() {
+  return FEATURES.marketplace ? <MarketplacePage /> : <NotFoundPage />
+}
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -41,9 +47,9 @@ const loginRoute = createRoute({
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app',
-  // Guarda de sesión DEMO antes de montar cualquier pantalla autenticada.
+  // Guarda de acceso: sin acceso habilitado o sin sesión, no se monta ninguna pantalla autenticada.
   beforeLoad: ({ location }) => {
-    if (!readStoredSession()) {
+    if (!LOCAL_ACCESS_ENABLED || !readStoredSession()) {
       throw redirect({ to: '/login', search: { redirect: location.pathname } })
     }
   },
@@ -91,7 +97,7 @@ const quoteDetailRoute = createRoute({
 
 const requestsRoute = createRoute({ getParentRoute: () => appRoute, path: '/solicitudes', component: RequestsListPage })
 const newRequestRoute = createRoute({ getParentRoute: () => appRoute, path: '/solicitudes/nueva', component: NewRequestPage })
-const marketplaceRoute = createRoute({ getParentRoute: () => appRoute, path: '/marketplace', component: MarketplacePage })
+const marketplaceRoute = createRoute({ getParentRoute: () => appRoute, path: '/marketplace', component: MarketplaceRoute })
 
 const routeTree = rootRoute.addChildren([
   loginRoute,

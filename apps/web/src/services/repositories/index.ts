@@ -1,28 +1,36 @@
 import { createContext, useContext } from 'react'
-import { createMockRepository } from './mock-repository'
 import type { PortalRepository } from './portal-repository'
 
-export type DataMode = 'demo' | 'api'
+export type { PortalRepository } from './portal-repository'
 
 /**
- * Selecciona la fuente de datos.
- * - 'demo': fixtures sintéticos en memoria.
- * - 'api':  reservado para FastAPI. Aún no implementado; falla explícitamente
- *           para evitar que se muestren datos falsos creyendo que son reales.
+ * Carga el repositorio de presentación local.
+ *
+ * La importación es dinámica y está protegida por `IS_LOCAL_PRESENTATION`: en el build de producción
+ * esa rama se elimina y el módulo con fixtures no forma parte del bundle.
+ *
+ * Cuando exista FastAPI se añadirá `loadRemoteRepository()` con la misma interfaz.
  */
-export function createRepository(mode: DataMode = 'demo'): PortalRepository {
-  if (mode === 'api') {
-    throw new Error('El modo API aún no está implementado. Use el modo DEMO.')
+export async function loadLocalRepository(): Promise<PortalRepository> {
+  // La condición usa import.meta.env.DEV directamente para que el compilador elimine esta rama en producción.
+  if (!import.meta.env.DEV) {
+    throw new Error('El repositorio local solo está disponible en desarrollo.')
   }
+  const { createMockRepository } = await import('./mock-repository')
   return createMockRepository()
 }
 
+/** Repositorio disponible en la aplicación. Es null cuando no hay fuente de datos (producción sin backend). */
 export const RepositoryContext = createContext<PortalRepository | null>(null)
 
+/** Acceso al repositorio. Solo debe usarse en rutas que ya pasaron la guarda de acceso. */
 export function useRepository(): PortalRepository {
   const repo = useContext(RepositoryContext)
-  if (!repo) throw new Error('useRepository debe usarse dentro de RepositoryProvider')
+  if (!repo) throw new Error('No hay fuente de datos disponible en este entorno.')
   return repo
 }
 
-export type { PortalRepository } from './portal-repository'
+/** Acceso opcional al repositorio (para componentes que deben funcionar sin datos). */
+export function useOptionalRepository(): PortalRepository | null {
+  return useContext(RepositoryContext)
+}

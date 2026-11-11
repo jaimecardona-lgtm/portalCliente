@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -11,16 +11,22 @@ import {
   PanelLeftOpen,
   Search,
   X,
-  FlaskConical,
-  Sparkles,
 } from 'lucide-react'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { LogixAssistant } from '@/features/assistant/logix-assistant'
 import { useRepository } from '@/services/repositories'
+import { FEATURES } from '@/config/runtime'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { cn, daysUntil } from '@/lib/format'
 import { NAV_GROUPS, SECTION_LABELS, type NavItem } from './nav'
-import { useToast } from '@/components/ui/toast'
+
+/** Grupos de navegación según las funciones disponibles en el entorno. */
+/** Selector de empresa de QA: existe únicamente en el build de desarrollo. */
+const LocalTenantSwitcher = import.meta.env.DEV
+  ? lazy(() => import('./local-tenant-switcher').then((m) => ({ default: m.LocalTenantSwitcher })))
+  : null
+
+const VISIBLE_NAV_GROUPS = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.futureOnly || FEATURES.marketplace) })).filter((g) => g.items.length > 0)
 
 const SIDEBAR_KEY = 'logixtic.portal.sidebar-collapsed'
 
@@ -96,7 +102,6 @@ export function AppShell() {
           companyName={tenant?.shortName ?? (isResolving ? 'Cargando…' : '—')}
           userName={user?.fullName ?? (isResolving ? 'Cargando…' : '—')}
           userRole={user?.role ?? ''}
-          simulated={session.simulated}
         />
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
           <div className="mx-auto w-full max-w-[1400px]">
@@ -134,7 +139,7 @@ function SidebarContent({
       </div>
 
       <nav aria-label="Navegación principal" className="flex-1 overflow-y-auto px-3 py-5">
-        {NAV_GROUPS.map((group) => (
+        {VISIBLE_NAV_GROUPS.map((group) => (
           <div key={group.label} className="mb-6">
             {!collapsed && <p className="mb-2 px-3 text-[11px] font-semibold tracking-[0.14em] text-white/40 uppercase">{group.label}</p>}
             <ul className="flex flex-col gap-0.5">
@@ -210,13 +215,11 @@ function Topbar({
   companyName,
   userName,
   userRole,
-  simulated,
 }: {
   onOpenMenu: () => void
   companyName: string
   userName: string
   userRole: string
-  simulated: boolean
 }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur-md">
@@ -236,9 +239,13 @@ function Topbar({
 
         <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
           <GlobalSearch />
-          <TenantSimulator />
+          {import.meta.env.DEV && LocalTenantSwitcher && (
+            <Suspense fallback={null}>
+              <LocalTenantSwitcher />
+            </Suspense>
+          )}
           <AlertsBadge />
-          <ProfileMenu companyName={companyName} userName={userName} userRole={userRole} simulated={simulated} />
+          <ProfileMenu companyName={companyName} userName={userName} userRole={userRole} />
         </div>
       </div>
     </header>
@@ -368,46 +375,6 @@ function GlobalSearch() {
   )
 }
 
-/** Selector de empresa: marcado explícitamente como simulación DEMO. */
-function TenantSimulator() {
-  const { session, simulateTenant } = useSession()
-  const repo = useRepository()
-  const { toast } = useToast()
-  const [busy, setBusy] = useState(false)
-  const tenantsQuery = useQuery({ queryKey: ['tenants'], queryFn: () => repo.listTenants(), staleTime: Infinity })
-
-  return (
-    <label className="hidden items-center gap-2 rounded-lg border border-warning/40 bg-warning-50 py-1 pr-1 pl-2.5 text-xs font-semibold text-warning-700 xl:flex">
-      <FlaskConical className="size-3.5" aria-hidden />
-      <span className="whitespace-nowrap">SIMULACIÓN</span>
-      <span className="sr-only">Cambiar empresa (solo simulación DEMO)</span>
-      <select
-        aria-label="Cambiar empresa (solo simulación DEMO)"
-        className="h-7 rounded-md border-0 bg-surface px-1.5 text-xs font-medium text-ink focus:outline-none focus:ring-2 focus:ring-blue/30"
-        value={session?.tenantId ?? ''}
-        disabled={busy}
-        onChange={async (e) => {
-          setBusy(true)
-          try {
-            await simulateTenant(e.target.value)
-            toast({ title: 'Empresa simulada cambiada', description: 'Los datos mostrados corresponden a la nueva empresa DEMO.', tone: 'info' })
-          } catch (err) {
-            toast({ title: 'No se pudo cambiar la empresa', description: err instanceof Error ? err.message : undefined, tone: 'error' })
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        {(tenantsQuery.data ?? []).map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.shortName}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
 function AlertsBadge() {
   const { session } = useSession()
   const repo = useRepository()
@@ -448,12 +415,10 @@ function ProfileMenu({
   companyName,
   userName,
   userRole,
-  simulated,
 }: {
   companyName: string
   userName: string
   userRole: string
-  simulated: boolean
 }) {
   const { signOut } = useSession()
   const navigate = useNavigate()
@@ -489,7 +454,6 @@ function ProfileMenu({
           <div className="border-b border-line p-3">
             <p className="text-sm font-semibold text-ink">{userName}</p>
             <p className="text-xs text-ink-muted">{userRole} · {companyName}</p>
-            {simulated && <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-warning-700"><Sparkles className="size-3" aria-hidden />Sesión con empresa simulada</p>}
           </div>
           <div className="p-1">
             <Link
@@ -511,7 +475,7 @@ function ProfileMenu({
               }}
             >
               <LogOut className="size-4" aria-hidden />
-              Cerrar sesión DEMO
+              Cerrar sesión
             </button>
           </div>
         </div>

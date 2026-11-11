@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { authenticateDemo, readStoredSession, writeStoredSession } from './demo-auth'
+import { authenticateDemo } from './local-auth'
+import { readStoredSession, writeStoredSession, SESSION_STORAGE_KEY } from './session-storage'
 import { createMockRepository } from '@/services/repositories/mock-repository'
 import { DEMO_PASSWORD } from '@/data/fixtures/demo-data'
 
 const repo = () => createMockRepository({ latencyMs: 0 })
 
-describe('autenticación DEMO', () => {
-  it('acepta cuenta sintética con la contraseña DEMO', async () => {
-    const result = await authenticateDemo(repo(), 'ana.torres@andino.demo.test', DEMO_PASSWORD)
+describe('autenticación de presentación local', () => {
+  it('acepta cuenta sintética con la contraseña de presentación', async () => {
+    const result = await authenticateDemo(repo(), 'ana.torres@textilesandinos.example', DEMO_PASSWORD)
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.session.tenantId).toBe('tn-andino')
@@ -16,7 +17,7 @@ describe('autenticación DEMO', () => {
   })
 
   it('rechaza contraseñas arbitrarias aunque el correo exista', async () => {
-    const result = await authenticateDemo(repo(), 'ana.torres@andino.demo.test', 'cualquiera')
+    const result = await authenticateDemo(repo(), 'ana.torres@textilesandinos.example', 'cualquiera')
     expect(result).toEqual({ ok: false, reason: 'invalid_credentials' })
   })
 
@@ -30,7 +31,7 @@ describe('autenticación DEMO', () => {
   })
 
   it('normaliza mayúsculas en el correo', async () => {
-    const result = await authenticateDemo(repo(), 'CARLA.NINO@pacifico.demo.test', DEMO_PASSWORD)
+    const result = await authenticateDemo(repo(), 'CARLA.NINO@agroexport-pacifico.example', DEMO_PASSWORD)
     expect(result.ok && result.session.tenantId).toBe('tn-pacifico')
   })
 })
@@ -42,7 +43,7 @@ describe('almacenamiento de sesión tolerante a fallos', () => {
   })
 
   it('ignora contenido corrupto', () => {
-    window.sessionStorage.setItem('logixtic.portal.demo-session', '{not json')
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, '{not json')
     expect(readStoredSession()).toBeNull()
   })
 

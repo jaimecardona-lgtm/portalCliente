@@ -8,6 +8,7 @@ import { ArrowLeft, MessageSquarePlus, Paperclip, Inbox, Send } from 'lucide-rea
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useToast } from '@/components/ui/toast'
+import { FEATURES } from '@/config/runtime'
 import { Badge, Button, Card, EmptyState, ErrorState, Field, inputClass, Skeleton, type Tone } from '@/components/ui/primitives'
 import { formatDateTime, cn } from '@/lib/format'
 import type { RequestStatus, RequestType } from '@/types/domain'
@@ -162,17 +163,19 @@ export function NewRequestPage() {
         subject: values.subject,
         description: values.description,
         operationId: values.operationId ? values.operationId : null,
-        // DEMO: los archivos seleccionados no se suben ni se almacenan.
+        // Los archivos seleccionados aún no se suben en este entorno.
         attachmentIds: [],
         createdBy: user.id,
       })
       await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'requests') })
-      toast({ title: 'Solicitud enviada', description: `${created.number} quedó registrada como "${created.status}".` })
+      toast({ title: 'Solicitud registrada', description: `${created.number} · registrada en el entorno local.` })
       void navigate({ to: '/solicitudes' })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.')
     }
   }
+
+  if (!FEATURES.requestSubmission) return <RequestUnavailable />
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -219,7 +222,7 @@ export function NewRequestPage() {
             <label htmlFor="req-files" className="text-sm font-medium text-ink">Adjuntos <span className="font-normal text-ink-muted">(opcional, máximo 3)</span></label>
             <label htmlFor="req-files" className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-line-strong bg-canvas px-4 py-4 text-sm text-ink-soft transition-colors duration-200 hover:border-blue hover:bg-blue-50/40">
               <Paperclip className="size-4 text-blue" aria-hidden />
-              Seleccionar archivos · PDF, PNG, JPG o XLSX · máx. {MAX_FILE_MB} MB c/u (en DEMO no se suben)
+              Seleccionar archivos · PDF, PNG, JPG o XLSX · máx. {MAX_FILE_MB} MB c/u · se incorporarán con la integración documental
               <input id="req-files" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.xlsx" className="sr-only" onChange={(e) => onFiles(e.target.files)} />
             </label>
             {fileError && <p role="alert" className="text-xs text-danger-700">{fileError}</p>}
@@ -242,6 +245,25 @@ export function NewRequestPage() {
             <Button type="submit" loading={isSubmitting}><Send className="size-4" aria-hidden /> Enviar solicitud</Button>
           </div>
         </form>
+      </Card>
+    </div>
+  )
+}
+
+/** Envío de solicitudes aún no disponible: se orienta al cliente a su ejecutivo de cuenta. */
+function RequestUnavailable() {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+      <nav aria-label="Volver">
+        <Link to="/solicitudes" className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-blue">
+          <ArrowLeft className="size-4" aria-hidden /> Solicitudes
+        </Link>
+      </nav>
+      <Card className="p-6 sm:p-8">
+        <h1 className="text-xl font-semibold text-ink">Nueva solicitud</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+          El envío de solicitudes desde el portal estará disponible próximamente. Mientras tanto, contacta a tu ejecutivo de cuenta para cualquier consulta o cambio.
+        </p>
       </Card>
     </div>
   )
