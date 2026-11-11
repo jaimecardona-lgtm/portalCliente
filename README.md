@@ -2,7 +2,7 @@
 
 Portal B2B para clientes de Logixtic: torre de control, operaciones (DO) con seguimiento por evento, conversaciones por evento, documentos, cotizaciones, solicitudes e información de la cuenta, con un asistente de consulta **Logix**.
 
-> **Versión:** `v0.1.0-alpha.1` — hito interno. Interfaz funcional con datos sintéticos y autenticación de desarrollo. **No hay backend, autenticación real ni integración con Logixtic.** No usar con clientes reales. Detalles en [CHANGELOG.md](CHANGELOG.md) y en la [entrega técnica](docs/ENTREGA_TECNICA_ENRIQUE.md).
+> **Versión:** `v0.1.0-alpha.1` — hito interno. Interfaz funcional con datos sintéticos y autenticación de desarrollo. **La API existe en local, pero no está desplegada ni conectada a Supabase, y no hay integración con Logixtic.** No usar con clientes reales. Detalles en [CHANGELOG.md](CHANGELOG.md) y en la [entrega técnica](docs/ENTREGA_TECNICA_ENRIQUE.md).
 
 ## Funcionalidades disponibles (desarrollo)
 
@@ -24,7 +24,8 @@ Las acciones marcadas como "local" solo cambian datos en el entorno de desarroll
 
 - **Frontend** (`apps/web`): React 19, TypeScript estricto, Vite 8, TanStack Router y Query, Tailwind CSS v4, React Hook Form + Zod, Inter autohospedada.
 - **Pruebas**: Vitest y Testing Library; Playwright Test para E2E de desarrollo y del build de producción.
-- **Previsto**: Supabase Auth y PostgreSQL, FastAPI (`apps/api`, aún sin código).
+- **Backend** (`apps/api`): FastAPI, SQLAlchemy y Alembic con PostgreSQL. Verificación de JWT de Supabase y RLS. Se ejecuta en local.
+- **Previsto**: Supabase Auth y PostgreSQL en la nube.
 
 ## Requisitos
 
@@ -86,8 +87,10 @@ portalCliente/
 | Interfaz (todas las pantallas) | Implementada, con datos sintéticos |
 | Autenticación de desarrollo | Implementada. Solo `vite dev` |
 | Autenticación real (Supabase Auth) | Pendiente |
-| Base de datos (Supabase PostgreSQL) | Pendiente. Sin tablas ni migraciones |
-| Backend (FastAPI) | Pendiente. Solo contratos previstos |
+| Base de datos | Esquema y RLS probados en PostgreSQL local. Sin proyecto Supabase |
+| Backend (FastAPI, `apps/api`) | Implementado en local: 7 rutas bajo /api/v1 (lectura y comentarios) con aislamiento por empresa. No desplegado |
+| Adaptador HTTP del frontend | Implementado y probado con respuestas sintéticas. No conectado a las pantallas |
+| Pantallas con datos de la API | Pendiente: faltan campos de operación y empresa en la API (ver `docs/fastapi-integration.md`) |
 | Integración con Logixtic | Pendiente. Sin conexión |
 | Producción | Bloqueada por diseño hasta cumplir los requisitos de la entrega |
 
@@ -96,8 +99,9 @@ portalCliente/
 - [Entrega técnica para el equipo de Enrique](docs/ENTREGA_TECNICA_ENRIQUE.md): referencia principal de transferencia.
 - [Arquitectura](docs/architecture.md)
 - [Autenticación local de desarrollo](docs/autenticacion-local.md)
-- [Integración con FastAPI (contratos previstos)](docs/fastapi-integration.md)
+- [Integración con FastAPI (estado real y contratos previstos)](docs/fastapi-integration.md)
 - [Preparación para Supabase](docs/supabase-preparation.md)
+- [Backend FastAPI: ejecución y pruebas](apps/api/README.md)
 - [Validación ejecutada](docs/validation.md)
 - [Guía de contribución](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Reglas para asistentes](CLAUDE.md)
 

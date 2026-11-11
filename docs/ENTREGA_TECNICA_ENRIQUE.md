@@ -96,13 +96,14 @@ Versiones exactas en `apps/web/package-lock.json`. Versiones mínimas: Node 22, 
 
 | Integración | Estado | Notas |
 |---|---|---|
-| Supabase Auth | Pendiente | Correo y contraseña; recuperación por correo. |
-| Supabase PostgreSQL | Pendiente | Sin tablas ni migraciones. Ver sección 10. |
+| Supabase Auth | Preparado en la API (verificación de JWT, probada con tokens sintéticos). Pendiente en el frontend y sin proyecto. | Correo y contraseña; recuperación por correo. |
+| Supabase PostgreSQL | Preparado. Migraciones 0001 y 0002 probadas en PostgreSQL 18 local. Sin proyecto Supabase. | Ver sección 17 y `docs/supabase-preparation.md`. |
 | Supabase Storage | Pendiente | Adjuntos y documentos con URLs firmadas. |
-| FastAPI | Pendiente | Servicio independiente. Ver sección 11. |
+| FastAPI (`apps/api`) | Implementado en local: 7 rutas bajo /api/v1, pruebas de aislamiento. No desplegado. | Ver sección 11 y `docs/fastapi-integration.md`. |
+| Adaptador HTTP en el frontend (`apps/web/src/services/api/`) | Implementado y probado con respuestas sintéticas. **No conectado a las pantallas.** | El repositorio mock sigue activo. |
 | Logixtic (operaciones, eventos, documentos oficiales, cotizaciones) | Pendiente | Sin conexión. Fuente de verdad y sincronización a definir. |
 
-No hay ninguna integración activa. Ningún texto de la interfaz debe afirmar lo contrario.
+No hay ninguna integración en producción. Ningún texto de la interfaz debe afirmar lo contrario.
 
 ## 8. Consideraciones de seguridad
 
@@ -137,13 +138,16 @@ Detalle en `docs/supabase-preparation.md`. Secuencia propuesta:
 
 Detalle en `docs/fastapi-integration.md`. Secuencia propuesta:
 
-1. Implementar `createHttpRepository` cumpliendo `PortalRepository`.
-2. Implementar la verificación de token de Supabase y la resolución de la membresía activa en cada petición.
-3. Implementar los endpoints de lectura, después los de escritura, cada uno con pruebas de autorización por rol y por tenant.
-4. Implementar el servicio de consulta de Logix con los mismos controles.
-5. Sustituir la carga local por la remota en `loadRemoteRepository`, sin cambiar las pantallas.
+Estado actual:
 
-**Ningún endpoint descrito en la documentación existe todavía.** Son contratos previstos.
+1. **Hecho:** verificación de token de Supabase y resolución de la membresía activa en cada petición (`apps/api`).
+2. **Hecho:** endpoints de lectura de empresa, operaciones, eventos y comentarios, y creación de comentarios y respuestas, con pruebas de aislamiento por empresa y de RLS.
+3. **Hecho:** `HttpPortalRepository` (`apps/web/src/services/api/`) con pruebas y sin conectar.
+4. **Pendiente:** cubrir la brecha de datos de operaciones y empresa (`docs/fastapi-integration.md`, sección 6) antes de conectar las pantallas.
+5. **Pendiente:** endpoints de solicitudes, adjuntos, documentos, cotizaciones y Logix.
+6. **Pendiente:** cargar el repositorio remoto en `loadRemoteRepository` solo cuando haya sesión real de Supabase.
+
+Los endpoints implementados están listados en `docs/fastapi-integration.md`, sección 2. Los demás son contratos previstos.
 
 ## 12. Criterios de aceptación
 
@@ -202,6 +206,17 @@ npm run test:e2e:prod        # E2E del build de producción (requiere build:veri
 npm run build                # build de producción: FALLA sin configuración real (intencional)
 ```
 
+Desde `apps/api` (PostgreSQL local en `127.0.0.1:5432`, base `portal_test`):
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://postgres@127.0.0.1:5432/portal_test"
+.\.venv\Scripts\alembic.exe upgrade head                 # aplica 0001 y 0002
+$env:PORTAL_TEST_DATABASE_URL = $env:DATABASE_URL
+.\.venv\Scripts\python.exe -m pytest -q                  # 74 pruebas con PostgreSQL; sin variable se omiten las 52 de integración
+.\.venv\Scripts\python.exe -m ruff check app tests migrations
+.\.venv\Scripts\uvicorn.exe app.main:create_app --factory --reload --port 8000
+```
+
 Con Chrome instalado, anteponer `PW_CHANNEL=chrome` a los comandos de E2E. Sin esa variable: `npx playwright install chromium`.
 
 Configuración de producción (obligatoria para `npm run build`):
@@ -227,19 +242,62 @@ No hay despliegue. Requisitos para cuando exista:
 
 Ejecutado sobre el código de `v0.1.0-alpha.1`. Detalle en `docs/validation.md` (Fase 06).
 
-- `npm run typecheck`: sin errores.
-- `npm test`: 10 archivos, **88 pruebas aprobadas**.
-- `npm run build:verify`: correcto; 21 archivos sin cadenas de acceso local.
-- `npm run test:e2e`: **87 aprobadas, 1 omitida** por diseño (selector de empresa visible desde 1280 px).
-- `npm run test:e2e:prod`: **18 aprobadas**.
+Verificación de la fase 07B (integración preparada). Anexo original de `v0.1.0-alpha.1`, actualizado:
+
+- `npm run typecheck` (web): sin errores.
+- `npm test` (web): 13 archivos, **128 pruebas aprobadas** (40 nuevas del adaptador HTTP).
+- `npm run build:verify`: correcto; bundle verificado: 21 archivos sin datos sintéticos ni autenticación local.
+- `npm run build` sin configuración: falla **a propósito** (`falta VITE_AUTH_PROVIDER`).
+- `apps/api`: **74 pruebas aprobadas** con PostgreSQL 18 local (22 unitarias y 52 de integración y RLS), `ruff check` y `ruff format --check` sin incidencias.
+- E2E de Playwright (`test:e2e`, `test:e2e:prod`): **no re-ejecutados en esta fase**. No hubo cambios de interfaz; las cifras anteriores siguen siendo las de `docs/validation.md`.
 
 ## Anexo B. Limitaciones conocidas
 
-- Sin backend ni repositorio remoto.
-- Sin integración con Logixtic.
+- Sin proyecto de Supabase configurado, sin despliegue de la API y sin repositorio remoto conectado a las pantallas.
+- Sin integración con Logixtic. El modelo `Operation` del dominio requiere campos que la API no expone (sección 17).
+- Las pruebas de la API usan PostgreSQL local, no Supabase. El comportamiento con los roles reales de Supabase no está verificado.
+- La verificación de firma (JWKS o secreto) debe confirmarse con el proyecto real.
 - Sin correo real para la recuperación de contraseña.
 - Adjuntos y vistas previas no implementados fuera de la presentación local.
 - Sin auditoría automatizada de accesibilidad. Solo Chromium.
 - Chunk principal de 481 kB (151 kB gzip).
 - Los textos legales son borradores pendientes de aprobación.
 - Las pruebas E2E pueden agotar el tiempo por prueba la primera vez tras cambios grandes, por compilación en frío del servidor de desarrollo.
+
+## 17. Estado de integración y pasos para continuar (fase 07B)
+
+### Qué existe
+
+- **API FastAPI** (`apps/api`): verificación de JWT de Supabase, membresías, siete rutas bajo `/api/v1` (lectura, creación de comentarios y `/me`), sobre de error único y contrato OpenAPI con errores documentados (`/openapi.json` fuera de producción).
+- **Base de datos** (`apps/api/migrations`): `0001_foundation` (esquema, claves compuestas, RLS y rol `portal_app`) y `0002_supabase_grants_hardening` (retira privilegios de `anon` y `authenticated`).
+- **Adaptador frontend** (`apps/web/src/services/api/`): cliente HTTP tipado, mapeadores `snake_case`→`camelCase` con validación, y `HttpPortalRepository`. Probado con respuestas sintéticas. No conectado.
+- **Documentación**: `docs/fastapi-integration.md` (estado real y brechas), `docs/supabase-preparation.md` (preparación y decisiones pendientes), `docs/architecture.md` y `apps/api/README.md`.
+
+### Qué no existe todavía
+
+- Proyecto de Supabase configurado. No hay credenciales en el repositorio, ni deben existir.
+- Sesión de Supabase en el frontend. El inicio de sesión local no se conecta a la API a propósito.
+- Sincronización con Logixtic. Las tablas de operaciones y eventos son referencias sin proceso que las llene.
+- Endpoints de solicitudes, adjuntos, documentos, cotizaciones y Logix.
+
+### Pasos concretos para Enrique
+
+1. **Decidir la fuente de datos de operaciones** con Logixtic: qué campos (tipo, transporte, origen, destino, fechas) se sincronizan y cómo. Mientras tanto, el modelo `Operation` del dominio no puede poblarse desde la API. Ver `docs/fastapi-integration.md`, sección 6.
+2. **Crear un proyecto de Supabase de prueba** (no el de producción de Logixtic). Activar correo y contraseña en Auth.
+3. **Confirmar el tipo de firma JWT** del proyecto (JWKS o secreto heredado) y configurar solo esa variable en el `.env` local de la API.
+4. **Crear un rol de servicio** sin `BYPASSRLS` que pueda hacer `SET ROLE portal_app`. No usar `service_role` en la API.
+5. **Aplicar `alembic upgrade head`** en el proyecto de prueba. Comprobar que `portal_app` no tiene `BYPASSRLS` y que `anon`/`authenticated` no tienen privilegios sobre las tablas del portal.
+6. **Aprovisionar empresas, perfiles y membresías** con datos sintéticos y un proceso revisable.
+7. **Probar con un token real** de un usuario de prueba: `/me`, operaciones, eventos y comentarios, y comprobar que una empresa ajena responde 404.
+8. **Ejecutar la suite de integración** contra el proyecto de prueba (`PORTAL_TEST_DATABASE_URL`).
+9. **Solo después**: conectar la sesión de Supabase al frontend y cargar `HttpPortalRepository` con `loadRemoteRepository`, sin tocar las pantallas.
+
+### Decisiones que requieren aprobación
+
+- Qué campos de operación y empresa son visibles para el cliente (define el contrato y las brechas de la sección 6 de `fastapi-integration.md`).
+- Si `author_id` debe exponerse como identificador opaco o si la interfaz debe dejar de depender de él.
+- Cuándo activar la documentación de la API en un entorno compartido (`DOCS_ENABLED`).
+
+### Commits de esta fase
+
+Rama `feat/supabase-fastapi-foundation`, sin push. Ver `git log` para el detalle. Las pruebas y el estado de Git del momento de la entrega figuran en la sección Anexo A.
