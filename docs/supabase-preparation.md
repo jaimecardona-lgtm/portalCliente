@@ -1,86 +1,111 @@
-# Preparación para Supabase (no implementado)
+# Preparación para Supabase
 
-Estado: **solo planificación.** No hay conexión a Supabase, ni migraciones, ni tablas, ni claves en el repositorio. Este documento fija los conceptos para que el frontend y FastAPI se diseñen alrededor de ellos desde ahora.
+**Estado:** la base de datos y la verificación de tokens están preparadas y probadas contra PostgreSQL local.
+**No hay ningún proyecto de Supabase configurado**, ni credenciales, ni migraciones aplicadas en remoto. Todo lo
+que sigue se ejecuta solo con autorización del responsable del proyecto.
 
-## Componentes futuros
+## 1. Qué está listo
 
-| Componente | Responsabilidad | Quién lo usa |
+| Pieza | Dónde | Estado |
 |---|---|---|
-| **Supabase Auth** | Autenticación por correo y contraseña. Emite tokens (JWT). | Frontend (inicio de sesión y renovación). |
-| **Supabase PostgreSQL** | Persistencia de empresas, usuarios, operaciones, eventos, comentarios, documentos, cotizaciones y solicitudes. | FastAPI. |
-| **FastAPI** | Valida el token, resuelve la empresa del usuario y aplica permisos en cada endpoint. | Frontend a través de la API. |
-| **Supabase Storage** | Adjuntos y documentos. Acceso mediante URLs firmadas de corta duración. | FastAPI genera las URLs. |
+| Esquema con claves compuestas y restricciones multi-tenant | `apps/api/migrations/versions/0001_foundation.py` | Aplicado en PostgreSQL 18 local. Pruebas de integración. |
+| Endurecimiento de privilegios para `anon` y `authenticated` | `apps/api/migrations/versions/0002_supabase_grants_hardening.py` | Aplicado en local. Prueba de regresión. |
+| Rol de aplicación sin `BYPASSRLS` | Migración 0001 (`portal_app`) | Probado: la API ejecuta como ese rol. |
+| Políticas RLS en 8 tablas | Migración 0001 | Probadas con usuarios de dos empresas. |
+| Verificación de JWT de Supabase | `apps/api/app/core/security.py` | Probada con tokens sintéticos. Sin proyecto real. |
+| Referencia a `auth.users` | Migración 0001, condicional a que exista el esquema `auth` | Se aplica al migrar en Supabase. |
 
-## Tablas previstas (no creadas)
+## 2. Diseño de identidad y aislamiento
 
-- **`profiles`**: datos del usuario (nombre, correo, teléfono). Vinculada a `auth.users` por el mismo identificador.
-- **`tenants`**: empresas clientes (razón social, identificación fiscal, país, ciudad, gestor de cuenta).
-- **`tenant_memberships`**: relación usuario–empresa con el rol dentro de esa empresa y su estado (activo o desactivado). Es la fuente de verdad para el aislamiento.
+- `profiles.id` es el mismo `sub` del JWT de Supabase Auth. En Supabase se vincula a `auth.users` con clave
+  foránea y borrado en cascada.
+- `tenant_memberships` es la **única** fuente de empresa y de rol. El servidor la lee bajo RLS.
+- Las políticas RLS dependen de `app.current_user_id`, que FastAPI fija con `set_config` dentro de cada
+  transacción (`SET LOCAL`). No se filtra entre peticiones que compartan conexión del pool.
+- `portal_my_tenant_ids()` es `SECURITY DEFINER` para evitar recursión de RLS sobre `tenant_memberships`.
+  Solo devuelve empresas del usuario indicado en la sesión.
 
-Las tablas de dominio (`operations`, `operation_events`, `event_comments`, `documents`, `quotes`, `requests`, `attachments`) llevarán `tenant_id` y se consultarán siempre filtrando por él.
+## 3. Privilegios en Supabase (migración 0002)
 
-## Flujo previsto de una petición
+Supabase expone el esquema `public` a través de PostgREST con los roles `anon` (sin sesión) y
+`authenticated` (con sesión). Por defecto, esos roles reciben privilegios sobre las tablas y funciones nuevas.
 
-1. El frontend obtiene un token de Supabase Auth.
-2. Envía el token a FastAPI en la cabecera `Authorization`.
-3. FastAPI verifica la firma del token con las claves públicas de Supabase.
-4. FastAPI busca la membresía activa del usuario (`tenant_memberships`). Sin membresía, responde 403.
-5. El `tenant_id` sale de la membresía, **nunca** de un parámetro de la URL o del cuerpo.
-6. FastAPI aplica el rol (por ejemplo, `Consulta` no decide cotizaciones) y consulta solo ese tenant.
+- La migración revoca **todo** privilegio de tabla a `anon` y `authenticated` sobre las 8 tablas del portal.
+- Retira `EXECUTE` de `PUBLIC` sobre las funciones del portal y lo concede solo a `portal_app`.
+- Las sentencias son condicionales: si los roles no existen, no hacen nada.
+- **No toca `service_role`.** Ver la sección 5.
 
-## Reglas de seguridad que deben cumplirse
+Resultado: un cliente que llame a PostgREST directamente no recibe filas ni puede ejecutar funciones del portal.
+La única vía de acceso es la API.
 
-- La seguridad real vive en FastAPI y en las políticas de base de datos (Row Level Security) cuando se definan. El filtrado del frontend es solo de presentación.
-- Ninguna clave de servicio de Supabase se expone en variables `VITE_*` ni en el bundle.
-- Los comentarios con `visibility = internal` no se devuelven a usuarios cliente.
-- Las URLs de Storage son firmadas y de vida corta; no se publican buckets.
+## 4. Verificación de tokens: qué comprobar en el proyecto real
 
-## Qué ya está preparado en el frontend
+La API admite dos modos. Configure **uno**. La API no rechaza la configuración si se indican los dos: en ese caso usa JWKS e ignora el secreto.
 
-- Los tipos de dominio (`src/types/domain.ts`) llevan `tenantId` en todos los modelos relevantes.
-- Todas las consultas del repositorio reciben `tenantId`.
-- La sesión se guarda como `{ userId, tenantId }`; el identificador de usuario corresponderá a `auth.users` y el de empresa a `tenants`.
-- El repositorio local es intercambiable: el remoto deberá implementar `PortalRepository` contra FastAPI.
-
-## Pendiente antes de conectar
-
-1. Crear el proyecto de Supabase y configurar Auth (correo y contraseña, políticas de contraseña, confirmación de correo).
-2. Diseñar y revisar las migraciones de `profiles`, `tenants` y `tenant_memberships`, y después el resto del dominio.
-3. Definir las políticas RLS junto con las reglas de FastAPI, y probarlas con usuarios de cada tenant.
-4. Implementar en FastAPI la verificación de token y la resolución de membresía.
-5. Implementar el repositorio remoto y retirar el acceso local de revisión del flujo.
-
-## Migración de perfiles y membresías (fase 05)
-
-Hoy: `apps/web/local/auth/users.json` (cuentas) y `sessions.json` (sesiones por hash). Mañana: `profiles` y `tenant_memberships` en PostgreSQL, con Supabase Auth como proveedor de credenciales.
-
-1. Exportar cuentas sin `passwordHash`: id, nombre, correo normalizado, tenant, rol, estado, fechas y versión de términos aceptada.
-2. Crear las cuentas en Supabase Auth con un enlace de invitación o restablecimiento. **No migrar hashes**: cada persona establece su credencial en el sistema definitivo.
-3. Insertar `profiles` con el mismo identificador que `auth.users` y una membresía activa por tenant en `tenant_memberships`.
-4. Mapear la aceptación de términos a una tabla de consentimientos (o columnas de `profiles`) conservando la versión.
-5. Las sesiones locales no se migran: caducan.
-
-Interfaces que deben sustituirse sin reconstruir páginas: `AuthService`, `UserRepository`, `SessionService`, `TenantMembershipRepository` (ver `src/services/auth/contracts.ts`).
-
-## Mapa de identidad, tenant y dominio (contrato previsto)
-
-Este mapa describe el diseño previsto. Ninguna de estas tablas existe todavía.
-
-| Concepto | En Supabase | Clave y regla |
+| Modo | Variable | Cuándo usarlo |
 |---|---|---|
-| Persona autenticada | `auth.users` (Supabase Auth) | Identificador de la persona. |
-| Perfil del portal | `profiles` | Mismo identificador que `auth.users`. Nombre y correo visibles. |
-| Empresa cliente | `tenants` | `tenant_id` único. Razón social, NIT, país, gestor de cuenta. |
-| Acceso a una empresa | `tenant_memberships` | `(user_id, tenant_id)`, rol y estado. **Fuente de verdad** del aislamiento. |
-| Operación (DO) | `operations` | `tenant_id` obligatorio. Datos sincronizados desde Logixtic (a definir). |
-| Evento de seguimiento | `operation_events` | `tenant_id`, `operation_id`. Un cambio de estado crea un evento nuevo. |
-| Comentario y respuesta | `event_comments` | `tenant_id`, `operation_id`, `event_id`, `parent_comment_id`, `visibility`. |
-| Documento y versión | `documents`, `document_versions` | `tenant_id`. Archivo en Storage con URL firmada. |
-| Cotización y decisión | `quotes`, `quote_decisions` | `tenant_id`. Decisión validada por vigencia y estado en el servidor. |
-| Solicitud y adjuntos | `requests`, `attachments` | `tenant_id`. Adjuntos validados antes de almacenarse. |
+| Clave pública (RS256 o ES256) | `SUPABASE_JWKS_URL` | Si el proyecto firma con claves asimétricas. |
+| Secreto compartido (HS256) | `SUPABASE_JWT_SECRET` | Si el proyecto usa el secreto JWT heredado. |
 
-**Datos que se consultan desde Logixtic**: operaciones, eventos de seguimiento, documentos oficiales y cotizaciones emitidas (fuente de verdad: Logixtic).
+Antes de elegir, confirme en el panel del proyecto qué tipo de firma usa. Esta fase **no** verificó ese
+punto contra un proyecto real.
 
-**Datos propios del portal**: perfiles, empresas y membresías del portal, comentarios de clientes, solicitudes, decisiones de cliente, aceptación de términos y preferencias.
+Además de la firma, la API exige:
 
-**Pendiente de definir con Logixtic**: forma de sincronización (consulta o replicación), fuente de verdad de cada estado y tratamiento de cambios simultáneos.
+- `iss` igual a `<SUPABASE_URL>/auth/v1`.
+- `aud` igual a `SUPABASE_JWT_AUDIENCE` (por defecto `authenticated`).
+- `role` igual a `authenticated`. Un token anónimo se rechaza.
+- `exp` presente y no vencido, con un margen de `JWT_LEEWAY_SECONDS` (30 s por defecto, máximo 120 s).
+
+## 5. Decisiones pendientes
+
+| Decisión | Recomendación | Motivo |
+|---|---|---|
+| Rol con el que la API se conecta | Un rol de servicio propio, sin `BYPASSRLS`, que pueda hacer `SET ROLE portal_app` | El rol `postgres` de Supabase suele tener `BYPASSRLS` (verificar en el proyecto). La API debe usar un rol propio y reservar `postgres` para migraciones. |
+| Uso de `service_role` | **No** usarlo en la API ni en el frontend | Tiene `BYPASSRLS` y ignora la RLS. Si se usa, el aislamiento depende solo del código. |
+| Conexión desde la API | Pooler en modo transacción | Las variables `SET LOCAL` duran una transacción; el modo sesión no es necesario. Confirmar compatibilidad con el pooler elegido. |
+| Migraciones en remoto | Aplicar primero en un proyecto de prueba, con revisión | Las migraciones son irreversibles en la práctica (la 0002 no restaura privilegios). |
+| Storage (adjuntos) | Buckets privados y URLs firmadas generadas por FastAPI | No implementado todavía. |
+
+## 6. Pasos para configurar Supabase (orden sugerido)
+
+Ejecutar solo con autorización. Ningún paso necesita credenciales de producción de Logixtic.
+
+1. **Crear un proyecto de prueba** en Supabase (no el de producción de Logixtic).
+2. **Configurar Auth**: correo y contraseña. Definir política de contraseñas y confirmación de correo.
+3. **Obtener la configuración**: URL del proyecto, tipo de firma JWT (JWKS o secreto) y cadena de conexión
+   del rol de servicio. Guardarla en un `.env` local de la API (no versionado, ver `apps/api/.env.example`).
+4. **Crear el rol de servicio** de la API con permiso para `SET ROLE portal_app` y sin `BYPASSRLS`.
+5. **Aplicar las migraciones** (`alembic upgrade head`) contra el proyecto de prueba. Comprobar:
+   - Que `portal_app` existe y no tiene `BYPASSRLS`.
+   - Que `anon` y `authenticated` no tienen privilegios sobre las tablas del portal.
+6. **Aprovisionar empresas, perfiles y membresías** con un proceso controlado (no existe API de alta).
+   Para pruebas, usar solo datos sintéticos: dominios `.test`, nombres ficticios y NIT de ejemplo.
+7. **Crear un usuario de prueba** por Supabase Auth, iniciar sesión y obtener un token real.
+8. **Probar la API** con ese token: `/me`, operaciones, eventos y comentarios. Probar también un token de
+   otra empresa y comprobar que recibe 404.
+9. **Ejecutar la suite de integración** contra el proyecto de prueba con `PORTAL_TEST_DATABASE_URL`.
+   Nunca apuntar las pruebas a un proyecto con datos reales.
+
+## 7. Migración de cuentas locales (no migrar contraseñas)
+
+Hoy: `apps/web/local/auth/users.json` (cuentas, ignorado por Git) y `sessions.json`.
+
+1. Exportar cuentas **sin** `passwordHash`: id, nombre, correo normalizado, empresa, rol, estado y versión de términos.
+2. Crear las cuentas en Supabase Auth con invitación o restablecimiento. **No se migran hashes**: cada persona
+   fija su credencial en el sistema definitivo.
+3. Insertar `profiles` con el mismo identificador que `auth.users` y una membresía activa en `tenant_memberships`.
+4. Conservar la versión de términos aceptada en `profiles.terms_version_accepted`.
+5. No migrar sesiones: caducan.
+
+Interfaces que deben sustituirse sin reconstruir las páginas: `AuthService`, `UserRepository`,
+`SessionService` y `TenantMembershipRepository` (`apps/web/src/services/auth/contracts.ts`).
+
+## 8. Qué falta antes de usuarios reales
+
+1. Proyecto de Supabase configurado y migraciones aplicadas tras revisión.
+2. Proceso de sincronización con Logixtic para `operation_refs` y `operation_events` (ver `fastapi-integration.md`, sección 6).
+3. Proceso de aprovisionamiento de empresas y perfiles.
+4. Endpoints de solicitudes, adjuntos y documentos, con sus pruebas de autorización.
+5. Implementar en el frontend la sesión de Supabase y su renovación, y conectar `HttpPortalRepository`.
+6. Revisión de seguridad de las políticas RLS y de la configuración de Supabase.

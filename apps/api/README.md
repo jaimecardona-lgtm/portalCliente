@@ -136,7 +136,8 @@ Ver [`.env.example`](.env.example). Ningún secreto tiene valor por defecto. No 
 - **Adjuntos y solicitudes**: el esquema existe, pero no hay endpoints de subida ni de descarga.
 - **Sistema Logixtic**: no hay integración. Las operaciones y eventos son referencias sincronizadas
   que aún no tienen proceso de sincronización.
-- **Frontend**: `apps/web` sigue usando el repositorio mock y el sistema JSON local. No se ha
-  conectado a esta API.
-- Documentación de integración en `docs/fastapi-integration.md` y `docs/supabase-preparation.md`
-  pendiente de actualizar con estos detalles.
+- **Frontend**: `apps/web` sigue usando el repositorio mock y el sistema JSON local. El adaptador
+  `apps/web/src/services/api/` está preparado y probado, pero no está conectado a las pantallas.
+- **Brechas de contrato**: el modelo `Operation` del frontend exige campos que esta API no expone.
+  Ver `docs/fastapi-integration.md`, sección 6.
+- Documentación de integración: `docs/fastapi-integration.md` y `docs/supabase-preparation.md`.

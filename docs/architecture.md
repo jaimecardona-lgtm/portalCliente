@@ -113,8 +113,10 @@ Implementaciones:
 
 | Implementación | Estado | Dónde |
 |---|---|---|
-| Local (mock) | Existe. Solo desarrollo. Carga diferida (`loadLocalRepository`). | `mock-repository.ts` |
-| Remota (FastAPI) | **Pendiente.** Debe cumplir el mismo contrato. | — |
+| Local (mock) | Existe. Solo desarrollo. Carga diferida (`loadLocalRepository`). **Es la opción activa.** | `mock-repository.ts` |
+| Remota (FastAPI) | Adaptador preparado y probado con respuestas sintéticas. **No conectado a las pantallas.** Varios métodos del contrato aún no tienen endpoint. | `services/api/http-portal-repository.ts` |
+
+Detalle de qué cubre la API y qué brechas hay: `docs/fastapi-integration.md`.
 
 `replaceUser` es un método opcional del repositorio local que incorpora la cuenta de la sesión (por ejemplo, tras registrarse o editar el nombre). No forma parte del contrato remoto.
 
@@ -135,9 +137,9 @@ Implementaciones:
 - Seguridad: solo loopback y orígenes locales; límites de tamaño y tipo de contenido; bloqueo por intentos; el servidor decide tenant (`tn-andino`) y rol (`client`).
 - Documentación completa: `docs/autenticacion-local.md`.
 
-### Autenticación real — pendiente
+### Autenticación real — pendiente en el frontend
 
-Supabase Auth gestionará credenciales, recuperación por correo y sesiones. FastAPI validará el token en cada petición. Ver `docs/supabase-preparation.md`. Los contratos de tipo están en `src/services/auth/contracts.ts` (`AuthService`, `UserRepository`, `SessionService`, `TenantMembershipRepository`).
+Supabase Auth gestionará credenciales, recuperación por correo y sesiones. **FastAPI ya verifica los tokens de Supabase** (firma, emisor, audiencia, caducidad y rol) y resuelve la empresa por membresía; eso está probado con tokens sintéticos. Falta que el frontend obtenga la sesión de Supabase. Ver `docs/supabase-preparation.md`. Los contratos de tipo están en `src/services/auth/contracts.ts` (`AuthService`, `UserRepository`, `SessionService`, `TenantMembershipRepository`).
 
 ## 6. Aislamiento multi-tenant
 
@@ -146,8 +148,9 @@ Supabase Auth gestionará credenciales, recuperación por correo y sesiones. Fas
 | Datos locales | Repositorio filtra por `tenantId` | Presentación. No es seguridad. |
 | Caché del cliente | Claves de consulta con `tenantId` | Evita mostrar datos de otra empresa tras cambiar de empresa en QA. |
 | Servidor local | Tenant y rol fijados por el servidor; cookie HttpOnly | Solo desarrollo. |
-| FastAPI (futuro) | Tenant desde el token y la membresía, nunca desde la URL | **Obligatorio** antes de usuarios reales. |
-| Base de datos (futuro) | Filtros por tenant y RLS | Pendiente. |
+| FastAPI (`apps/api`) | Tenant desde el token y la membresía, nunca desde la URL. Sobre de error sin datos internos. | Implementado y probado. Sin proyecto Supabase real. |
+| Base de datos (PostgreSQL) | Filtros por `tenant_id` en cada consulta, RLS con rol `portal_app` sin `BYPASSRLS`, claves compuestas entre tablas | Implementado y probado en PostgreSQL local. Pendiente en Supabase. |
+| Frontend → API | `HttpPortalRepository` filtra por empresa activa y no envía peticiones de otra empresa | Preparado y probado. No conectado. |
 
 Las pruebas E2E comprueban que un DO o una cotización de otra empresa no se muestra por URL.
 
@@ -179,8 +182,9 @@ Las pruebas E2E comprueban que un DO o una cotización de otra empresa no se mue
 
 ## 11. Limitaciones conocidas
 
-- No hay backend real. Ninguna operación de Logixtic se procesa en sistemas externos.
-- El repositorio remoto no existe. Las pantallas funcionan con datos sintéticos.
+- La API no está desplegada ni conectada a Supabase ni a Logixtic. Ninguna operación de Logixtic se procesa en sistemas externos.
+- Las pantallas funcionan con datos sintéticos. El adaptador HTTP no está conectado y el modelo `Operation` del dominio requiere campos que la API v1 no expone (ver `docs/fastapi-integration.md`, sección 6).
+- Los comentarios se consultan y crean contra la API solo en pruebas; el portal no los usa todavía.
 - Los adjuntos (solicitudes y cargas documentales) solo se validan en el cliente; no se suben.
 - La vista previa de documentos no está implementada.
 - La navegación por teclado y el contraste se revisaron por código y con pruebas automatizadas parciales; no hay auditoría axe.
