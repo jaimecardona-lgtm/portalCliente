@@ -9,7 +9,7 @@ PROTECTED_PREFIX = "/api/v1/"
 
 
 def _spec() -> dict:
-    app = create_app(Settings(_env_file=None, database_url="postgresql+psycopg://u:p@127.0.0.1:1/none"))
+    app = create_app(Settings(_env_file=None, database_url="postgresql+psycopg://127.0.0.1:1/none"))
     return app.openapi()
 
 
