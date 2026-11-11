@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -40,6 +40,15 @@ function writeCollapsed(value: boolean) {
   }
 }
 
+function PageFallback() {
+  return (
+    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Cargando pantalla">
+      <div className="skeleton h-8 w-56" />
+      <div className="skeleton h-64 w-full" />
+    </div>
+  )
+}
+
 export function AppShell() {
   const { session, user, tenant, isResolving } = useSession()
   const location = useLocation()
@@ -55,6 +64,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-ink focus:shadow-pop">Saltar al contenido</a>
       {/* Sidebar escritorio */}
       <aside
         className={cn(
@@ -90,7 +100,9 @@ export function AppShell() {
         />
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
           <div className="mx-auto w-full max-w-[1400px]">
-            <Outlet />
+            <Suspense fallback={<PageFallback />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

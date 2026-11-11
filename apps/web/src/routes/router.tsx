@@ -1,21 +1,29 @@
-import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
+import { lazy } from 'react'
+import { createRootRoute, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/layouts/app-shell'
 import { LoginPage } from '@/features/auth/login-page'
+import { readStoredSession } from '@/features/auth/demo-auth'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
-import { OperationsPage } from '@/features/operations/operations-page'
-import { OperationDetailPage } from '@/features/operations/operation-detail-page'
 import { parseOperationSearch, toSearchParams } from '@/features/operations/filters'
-import { AccountPage } from '@/features/account/account-page'
-import { DocumentsPage } from '@/features/documents/documents-page'
-import { QuotesListPage, QuoteDetailPage } from '@/features/quotes/quotes-pages'
-import { RequestsListPage, NewRequestPage } from '@/features/requests/requests-pages'
-import { MarketplacePage } from '@/features/marketplace/marketplace-page'
 import { NotFoundPage } from './not-found'
 
 /**
- * Rutas del portal. Las rutas autenticadas viven bajo el layout `app`,
- * que valida la sesión DEMO antes de renderizar.
+ * Rutas del portal.
+ * - Login y torre de control se cargan en el bundle inicial (primera pantalla).
+ * - El resto de módulos se carga bajo demanda por ruta (code splitting).
+ * Las rutas autenticadas viven bajo el layout `app`, que valida la sesión DEMO.
  */
+
+const OperationsPage = lazy(() => import('@/features/operations/operations-page').then((m) => ({ default: m.OperationsPage })))
+const OperationDetailPage = lazy(() => import('@/features/operations/operation-detail-page').then((m) => ({ default: m.OperationDetailPage })))
+const AccountPage = lazy(() => import('@/features/account/account-page').then((m) => ({ default: m.AccountPage })))
+const DocumentsPage = lazy(() => import('@/features/documents/documents-page').then((m) => ({ default: m.DocumentsPage })))
+const QuotesListPage = lazy(() => import('@/features/quotes/quotes-pages').then((m) => ({ default: m.QuotesListPage })))
+const QuoteDetailPage = lazy(() => import('@/features/quotes/quotes-pages').then((m) => ({ default: m.QuoteDetailPage })))
+const RequestsListPage = lazy(() => import('@/features/requests/requests-pages').then((m) => ({ default: m.RequestsListPage })))
+const NewRequestPage = lazy(() => import('@/features/requests/requests-pages').then((m) => ({ default: m.NewRequestPage })))
+const MarketplacePage = lazy(() => import('@/features/marketplace/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
+
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
   notFoundComponent: NotFoundPage,
@@ -33,6 +41,12 @@ const loginRoute = createRoute({
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app',
+  // Guarda de sesión DEMO antes de montar cualquier pantalla autenticada.
+  beforeLoad: ({ location }) => {
+    if (!readStoredSession()) {
+      throw redirect({ to: '/login', search: { redirect: location.pathname } })
+    }
+  },
   component: AppShell,
 })
 

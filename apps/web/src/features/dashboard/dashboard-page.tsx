@@ -225,6 +225,14 @@ function greeting(now: Date): string {
   return 'Buenas noches'
 }
 
+const KPI_BAR = {
+  blue: 'bg-gradient-to-r from-cyan to-blue',
+  cyan: 'bg-cyan',
+  danger: 'bg-gradient-to-r from-danger to-warning',
+  success: 'bg-gradient-to-r from-success to-cyan',
+  neutral: 'bg-gradient-to-r from-line-strong to-line-strong',
+} as const
+
 const KPI_TONES = {
   blue: 'bg-blue-50 text-blue',
   cyan: 'bg-cyan-50 text-cyan-700',
@@ -254,8 +262,9 @@ function KpiCard({
     <Link
       to={to}
       search={search as never}
-      className="group relative flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-pop sm:p-5"
+      className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-pop sm:p-5"
     >
+      <span aria-hidden className={cn("absolute inset-x-0 top-0 h-1", KPI_BAR[tone])} />
       <div className="flex items-start justify-between">
         <span className={cn('grid size-9 place-items-center rounded-xl', KPI_TONES[tone])}>
           <Icon className="size-[18px]" aria-hidden />

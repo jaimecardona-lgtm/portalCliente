@@ -26,6 +26,7 @@ export function LogixAssistant() {
   const [input, setInput] = useState('')
   const counter = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const tenantId = session?.tenantId ?? ''
 
   const opMatch = /^\/operaciones\/([^/]+)/.exec(location.pathname)
@@ -57,6 +58,11 @@ export function LogixAssistant() {
   useEffect(() => {
     setMessages([])
   }, [tenantId])
+
+  // Foco al campo de pregunta al abrir o expandir el panel.
+  useEffect(() => {
+    if (open && !minimized) inputRef.current?.focus()
+  }, [open, minimized])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -108,6 +114,9 @@ export function LogixAssistant() {
       {open && (
         <section
           aria-label="Asistente Logix"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false)
+          }}
           className={cn(
             'fixed z-50 flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-pop animate-slide-up',
             'inset-x-3 bottom-3 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px]',
@@ -163,6 +172,7 @@ export function LogixAssistant() {
                 <label htmlFor="logix-input" className="sr-only">Escriba su pregunta para Logix</label>
                 <input
                   id="logix-input"
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Pregunte por una operación o documento"

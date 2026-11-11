@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, Eye, History, UploadCloud, FolderOpen, ChevronDown, FileCheck2 } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useToast } from '@/components/ui/toast'
+import { Dialog } from '@/components/ui/dialog'
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton, type Tone, inputClass } from '@/components/ui/primitives'
 import { cn, daysUntil, formatDate } from '@/lib/format'
 import type { DocumentRecord, DocumentStatus } from '@/types/domain'
@@ -265,21 +266,5 @@ function UploadDialog({
         </div>
       </div>
     </Dialog>
-  )
-}
-
-/** Diálogo accesible y sencillo: foco inicial, cierre con Escape y bloqueo de scroll. */
-export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-end p-3 sm:place-items-center sm:p-4" role="presentation" onKeyDown={(e) => e.key === 'Escape' && onClose()}>
-      <button type="button" aria-label="Cerrar" className="absolute inset-0 bg-midnight/55 backdrop-blur-[2px] animate-fade-in" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={title} className="relative w-full max-w-lg animate-slide-up rounded-2xl bg-surface p-5 shadow-pop sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-ink">{title}</h2>
-          <button type="button" onClick={onClose} className="rounded-md px-2 py-1 text-sm text-ink-muted hover:bg-surface-muted hover:text-ink">Cerrar</button>
-        </div>
-        {children}
-      </div>
-    </div>
   )
 }

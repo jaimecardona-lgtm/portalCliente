@@ -218,6 +218,9 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
             </div>
             <div className="relative flex min-w-[60px] flex-1 items-center" aria-hidden>
               <span className="h-px w-full border-t border-dashed border-white/30" />
+              <span className="absolute left-1/2 grid size-8 -translate-x-1/2 place-items-center rounded-full bg-midnight text-cyan ring-1 ring-white/25">
+                <TransportIcon className="size-4" />
+              </span>
               <span className="absolute right-0 grid size-6 place-items-center rounded-full bg-cyan text-midnight">
                 <ArrowRight className="size-3.5" />
               </span>
@@ -243,7 +246,7 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
                 return (
                   <li key={label} className="min-w-0">
                     <span className={cn('block h-1.5 rounded-full transition-colors duration-200', done ? (current ? 'bg-cyan' : 'bg-blue') : 'bg-white/15')} />
-                    <span className={cn('mt-1.5 block truncate text-[10px] sm:text-[11px]', current ? 'font-semibold text-white' : 'text-white/45')}>{label}</span>
+                    <span className={cn('mt-1.5 block text-[10px] leading-tight sm:text-[11px]', current ? 'font-semibold text-white' : 'text-white/45')}>{label}</span>
                   </li>
                 )
               })}
@@ -290,7 +293,7 @@ function DataItem({ label, value, mono, icon }: { label: string; value: string; 
   return (
     <div className="min-w-0">
       <dt className="text-xs font-medium text-ink-muted">{label}</dt>
-      <dd className={cn('mt-0.5 flex items-center gap-1.5 truncate font-medium text-ink', mono && 'font-mono text-[13px]')}>
+      <dd className={cn('mt-0.5 flex min-w-0 items-center gap-1.5 break-words font-medium text-ink', mono && 'font-mono text-[13px]')}>
         {icon}
         {value}
       </dd>

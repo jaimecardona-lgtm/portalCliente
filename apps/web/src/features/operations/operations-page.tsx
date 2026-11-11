@@ -23,7 +23,7 @@ import {
 
 type ColumnId =
   | 'doNumber' | 'reference' | 'status' | 'kind' | 'transport' | 'owner' | 'etd' | 'eta'
-  | 'ordenNumber' | 'booking' | 'origin' | 'destination' | 'atd' | 'ata' | 'freeDays' | 'documentClosingDate'
+  | 'ordenNumber' | 'booking' | 'route' | 'origin' | 'destination' | 'atd' | 'ata' | 'freeDays' | 'documentClosingDate'
 
 interface ColumnDef {
   id: ColumnId
@@ -38,11 +38,25 @@ const COLUMNS: ColumnDef[] = [
   { id: 'doNumber', label: 'DO', sortKey: 'doNumber', defaultVisible: true, className: 'font-mono font-semibold text-ink whitespace-nowrap', render: (o) => o.doNumber },
   { id: 'reference', label: 'Referencia', defaultVisible: true, className: 'max-w-[260px]', render: (o) => <span className="block truncate">{o.reference}</span> },
   { id: 'status', label: 'Estado', sortKey: 'status', defaultVisible: true, render: (o) => <OperationStatusBadge status={o.status} /> },
-  { id: 'kind', label: 'Tipo', defaultVisible: true, render: (o) => o.kind },
+  { id: 'kind', label: 'Tipo', defaultVisible: false, render: (o) => o.kind },
   { id: 'transport', label: 'Transporte', defaultVisible: false, render: (o) => o.transport },
   { id: 'owner', label: 'Responsable', defaultVisible: true, className: 'whitespace-nowrap', render: (o) => o.owner },
-  { id: 'origin', label: 'Origen', sortKey: 'origin', defaultVisible: true, className: 'max-w-[180px]', render: (o) => <span className="block truncate">{o.origin}</span> },
-  { id: 'destination', label: 'Destino', sortKey: 'destination', defaultVisible: true, className: 'max-w-[180px]', render: (o) => <span className="block truncate">{o.destination}</span> },
+  {
+    id: 'route',
+    label: 'Ruta',
+    sortKey: 'origin',
+    defaultVisible: true,
+    className: 'max-w-[300px]',
+    render: (o) => (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate">{o.origin}</span>
+        <ChevronRight className="size-3.5 shrink-0 text-ink-muted" aria-hidden />
+        <span className="truncate">{o.destination}</span>
+      </span>
+    ),
+  },
+  { id: 'origin', label: 'Origen', sortKey: 'origin', defaultVisible: false, className: 'max-w-[180px]', render: (o) => <span className="block truncate">{o.origin}</span> },
+  { id: 'destination', label: 'Destino', sortKey: 'destination', defaultVisible: false, className: 'max-w-[180px]', render: (o) => <span className="block truncate">{o.destination}</span> },
   { id: 'etd', label: 'ETD', sortKey: 'etd', defaultVisible: true, className: 'tabular whitespace-nowrap', render: (o) => formatDate(o.etd) },
   { id: 'eta', label: 'ETA', sortKey: 'eta', defaultVisible: true, className: 'tabular whitespace-nowrap', render: (o) => formatDate(o.eta) },
   { id: 'atd', label: 'ATD', defaultVisible: false, className: 'tabular whitespace-nowrap', render: (o) => formatDate(o.atd) },
@@ -133,6 +147,8 @@ export function OperationsPage({ search }: { search: Record<string, string> }) {
           </p>
         </div>
       </header>
+
+      {query.data && query.data.length > 0 && <OperationsSummary ops={query.data} />}
 
       {/* Barra de filtros */}
       <Card className="p-3 sm:p-4">
@@ -394,6 +410,29 @@ function DateField({ id, label, value, onChange }: { id: string; label: string; 
       <label htmlFor={id} className="text-xs font-semibold text-ink-soft">{label}</label>
       <input id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-line-strong bg-surface px-2.5 text-sm focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/15" />
     </div>
+  )
+}
+
+/** Franja de resumen sobre el total de operaciones (no depende de los filtros). */
+function OperationsSummary({ ops }: { ops: Operation[] }) {
+  const active = ops.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado').length
+  const inMotion = ops.filter((o) => ['En tránsito', 'En puerto', 'En aduana'].includes(o.status)).length
+  const pending = ops.filter((o) => o.pendingClientResponse).length
+  const items = [
+    { label: 'Activas', value: active, tone: 'text-blue' },
+    { label: 'En movimiento', value: inMotion, tone: 'text-cyan-700' },
+    { label: 'Requieren su respuesta', value: pending, tone: pending > 0 ? 'text-danger-700' : 'text-ink' },
+    { label: 'Total registradas', value: ops.length, tone: 'text-ink' },
+  ]
+  return (
+    <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumen de operaciones">
+      {items.map((it) => (
+        <div key={it.label} className="rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3 shadow-card">
+          <dt className="text-xs font-semibold tracking-wide text-ink-muted uppercase">{it.label}</dt>
+          <dd className={cn('mt-1 text-2xl font-bold tracking-tight tabular', it.tone)}>{it.value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
