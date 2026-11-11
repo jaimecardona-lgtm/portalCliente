@@ -233,3 +233,29 @@ def test_reply_cannot_point_to_comment_of_other_event(owner_engine: Engine, seed
                     "a": seed.ana,
                 },
             )
+
+
+def test_public_api_roles_have_no_portal_privileges(owner_engine: Engine, seed: Seed) -> None:
+    """Supabase expone `anon` y `authenticated` vía PostgREST; la migración 0002 les retira los privilegios.
+
+    Si los roles no existen (PostgreSQL local sin Supabase), la prueba se omite.
+    """
+    with owner_engine.connect() as conn:
+        present = {
+            r[0]
+            for r in conn.execute(
+                text("SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')")
+            ).all()
+        }
+        if not present:
+            pytest.skip("Los roles anon/authenticated solo existen en Supabase.")
+        for role in present:
+            table_rights = conn.execute(
+                text(
+                    "SELECT has_table_privilege(:r, 'tenants', 'SELECT'), "
+                    "has_table_privilege(:r, 'event_comments', 'INSERT'), "
+                    "has_function_privilege(:r, 'portal_my_tenant_ids()', 'EXECUTE')"
+                ),
+                {"r": role},
+            ).one()
+            assert tuple(table_rights) == (False, False, False), role
