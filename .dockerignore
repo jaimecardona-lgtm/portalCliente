@@ -1,0 +1,54 @@
+# Contexto de build del Dockerfile raíz. Lo que no está aquí no entra en la imagen.
+# Principio: ningún secreto, dato local, dependencia de desarrollo ni artefacto de build llega a la imagen.
+
+# Control de versiones y editores
+.git
+.github
+.vscode
+.idea
+*.swp
+
+# Secretos y configuración local (NUNCA en la imagen)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+**/secrets*
+supabase/.temp
+supabase/.branches
+
+# Datos locales de autenticación de desarrollo (JSON, sesiones, bandejas)
+apps/web/local
+apps/web/local/**
+
+# Entornos y dependencias locales
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+# Artefactos de compilación y pruebas (el frontend se compila DENTRO del Dockerfile)
+apps/web/dist
+apps/web/coverage
+apps/web/test-results
+apps/web/playwright-report
+apps/web/blob-report
+apps/web/e2e
+apps/web/e2e-prod
+**/*.log
+
+# Documentación y material de marca no público
+docs
+imagenes*
+*.pdf
+
+# El Dockerfile se copia implícitamente; no es necesario incluir el resto del repositorio
+Dockerfile.*

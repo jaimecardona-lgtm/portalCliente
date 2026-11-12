@@ -1,0 +1,65 @@
+# Blueprint de Render: UN solo Web Service Docker (frontend React + API FastAPI).
+# Ver docs/deployment-render.md para el procedimiento completo y los límites del plan gratuito.
+#
+# Lo que NO se crea aquí (a propósito):
+# - Base de datos PostgreSQL en Render: la base vive en Supabase.
+# - Segundo servicio para el frontend, Redis, workers o cron.
+# - Comando de migraciones antes del despliegue: no está disponible en el plan gratuito y las migraciones
+#   se aplican con Supabase CLI o CI/CD, fuera del arranque del contenedor.
+#
+# Valores con `sync: false`: se introducen en el panel de Render. NUNCA se escriben en este archivo.
+
+services:
+  - type: web
+    name: logixtic-client-portal
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      # --- Configuración no secreta ---
+      - key: APP_ENV
+        value: production
+      - key: DOCS_ENABLED
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_APP_ROLE
+        value: portal_app
+      - key: DATABASE_POOL_SIZE
+        value: "2"
+      - key: DATABASE_MAX_OVERFLOW
+        value: "0"
+      - key: JWT_LEEWAY_SECONDS
+        value: "30"
+      - key: SUPABASE_JWT_AUDIENCE
+        value: authenticated
+      # Mismo origen: no hace falta CORS. Lista JSON vacía.
+      - key: CORS_ALLOWED_ORIGINS
+        value: "[]"
+
+      # --- Secretos y datos de conexión: se introducen en el panel de Render ---
+      # Conexión del rol de servicio de la API (sin BYPASSRLS). Ver docs/supabase-preparation.md.
+      - key: DATABASE_URL
+        sync: false
+      # URL del proyecto Supabase (pública, pero específica de cada entorno).
+      - key: SUPABASE_URL
+        sync: false
+      # Uno de los dos modos de verificación de JWT. No configurar ambos.
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+
+      # --- Build-time (públicos, declarados como ARG en el Dockerfile). Ver docs/deployment-render.md ---
+      - key: VITE_AUTH_PROVIDER
+        value: supabase
+      - key: VITE_API_BASE_URL
+        value: /api/v1
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false

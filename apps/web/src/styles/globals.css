@@ -1,0 +1,169 @@
+@import "tailwindcss";
+
+/*
+ * DESIGN TOKENS — Logixtic Client Portal · Manual de Marca v2.0
+ *
+ * Fuente de verdad visual del portal. Reglas (ver docs/brand/BRAND_SYSTEM.md):
+ * - Solo cinco colores de marca. Los demás valores son variaciones por opacidad o mezcla de esos cinco
+ *   (y de blanco y negro puros). Nunca añadir hexadecimales sueltos en componentes.
+ * - La paleta por defecto de Tailwind está desactivada (`--color-*: initial`): cualquier clase de color que
+ *   no exista aquí no genera CSS, así que no puede colarse un color ajeno a la marca.
+ * - Naranja (`--color-warning`) solo para alertas e iconografía de advertencia. No es fondo de logotipo.
+ * - Amarillo (`--color-yellow`) es acento: nunca texto sobre amarillo ni fondo dominante.
+ * - Texto de cuerpo: contraste WCAG AA. Ver la tabla de contrastes en BRAND_SYSTEM.md.
+ */
+:root {
+  --brand-royal: #2296f3;
+  --brand-yellow: #fbbe0a;
+  --brand-navy: #0f2341;
+  --brand-warning: #f7801e;
+  --brand-neutral: #6e7d95;
+}
+
+@theme {
+  /* Desactiva la paleta por defecto de Tailwind: solo existen los tokens de esta sección. */
+  --color-*: initial;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Básicos permitidos por el manual */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Marca: Azul Noche (institucional, texto principal, botón principal) */
+  --color-navy: var(--brand-navy);
+  --color-midnight: var(--brand-navy);
+  --color-navy-700: color-mix(in srgb, var(--brand-navy) 88%, white);
+  --color-navy-500: color-mix(in srgb, var(--brand-navy) 72%, white);
+
+  /* Marca: Azul Royal (navegación activa, acciones, foco, iconografía) */
+  --color-blue: var(--brand-royal);
+  --color-blue-600: color-mix(in srgb, var(--brand-royal) 82%, var(--brand-navy));
+  --color-blue-50: color-mix(in srgb, var(--brand-royal) 10%, white);
+  --color-blue-100: color-mix(in srgb, var(--brand-royal) 16%, white);
+  --color-blue-200: color-mix(in srgb, var(--brand-royal) 28%, white);
+
+  /* Marca: Amarillo (acento de identidad; nunca texto sobre amarillo) */
+  --color-yellow: var(--brand-yellow);
+  --color-yellow-50: color-mix(in srgb, var(--brand-yellow) 18%, white);
+
+  /* Marca: Naranja de alerta (advertencias; el texto va en azul noche y el icono acompaña) */
+  --color-warning: var(--brand-warning);
+  --color-warning-50: color-mix(in srgb, var(--brand-warning) 12%, white);
+  --color-warning-200: color-mix(in srgb, var(--brand-warning) 35%, white);
+  --color-warning-700: var(--brand-navy);
+
+  /* Gris neutro: iconos, separadores y elementos no textuales */
+  --color-neutral: var(--brand-neutral);
+
+  /* Superficies: blanco y variaciones de azul noche por opacidad */
+  --color-canvas: color-mix(in srgb, var(--brand-navy) 4%, white);
+  --color-surface: #ffffff;
+  --color-surface-muted: color-mix(in srgb, var(--brand-navy) 6%, white);
+  --color-line: color-mix(in srgb, var(--brand-navy) 12%, white);
+  --color-line-strong: color-mix(in srgb, var(--brand-navy) 24%, white);
+
+  /* Texto: azul noche con opacidad. ink-muted ≈ 5.5:1 sobre blanco (AA). */
+  --color-ink: var(--brand-navy);
+  --color-ink-soft: color-mix(in srgb, var(--brand-navy) 82%, white);
+  --color-ink-muted: color-mix(in srgb, var(--brand-navy) 68%, white);
+
+  /* Semántica sin colores nuevos: éxito y información usan azul royal; error usa naranja + icono + texto. */
+  --color-success: var(--brand-royal);
+  --color-success-50: color-mix(in srgb, var(--brand-royal) 10%, white);
+  --color-success-700: var(--brand-navy);
+  --color-danger: var(--brand-warning);
+  --color-danger-50: color-mix(in srgb, var(--brand-warning) 12%, white);
+  --color-danger-700: var(--brand-navy);
+  --color-info-50: color-mix(in srgb, var(--brand-royal) 10%, white);
+  --color-info-700: var(--brand-navy);
+
+  /* Radios y sombras (sombras en azul noche) */
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(15 35 65 / 0.04), 0 4px 16px -6px rgb(15 35 65 / 0.08);
+  --shadow-pop: 0 12px 40px -12px rgb(15 35 65 / 0.28);
+
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Jerarquía del manual: H1 Bold, H2 SemiBold, H3 Medium en Poppins. Texto operativo en Inter. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    color: var(--color-ink);
+    line-height: 1.2;
+  }
+  h1 { font-weight: 700; }
+  h2 { font-weight: 600; }
+  h3 { font-weight: 500; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--color-blue-100);
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-surface-muted) 25%, var(--color-line) 37%, var(--color-surface-muted) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 8px;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Respeto a movimiento reducido: sin animaciones ni transiciones decorativas. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
