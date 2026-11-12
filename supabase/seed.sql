@@ -1,5 +1,8 @@
 -- seed.sql — datos EXCLUSIVAMENTE sintéticos para bases de desarrollo desechables.
 --
+-- POLÍTICA DE DATOS REALES: este archivo NUNCA se ejecuta en presentación, staging ni producción.
+-- Solo en bases desechables y aisladas para pruebas automatizadas.
+--
 -- Qué crea: dos empresas ficticias, una operación y un evento por empresa.
 -- Qué NO crea: perfiles, membresías ni usuarios. Un perfil exige un usuario real en Supabase Auth
 -- (profiles.id referencia auth.users). Para asignar acceso usa apps/api/scripts/provision_dev.py
