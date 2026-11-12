@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,7 @@ from app.core.logging import configure_logging
 from app.core.request_context import RequestIdMiddleware
 from app.core.security import TokenVerifier, build_token_verifier
 from app.db.session import create_db_engine, make_session_factory
+from app.web.spa import is_spa_build, register_spa
 
 
 def create_app(
@@ -70,4 +72,10 @@ def create_app(
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
     app.include_router(router)
+
+    # El frontend se registra al final: las rutas de API y /health tienen prioridad sobre el fallback SPA.
+    if settings.web_dist_dir:
+        dist = Path(settings.web_dist_dir)
+        if is_spa_build(dist):
+            register_spa(app, dist)
     return app

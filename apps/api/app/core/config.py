@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     # producción. En producción solo se activa si DOCS_ENABLED=true lo pide de forma explícita.
     docs_enabled: bool | None = None
 
+    # Frontend compilado servido por FastAPI en el mismo origen (Docker: /app/web/dist).
+    # Sin valor, la API no sirve React (desarrollo: Vite sirve la interfaz).
+    web_dist_dir: str | None = None
+
+    # Pool de conexiones para una instancia pequeña (Render Free, 512 MB). Ver docs/deployment-render.md.
+    database_pool_size: int = Field(default=2, ge=1, le=20)
+    database_max_overflow: int = Field(default=0, ge=0, le=20)
+
     # Límites de negocio.
     max_comment_length: int = Field(default=2000, ge=1, le=10000)
     default_page_size: int = Field(default=50, ge=1, le=100)

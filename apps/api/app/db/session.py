@@ -29,7 +29,15 @@ _ROLE_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
 def create_db_engine(settings: Settings) -> Engine:
-    return create_engine(settings.database_url, pool_pre_ping=True, future=True)
+    """Motor con pool pequeño. `pool_pre_ping` evita usar conexiones cortadas por el proveedor."""
+    return create_engine(
+        settings.database_url,
+        pool_pre_ping=True,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        pool_recycle=300,
+        future=True,
+    )
 
 
 def make_session_factory(engine: Engine) -> sessionmaker[Session]:
