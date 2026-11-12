@@ -1,14 +1,15 @@
 /**
  * Inicio de sesión (/login).
  *
- * Flujo: validación con Zod en el cliente, envío al servidor local (solo desarrollo) y, si la respuesta es
- * correcta, sincronización de la cuenta con el repositorio y de la sesión del navegador.
- * Errores: el servidor responde siempre con un mensaje genérico ante credenciales incorrectas, para no
- * revelar si el correo existe. El bloqueo tras varios intentos se muestra como estado aparte.
- * Restricciones: fuera de desarrollo el formulario queda deshabilitado con un aviso neutro.
- * Decisión no evidente: "Recordar sesión" solo cambia la duración de la cookie (14 días); sin él, 12 horas.
+ * Flujo con Supabase (modo real): validación con Zod, inicio de sesión en Supabase Auth y lectura de la cuenta
+ * desde la API (GET /me). La aplicación no guarda credenciales ni tokens propios.
+ * Flujo local (solo desarrollo sin proveedor): cuentas JSON del servidor de desarrollo, sin cambios.
+ * Errores: ante credenciales incorrectas el mensaje es siempre genérico, para no revelar si el correo existe.
+ * Restricciones: sin proveedor activo, el formulario queda deshabilitado con un aviso neutro.
+ * Decisión no evidente: en modo Supabase no se ofrece "Recordar sesión" ni alta de cuentas: la duración la fija
+ * Supabase y las cuentas se entregan por invitación. En modo local se mantiene la opción anterior.
  */
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearch } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,8 +17,9 @@ import { z } from 'zod'
 import { ArrowRight, ShieldAlert } from 'lucide-react'
 import { Button, Field, inputClass } from '@/components/ui/primitives'
 import { useToast } from '@/components/ui/toast'
-import { LOCAL_ACCESS_ENABLED } from '@/config/runtime'
+import { LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
 import { useOptionalRepository } from '@/services/repositories'
+import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { useSession } from './session-context'
 import { AuthLayout, PasswordInput } from './auth-layout'
 import { loadLocalAuthApi, sessionForAccount } from './auth-gateway'
@@ -33,16 +35,18 @@ type LoginValues = z.infer<typeof loginSchema>
 /** Texto neutro para usuarios: no revela detalles de configuración técnica. */
 const ACCESS_UNAVAILABLE_MESSAGE = 'El acceso a Logixtic no está disponible en este momento. Contacta a tu ejecutivo de cuenta.'
 const GENERIC_CREDENTIALS_ERROR = 'Correo o contraseña no válidos.'
+const GENERIC_SIGNIN_ERROR = 'No fue posible iniciar sesión. Inténtalo de nuevo.'
 
 export function LoginPage() {
-  const { session, signIn } = useSession()
+  const { session, signIn, refreshAccount } = useSession()
   const repo = useOptionalRepository()
+  const portal = useContext(SupabasePortalContext)
   const navigate = useNavigate()
   const search = useSearch({ strict: false }) as { redirect?: string }
   const { toast } = useToast()
   const [formError, setFormError] = useState<string | null>(null)
 
-  const canSubmit = LOCAL_ACCESS_ENABLED && repo !== null
+  const canSubmit = SUPABASE_ACCESS_ENABLED ? portal !== null : LOCAL_ACCESS_ENABLED && repo !== null
 
   const {
     register,
@@ -50,12 +54,33 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: '', password: '', remember: false } })
 
-  if (session && LOCAL_ACCESS_ENABLED) return <Navigate to="/" />
+  if (session && (LOCAL_ACCESS_ENABLED || SUPABASE_ACCESS_ENABLED)) return <Navigate to="/" />
 
   const target = search.redirect && search.redirect.startsWith('/') && !search.redirect.startsWith('/login') ? search.redirect : '/'
 
   const onSubmit = async (values: LoginValues) => {
     setFormError(null)
+
+    if (SUPABASE_ACCESS_ENABLED) {
+      if (!portal) {
+        setFormError(ACCESS_UNAVAILABLE_MESSAGE)
+        return
+      }
+      const outcome = await portal.auth.signIn(values.email, values.password)
+      if (outcome.status === 'invalid') {
+        setFormError(GENERIC_CREDENTIALS_ERROR)
+        return
+      }
+      if (outcome.status !== 'ok') {
+        setFormError(GENERIC_SIGNIN_ERROR)
+        return
+      }
+      // La sesión existe en Supabase. La cuenta y la empresa las confirma el servidor al leer /me.
+      await refreshAccount()
+      void navigate({ to: target })
+      return
+    }
+
     const api = await loadLocalAuthApi()
     if (!canSubmit || !api) {
       setFormError(ACCESS_UNAVAILABLE_MESSAGE)
@@ -71,7 +96,7 @@ export function LoginPage() {
       return
     }
     if (result.status !== 'ok') {
-      setFormError('No fue posible iniciar sesión. Inténtalo de nuevo.')
+      setFormError(GENERIC_SIGNIN_ERROR)
       return
     }
     signIn(await sessionForAccount(repo, result.user))
@@ -116,13 +141,15 @@ export function LoginPage() {
           registration={register('password')}
         />
 
-        <label className="flex items-start gap-2.5 text-sm text-ink-soft">
-          <input type="checkbox" disabled={!canSubmit} className="mt-0.5 size-4 rounded border-line-strong accent-blue" {...register('remember')} />
-          <span>
-            Recordar sesión en este equipo
-            <span className="block text-xs text-ink-muted">Se mantiene hasta 14 días. Sin esta opción, la sesión dura 12 horas.</span>
-          </span>
-        </label>
+        {!SUPABASE_ACCESS_ENABLED && (
+          <label className="flex items-start gap-2.5 text-sm text-ink-soft">
+            <input type="checkbox" disabled={!canSubmit} className="mt-0.5 size-4 rounded border-line-strong accent-blue" {...register('remember')} />
+            <span>
+              Recordar sesión en este equipo
+              <span className="block text-xs text-ink-muted">Se mantiene hasta 14 días. Sin esta opción, la sesión dura 12 horas.</span>
+            </span>
+          </label>
+        )}
 
         {formError && (
           <p role="alert" className="flex items-start gap-2 rounded-lg bg-danger-50 px-3 py-2.5 text-sm text-danger-700">
@@ -140,12 +167,16 @@ export function LoginPage() {
         <Link to="/recuperar-contrasena" className="font-medium text-blue hover:underline">
           ¿Olvidaste tu contraseña?
         </Link>
-        <p className="text-ink-soft">
-          ¿No tienes cuenta?{' '}
-          <Link to="/registro" className="font-semibold text-blue hover:underline">
-            Crear cuenta
-          </Link>
-        </p>
+        {SUPABASE_ACCESS_ENABLED ? (
+          <p className="text-ink-soft">El acceso a Logixtic se entrega por invitación de tu ejecutivo de cuenta.</p>
+        ) : (
+          <p className="text-ink-soft">
+            ¿No tienes cuenta?{' '}
+            <Link to="/registro" className="font-semibold text-blue hover:underline">
+              Crear cuenta
+            </Link>
+          </p>
+        )}
       </div>
 
       <p className="mt-8 text-xs leading-relaxed text-ink-muted">
@@ -156,4 +187,3 @@ export function LoginPage() {
     </AuthLayout>
   )
 }
-

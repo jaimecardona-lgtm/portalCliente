@@ -15,13 +15,15 @@ import {
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useEndSession } from '@/features/auth/use-end-session'
 import { useRepository } from '@/services/repositories'
-import { FEATURES } from '@/config/runtime'
+import { FEATURES, LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
+import { accountIssueMessage, roleLabel, type AccountIssue } from '@/services/auth/account-issues'
+import { Card, ErrorState } from '@/components/ui/primitives'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { cn, daysUntil } from '@/lib/format'
 import { NAV_GROUPS, SECTION_LABELS, type NavItem } from './nav'
 
 /** Grupos de navegación según las funciones disponibles en el entorno. */
-/** Selector de empresa de QA: existe únicamente en el build de desarrollo. */
+/** Selector de empresa de QA: solo en desarrollo y solo con presentación local (datos sintéticos). */
 const LocalTenantSwitcher = import.meta.env.DEV
   ? lazy(() => import('./local-tenant-switcher').then((m) => ({ default: m.LocalTenantSwitcher })))
   : null
@@ -56,7 +58,7 @@ function PageFallback() {
 }
 
 export function AppShell() {
-  const { session, user, tenant, isResolving } = useSession()
+  const { session, user, tenant, account, accountIssue, isResolving } = useSession()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed())
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -65,7 +67,11 @@ export function AppShell() {
   useEffect(() => setDrawerOpen(false), [location.pathname])
 
   // La guarda de acceso vive en beforeLoad (router.tsx). Si no hay sesión, no se monta contenido.
-  if (!session) return null
+  // En modo Supabase, la sesión depende de la cuenta del servidor: sin ella se muestra su estado, nunca datos de ejemplo.
+  if (!session) {
+    if (!SUPABASE_ACCESS_ENABLED) return null
+    return <AccountStatus issue={accountIssue} />
+  }
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
@@ -98,9 +104,9 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           onOpenMenu={() => setDrawerOpen(true)}
-          companyName={tenant?.shortName ?? (isResolving ? 'Cargando…' : '—')}
-          userName={user?.fullName ?? (isResolving ? 'Cargando…' : '—')}
-          userRole={user?.role ?? ''}
+          companyName={tenant?.shortName ?? account?.tenant.legalName ?? (isResolving ? 'Cargando…' : '—')}
+          userName={user?.fullName ?? account?.fullName ?? (isResolving ? 'Cargando…' : '—')}
+          userRole={user?.role ?? (account ? roleLabel(account.role) : '')}
           userEmail={user?.email ?? ''}
         />
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
@@ -112,7 +118,7 @@ export function AppShell() {
         </main>
       </div>
 
-      {LogixAssistantDev && (
+      {LogixAssistantDev && LOCAL_ACCESS_ENABLED && (
         <Suspense fallback={null}>
           <LogixAssistantDev />
         </Suspense>
@@ -129,6 +135,29 @@ export function AppShell() {
 const LogixAssistantDev = import.meta.env.DEV
   ? lazy(() => import('@/features/assistant/logix-assistant').then((m) => ({ default: m.LogixAssistant })))
   : null
+
+/** Estado de la cuenta cuando no hay sesión utilizable (modo Supabase). Nunca muestra datos de ejemplo. */
+function AccountStatus({ issue }: { issue: AccountIssue | null }) {
+  if (issue === null) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-canvas px-4">
+        <p role="status" className="text-sm text-ink-muted">Cargando…</p>
+      </main>
+    )
+  }
+  return (
+    <main className="grid min-h-dvh place-items-center bg-canvas px-4 py-10">
+      <Card className="w-full max-w-md">
+        <ErrorState message={accountIssueMessage(issue)} />
+        {issue === 'session' && (
+          <div className="pb-8 text-center">
+            <Link to="/login" className="font-semibold text-blue hover:underline">Ir a iniciar sesión</Link>
+          </div>
+        )}
+      </Card>
+    </main>
+  )
+}
 
 function SidebarContent({
   collapsed,
@@ -254,7 +283,7 @@ function Topbar({
 
         <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
           <GlobalSearch />
-          {import.meta.env.DEV && LocalTenantSwitcher && (
+          {import.meta.env.DEV && LOCAL_ACCESS_ENABLED && LocalTenantSwitcher && (
             <Suspense fallback={null}>
               <LocalTenantSwitcher />
             </Suspense>

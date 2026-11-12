@@ -2,15 +2,17 @@
  * Configuración de entorno y funciones disponibles.
  *
  * Dos modos de acceso, separados a propósito:
- * - Presentación local ("local"): solo existe en desarrollo (`vite dev`). Usa cuentas JSON locales
- *   y datos sintéticos. Nunca llega al bundle de producción.
+ * - Presentación local ("local"): solo existe en desarrollo (`vite dev`) y sin proveedor declarado. Usa cuentas
+ *   JSON locales y datos sintéticos. Nunca llega al bundle de producción.
  * - Supabase Auth ("supabase"): único proveedor real. Exige configuración pública válida
- *   (VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY) y una implementación de pantallas registrada en
- *   IMPLEMENTED_AUTH_PROVIDERS. Hasta entonces, la aplicación queda BLOQUEADA en producción.
+ *   (VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY), la URL de la API (VITE_API_BASE_URL) y que el proveedor
+ *   figure en IMPLEMENTED_AUTH_PROVIDERS. Sin ello, la aplicación queda BLOQUEADA.
  *
  * Reglas:
  * - Ninguna sesión JSON ni simulada concede acceso fuera de desarrollo.
- * - Sin proveedor implementado no hay acceso, aunque la configuración esté completa.
+ * - Si VITE_AUTH_PROVIDER está declarado, manda ese proveedor también en desarrollo: nunca cae en el modo local
+ *   en silencio. Así un desarrollador puede probar Supabase real sin que aparezcan datos sintéticos.
+ * - Las funciones de presentación local (FEATURES) dependen del modo local, no solo de `import.meta.env.DEV`.
  * - `import.meta.env.DEV` se sustituye por una constante en el build, así el código local y sus
  *   fixtures se eliminan del bundle de producción.
  */
@@ -22,11 +24,10 @@ export const IS_LOCAL_PRESENTATION: boolean = import.meta.env.DEV
 export const KNOWN_AUTH_PROVIDERS: readonly string[] = ['supabase']
 
 /**
- * Proveedores con pantallas de inicio de sesión conectadas al proveedor. VACÍO: el login, la recuperación y
- * la guarda de rutas todavía usan el modo local. Añadir 'supabase' solo cuando las pantallas estén conectadas
- * y verificadas (ver docs/supabase-preparation.md, sección 7b).
+ * Proveedores con pantallas conectadas (login, recuperación, guarda de rutas y repositorio HTTP).
+ * Añadir un proveedor aquí solo cuando sus pantallas estén conectadas y verificadas.
  */
-export const IMPLEMENTED_AUTH_PROVIDERS: readonly string[] = []
+export const IMPLEMENTED_AUTH_PROVIDERS: readonly string[] = ['supabase']
 
 export type BlockReason =
   | 'provider-missing'
@@ -35,7 +36,7 @@ export type BlockReason =
   | 'supabase-config-missing'
   | 'provider-not-implemented'
 
-export type AccessState = { mode: 'local' } | { mode: 'blocked'; reason: BlockReason }
+export type AccessState = { mode: 'local' } | { mode: 'supabase' } | { mode: 'blocked'; reason: BlockReason }
 
 export interface AccessInput {
   isLocal: boolean
@@ -45,18 +46,19 @@ export interface AccessInput {
   supabaseConfigured?: boolean
 }
 
-/** Decide si la aplicación puede dar acceso. Función pura para poder probarla. */
+/** Decide el modo de acceso. Función pura para poder probarla. */
 export function resolveAccessState(input: AccessInput): AccessState {
-  if (input.isLocal) return { mode: 'local' }
   const provider = (input.provider ?? '').trim()
+  // Desarrollo sin proveedor declarado: presentación local con datos sintéticos.
+  if (input.isLocal && !provider) return { mode: 'local' }
   if (!provider) return { mode: 'blocked', reason: 'provider-missing' }
   if (!KNOWN_AUTH_PROVIDERS.includes(provider)) return { mode: 'blocked', reason: 'provider-unknown' }
   if (!(input.apiBaseUrl ?? '').trim()) return { mode: 'blocked', reason: 'api-url-missing' }
   if (provider === 'supabase' && !input.supabaseConfigured) {
     return { mode: 'blocked', reason: 'supabase-config-missing' }
   }
-  // Configuración válida pero sin pantallas conectadas al proveedor: sigue bloqueado.
-  return { mode: 'blocked', reason: 'provider-not-implemented' }
+  if (!IMPLEMENTED_AUTH_PROVIDERS.includes(provider)) return { mode: 'blocked', reason: 'provider-not-implemented' }
+  return { mode: 'supabase' }
 }
 
 /** true si la configuración pública de Supabase es válida. Nunca lanza: una configuración insegura cuenta como no configurada. */
@@ -78,8 +80,14 @@ export const ACCESS_STATE: AccessState = resolveAccessState({
   }),
 })
 
+/** true solo cuando la sesión local puede utilizarse (desarrollo sin proveedor declarado). */
+export const LOCAL_ACCESS_ENABLED = ACCESS_STATE.mode === 'local'
+
+/** true solo cuando el acceso real con Supabase Auth está activo. */
+export const SUPABASE_ACCESS_ENABLED = ACCESS_STATE.mode === 'supabase'
+
 export interface FeatureFlags {
-  /** Selector de empresa para QA local. Solo desarrollo. */
+  /** Selector de empresa para QA local. Solo modo local. */
   tenantSwitcher: boolean
   /** Asistente Logix con respuestas por reglas sobre datos locales. */
   assistant: boolean
@@ -93,11 +101,11 @@ export interface FeatureFlags {
   documentPreview: boolean
   /** Marketplace (funcionalidad futura). */
   marketplace: boolean
-  /** Recuperación de contraseña. */
+  /** Recuperación de contraseña (solo local: su pantalla no está verificada en ningún entorno). */
   passwordRecovery: boolean
 }
 
-/** Funciones disponibles por entorno. En producción todas quedan desactivadas hasta tener backend. */
+/** Funciones disponibles por modo de acceso. Fuera del modo local, todas quedan desactivadas. */
 export function buildFeatures(isLocal: boolean): FeatureFlags {
   return {
     tenantSwitcher: isLocal,
@@ -111,7 +119,4 @@ export function buildFeatures(isLocal: boolean): FeatureFlags {
   }
 }
 
-export const FEATURES: FeatureFlags = buildFeatures(IS_LOCAL_PRESENTATION)
-
-/** true solo cuando la sesión local puede utilizarse (desarrollo). */
-export const LOCAL_ACCESS_ENABLED = ACCESS_STATE.mode === 'local'
+export const FEATURES: FeatureFlags = buildFeatures(LOCAL_ACCESS_ENABLED)

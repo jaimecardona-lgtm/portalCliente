@@ -97,6 +97,16 @@ describe('cuenta y empresa activa', () => {
     await expect(r.getCurrentAccount()).resolves.toMatchObject({ userId: ME.user_id })
   })
 
+  it('refreshCurrentAccount ignora la caché: nunca devuelve la cuenta de una sesión anterior', async () => {
+    const api = fakeApi(() => undefined)
+    const r = repo(api)
+    await r.getCurrentAccount()
+    await r.getCurrentAccount()
+    expect(api.paths().filter((p) => p === '/me')).toHaveLength(1)
+    await r.refreshCurrentAccount()
+    expect(api.paths().filter((p) => p === '/me')).toHaveLength(2)
+  })
+
   it('envía X-Tenant-Id solo con la empresa elegida por el usuario', async () => {
     const api = fakeApi(() => undefined)
     await repo(api, TENANT).getCurrentAccount()

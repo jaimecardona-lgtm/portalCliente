@@ -7,7 +7,7 @@
  * Honestidad de la interfaz: la pantalla no afirma que se haya enviado un correo; en desarrollo indica
  * dónde consultar el enlace (bandeja local, solo localhost).
  */
-import { useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,12 +15,16 @@ import { z } from 'zod'
 import { ArrowRight, CheckCircle2, ShieldAlert } from 'lucide-react'
 import { Button, Field, inputClass } from '@/components/ui/primitives'
 import { useToast } from '@/components/ui/toast'
-import { LOCAL_ACCESS_ENABLED } from '@/config/runtime'
+import { LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
+import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { AuthLayout, PasswordInput } from './auth-layout'
 import { loadLocalAuthApi } from './auth-gateway'
 import { PASSWORD_MIN_LENGTH } from './password-strength'
 
 const UNAVAILABLE = 'La recuperación de contraseña no está disponible en este momento. Contacta a tu ejecutivo de cuenta.'
+
+/** Ruta a la que Supabase devuelve al usuario desde el correo de recuperación. Debe estar en la lista de redirecciones. */
+const RESET_PATH = '/restablecer-contrasena'
 
 /* ---------------- Solicitud de recuperación ---------------- */
 
@@ -31,6 +35,8 @@ type ForgotValues = z.infer<typeof forgotSchema>
 
 export function ForgotPasswordPage() {
   const [sent, setSent] = useState(false)
+  const portal = useContext(SupabasePortalContext)
+  const canUse = SUPABASE_ACCESS_ENABLED ? portal !== null : LOCAL_ACCESS_ENABLED
   const {
     register,
     handleSubmit,
@@ -38,6 +44,13 @@ export function ForgotPasswordPage() {
   } = useForm<ForgotValues>({ resolver: zodResolver(forgotSchema), defaultValues: { email: '' } })
 
   const onSubmit = async (values: ForgotValues) => {
+    if (SUPABASE_ACCESS_ENABLED) {
+      if (!portal) return
+      // Supabase responde igual exista o no la cuenta; el servicio tampoco revela el resultado.
+      await portal.auth.requestPasswordReset(values.email, `${window.location.origin}${RESET_PATH}`)
+      setSent(true)
+      return
+    }
     const api = await loadLocalAuthApi()
     if (!LOCAL_ACCESS_ENABLED || !api) return
     await api.requestPasswordReset(values.email)
@@ -52,7 +65,7 @@ export function ForgotPasswordPage() {
         Escribe el correo de tu cuenta. Si existe, generaremos un enlace temporal para crear una nueva contraseña.
       </p>
 
-      {!LOCAL_ACCESS_ENABLED && (
+      {!canUse && (
         <p role="status" className="mt-6 flex items-start gap-2.5 rounded-xl border border-line bg-surface-muted px-4 py-3 text-sm text-ink-soft">
           <ShieldAlert className="mt-0.5 size-4 shrink-0 text-ink-muted" aria-hidden />
           {UNAVAILABLE}
@@ -65,9 +78,11 @@ export function ForgotPasswordPage() {
             <CheckCircle2 className="size-5" aria-hidden /> Solicitud registrada
           </p>
           <p className="mt-2 text-sm text-ink-soft">
-            Si el correo corresponde a una cuenta, se generó un enlace de recuperación válido por 15 minutos.
+            {SUPABASE_ACCESS_ENABLED
+              ? 'Si el correo corresponde a una cuenta, recibirás un enlace para crear una nueva contraseña.'
+              : 'Si el correo corresponde a una cuenta, se generó un enlace de recuperación válido por 15 minutos.'}
           </p>
-          {import.meta.env.DEV && (
+          {import.meta.env.DEV && LOCAL_ACCESS_ENABLED && (
             <p className="mt-3 text-sm text-ink-soft">
               Entorno de desarrollo: el enlace está disponible solo desde este equipo en{' '}
               <a href="/__local-auth/outbox" className="font-semibold text-blue hover:underline">la bandeja local</a>.
@@ -78,9 +93,9 @@ export function ForgotPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
           <Field label="Correo electrónico" htmlFor="email" error={errors.email?.message}>
-            <input id="email" type="email" autoComplete="username" placeholder="nombre@tuempresa.com" disabled={!LOCAL_ACCESS_ENABLED} aria-invalid={Boolean(errors.email)} className={inputClass} {...register('email')} />
+            <input id="email" type="email" autoComplete="username" placeholder="nombre@tuempresa.com" disabled={!canUse} aria-invalid={Boolean(errors.email)} className={inputClass} {...register('email')} />
           </Field>
-          <Button type="submit" size="md" loading={isSubmitting} disabled={!LOCAL_ACCESS_ENABLED} className="h-12 w-full text-[15px]">
+          <Button type="submit" size="md" loading={isSubmitting} disabled={!canUse} className="h-12 w-full text-[15px]">
             Enviar enlace de recuperación <ArrowRight className="size-4" aria-hidden />
           </Button>
         </form>
@@ -110,6 +125,24 @@ export function ResetPasswordPage() {
   const [status, setStatus] = useState<'idle' | 'done' | 'invalid_token'>('idle')
   const [formError, setFormError] = useState<string | null>(null)
   const token = typeof search.token === 'string' ? search.token : ''
+  const portal = useContext(SupabasePortalContext)
+  // Modo Supabase: el enlace deja una sesión de recuperación (PKCE). Se comprueba antes de mostrar el formulario.
+  const [linkState, setLinkState] = useState<'checking' | 'valid' | 'invalid'>('checking')
+
+  useEffect(() => {
+    if (!SUPABASE_ACCESS_ENABLED) return undefined
+    if (!portal) {
+      setLinkState('invalid')
+      return undefined
+    }
+    let cancelled = false
+    void portal.auth.accessToken().then((accessToken) => {
+      if (!cancelled) setLinkState(accessToken ? 'valid' : 'invalid')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [portal])
 
   const {
     register,
@@ -122,6 +155,22 @@ export function ResetPasswordPage() {
 
   const onSubmit = async (values: ResetValues) => {
     setFormError(null)
+    if (SUPABASE_ACCESS_ENABLED) {
+      if (!portal) {
+        setFormError(UNAVAILABLE)
+        return
+      }
+      const outcome = await portal.auth.updatePassword(values.password)
+      if (outcome.status !== 'ok') {
+        setFormError('No fue posible guardar la contraseña. Revisa los requisitos o solicita un nuevo enlace.')
+        return
+      }
+      // Se cierra la sesión de recuperación: la persona entra de nuevo con la contraseña nueva.
+      await portal.auth.signOut()
+      setStatus('done')
+      toast({ title: 'Contraseña actualizada', description: 'Inicia sesión con tu nueva contraseña.' })
+      return
+    }
     const api = await loadLocalAuthApi()
     if (!LOCAL_ACCESS_ENABLED || !api) {
       setFormError(UNAVAILABLE)
@@ -154,7 +203,16 @@ export function ResetPasswordPage() {
     )
   }
 
-  if (!token || status === 'invalid_token') {
+  if (SUPABASE_ACCESS_ENABLED && linkState === 'checking') {
+    return (
+      <AuthLayout>
+        <p role="status" className="text-[15px] text-ink-muted">Verificando el enlace…</p>
+      </AuthLayout>
+    )
+  }
+
+  const linkMissing = SUPABASE_ACCESS_ENABLED ? linkState === 'invalid' : !token
+  if (linkMissing || status === 'invalid_token') {
     return (
       <AuthLayout>
         <h1 className="text-3xl font-bold tracking-tight text-ink">Enlace no válido</h1>

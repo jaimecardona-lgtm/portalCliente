@@ -3,8 +3,8 @@
  *
  * Tres grupos:
  * - Públicas: /login, /registro, /recuperar-contrasena, /restablecer-contrasena, /terminos, /privacidad.
- * - Autenticadas: bajo el layout "app" (AppShell). Su beforeLoad exige acceso local habilitado y una
- *   sesión guardada; si no, redirige a /login con el destino original.
+ * - Autenticadas: bajo el layout "app" (AppShell). Su beforeLoad exige un token vigente de Supabase (modo
+ *   supabase) o una sesión de desarrollo (modo local); si no, redirige a /login con el destino original.
  * - Marketplace: visible solo con FEATURES.marketplace; en otro caso responde como no encontrada.
  *
  * Decisión no evidente: la guarda vive en beforeLoad y no como <Navigate> dentro de la shell. Un
@@ -19,7 +19,8 @@ import { RegisterPage } from '@/features/auth/register-page'
 import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/recovery-pages'
 import { TermsPage, PrivacyPage } from '@/features/legal/legal-pages'
 import { readStoredSession } from '@/features/auth/session-storage'
-import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
+import { FEATURES, LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
+import { loadSupabasePortal } from '@/services/auth/supabase-runtime'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { parseOperationSearch, toSearchParams } from '@/features/operations/filters'
 import { NotFoundPage } from './not-found'
@@ -73,11 +74,15 @@ const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/priv
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'app',
-  // Guarda de acceso: sin acceso habilitado o sin sesión, no se monta ninguna pantalla autenticada.
-  beforeLoad: ({ location }) => {
-    if (!LOCAL_ACCESS_ENABLED || !readStoredSession()) {
-      throw redirect({ to: '/login', search: { redirect: location.pathname } })
+  // Guarda de acceso: sin sesión válida para el modo activo, no se monta ninguna pantalla autenticada.
+  // Supabase: exige un token vigente (la cuenta se valida después contra la API). Local: sesión de desarrollo.
+  beforeLoad: async ({ location }) => {
+    if (LOCAL_ACCESS_ENABLED && readStoredSession()) return
+    if (SUPABASE_ACCESS_ENABLED) {
+      const portal = await loadSupabasePortal()
+      if (portal && (await portal.auth.accessToken())) return
     }
+    throw redirect({ to: '/login', search: { redirect: location.pathname } })
   },
   component: AppShell,
 })

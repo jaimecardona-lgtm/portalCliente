@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildFeatures, isSupabaseConfigured, resolveAccessState, IMPLEMENTED_AUTH_PROVIDERS } from './runtime'
+import {
+  buildFeatures,
+  isSupabaseConfigured,
+  resolveAccessState,
+  IMPLEMENTED_AUTH_PROVIDERS,
+  KNOWN_AUTH_PROVIDERS,
+} from './runtime'
 
 const SUPABASE_OK = { isLocal: false, provider: 'supabase', apiBaseUrl: '/api/v1', supabaseConfigured: true }
 
@@ -31,23 +37,35 @@ describe('resolveAccessState (producción)', () => {
     })
   })
 
-  it('aunque Supabase esté configurado, bloquea mientras no existan pantallas conectadas', () => {
-    expect(IMPLEMENTED_AUTH_PROVIDERS).toHaveLength(0)
-    expect(resolveAccessState(SUPABASE_OK)).toEqual({ mode: 'blocked', reason: 'provider-not-implemented' })
+  it('con Supabase configurado y pantallas conectadas, concede el modo supabase', () => {
+    expect(IMPLEMENTED_AUTH_PROVIDERS).toEqual(['supabase'])
+    expect(resolveAccessState(SUPABASE_OK)).toEqual({ mode: 'supabase' })
+  })
+
+  it('solo puede estar implementado un proveedor reconocido', () => {
+    for (const provider of IMPLEMENTED_AUTH_PROVIDERS) expect(KNOWN_AUTH_PROVIDERS).toContain(provider)
   })
 
   it('nunca concede acceso local fuera de desarrollo, con cualquier configuración', () => {
     for (const provider of [undefined, 'supabase', 'oidc', 'demo', 'local']) {
-      expect(resolveAccessState({ isLocal: false, provider, apiBaseUrl: '/api/v1', supabaseConfigured: true }).mode).toBe(
-        'blocked',
+      expect(resolveAccessState({ isLocal: false, provider, apiBaseUrl: '/api/v1', supabaseConfigured: true }).mode).not.toBe(
+        'local',
       )
     }
   })
 })
 
 describe('resolveAccessState (desarrollo)', () => {
-  it('permite el acceso de presentación local sin configuración de Supabase', () => {
+  it('permite el acceso de presentación local sin proveedor declarado', () => {
     expect(resolveAccessState({ isLocal: true })).toEqual({ mode: 'local' })
+  })
+
+  it('con proveedor Supabase declarado, usa Supabase también en desarrollo (nunca cae al modo local)', () => {
+    expect(resolveAccessState({ ...SUPABASE_OK, isLocal: true })).toEqual({ mode: 'supabase' })
+    expect(resolveAccessState({ isLocal: true, provider: 'supabase', apiBaseUrl: '/api/v1', supabaseConfigured: false })).toEqual({
+      mode: 'blocked',
+      reason: 'supabase-config-missing',
+    })
   })
 })
 
@@ -73,12 +91,12 @@ describe('isSupabaseConfigured', () => {
 })
 
 describe('funciones por entorno', () => {
-  it('en producción todas las funciones sensibles o incompletas están desactivadas', () => {
+  it('fuera del modo local todas las funciones sensibles o incompletas están desactivadas', () => {
     const prod = buildFeatures(false)
     expect(Object.values(prod).every((v) => v === false)).toBe(true)
   })
 
-  it('en desarrollo las funciones de presentación local están activas', () => {
+  it('en el modo local las funciones de presentación local están activas', () => {
     const dev = buildFeatures(true)
     expect(dev.tenantSwitcher).toBe(true)
     expect(dev.quoteDecisions).toBe(true)

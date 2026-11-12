@@ -50,8 +50,13 @@ export type { CurrentAccount, OperationSummary } from './mappers'
 
 /** Repositorio remoto: el contrato del dominio más los métodos que la API v1 sí cubre. */
 export interface HttpPortalRepository extends PortalRepository {
-  /** Cuenta autenticada y empresa activa, tal como las resuelve el servidor. */
+  /** Cuenta autenticada y empresa activa, tal como las resuelve el servidor. Se cachea en la instancia. */
   getCurrentAccount(): Promise<CurrentAccount>
+  /**
+   * Vuelve a pedir la cuenta al servidor, ignorando la caché de la instancia. Úsela tras iniciar o cerrar
+   * sesión: una cuenta cacheada de otra persona nunca debe mostrarse.
+   */
+  refreshCurrentAccount(): Promise<CurrentAccount>
   /** Referencias de operación de la empresa activa (paginadas por el servidor). */
   listOperationSummaries(tenantId: ID, page?: { limit?: number; offset?: number }): Promise<OperationSummary[]>
   /** Referencia de una operación de la empresa activa, o null si no existe o es de otra empresa. */
@@ -68,11 +73,14 @@ export interface HttpPortalRepositoryOptions extends Omit<ApiClientOptions, 'ten
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Mensaje de la API v1 para funciones que el dominio tiene y el backend todavía no. */
-function notAvailable(method: string): PortalApiError {
+/**
+ * Funciones que el dominio tiene y la API v1 todavía no. El mensaje es visible para la persona: no revela
+ * el nombre interno del método y la pantalla lo muestra como "información no disponible" (sin datos de ejemplo).
+ */
+function notAvailable(_method: string): PortalApiError {
   return new PortalApiError(
     'not_available_in_api',
-    `El método ${method} todavía no está disponible en la API v1.`,
+    'Esta información todavía no está disponible en el portal.',
     0,
   )
 }
@@ -106,6 +114,11 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
     return accountPromise
   }
 
+  function refreshCurrentAccount(): Promise<CurrentAccount> {
+    accountPromise = null
+    return getCurrentAccount()
+  }
+
   /** true solo si `tenantId` es la empresa activa según el servidor. */
   async function isActiveTenant(tenantId: ID): Promise<boolean> {
     if (!isId(tenantId)) return false
@@ -119,6 +132,7 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
 
   const repository: HttpPortalRepository = {
     getCurrentAccount,
+    refreshCurrentAccount,
 
     // --- Empresa --------------------------------------------------------------------------------
     // La API v1 solo expone la empresa activa con nombre y slug. El modelo Tenant del dominio exige

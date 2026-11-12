@@ -9,6 +9,7 @@
  * Decisión no evidente: la sessionStorage es solo una copia de conveniencia. La identidad real la
  * decide la cookie HttpOnly que valida el servidor.
  */
+import { LOCAL_ACCESS_ENABLED } from '@/config/runtime'
 import type { PortalRepository } from '@/services/repositories/portal-repository'
 import type { Session, User } from '@/types/domain'
 import { writeStoredSession } from './session-storage'
@@ -17,10 +18,11 @@ import { toDomainUser, type AccountProfile } from './account-mapping'
 /**
  * Acceso a la API local de autenticación.
  * La importación es diferida y está protegida por import.meta.env.DEV: en producción devuelve null
- * y el módulo no forma parte del bundle.
+ * y el módulo no forma parte del bundle. Además, solo existe en el modo local: con Supabase activo
+ * (también en desarrollo) nunca se crea una cuenta ni una sesión JSON.
  */
 export async function loadLocalAuthApi() {
-  if (!import.meta.env.DEV) return null
+  if (!import.meta.env.DEV || !LOCAL_ACCESS_ENABLED) return null
   return import('@/services/local-auth-api')
 }
 
