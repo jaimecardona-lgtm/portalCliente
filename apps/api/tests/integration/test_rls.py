@@ -82,7 +82,8 @@ def test_multi_tenant_user_sees_both_tenants_only_for_own_memberships(
         tenants = {r[0] for r in conn.execute(text("SELECT id FROM tenants")).all()}
         ops = {r[0] for r in conn.execute(text("SELECT id FROM operation_refs")).all()}
     assert tenants == {seed.tenant_a, seed.tenant_b}
-    assert ops == {seed.op_a, seed.op_b}
+    # Pertenencia a dos empresas no basta: solo ve las operaciones de su cliente final (B1).
+    assert ops == {seed.op_b}
 
 
 def test_user_cannot_read_other_profiles(owner_engine: Engine, seed: Seed) -> None:

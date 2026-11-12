@@ -41,6 +41,14 @@ def main() -> int:
     parser.add_argument("--tenant-legal-name", required=True)
     parser.add_argument("--tenant-tax-id", required=True)
     parser.add_argument("--role", required=True, choices=sorted(ALLOWED_ROLES))
+    parser.add_argument("--client-legal-name", help="Cliente final (nivel B) al que pertenece la persona.")
+    parser.add_argument("--client-tax-id", help="NIT del cliente final, si se conoce.")
+    parser.add_argument(
+        "--client-role",
+        default="client_admin",
+        choices=["client_admin", "client_viewer"],
+        help="Rol en el cliente.",
+    )
     parser.add_argument("--synthetic-operation", action="store_true", help="Crea una operación sintética.")
     args = parser.parse_args()
 
@@ -58,12 +66,15 @@ def main() -> int:
         tenant_legal_name=args.tenant_legal_name,
         tenant_tax_id=args.tenant_tax_id,
         role=args.role,
+        client_legal_name=args.client_legal_name,
+        client_tax_id=args.client_tax_id,
+        client_role=args.client_role,
     )
     try:
         with engine.begin() as conn:
             provision_membership(conn, member)
             if args.synthetic_operation:
-                provision_synthetic_operation(conn, args.tenant_slug)
+                provision_synthetic_operation(conn, args.tenant_slug, args.client_legal_name)
     except ValueError as exc:
         print(f"Datos no válidos: {exc}", file=sys.stderr)
         return 2

@@ -81,8 +81,12 @@ class Seed:
     carla: UUID  # client_member de B
     dora: UUID  # client_member de A y de B
     eva: UUID  # sin membresías
-    op_a: UUID
-    op_b: UUID
+    op_a: UUID  # cliente final A1 (ana admin, beto viewer)
+    op_b: UUID  # cliente final B1 (carla admin, dora viewer)
+    op_a2: UUID  # cliente final A2 (sin miembros de portal): solo visible para el equipo interno
+    client_a1: UUID
+    client_a2: UUID
+    client_b1: UUID
     event_a_public: UUID
     event_a_internal: UUID
     event_b_public: UUID
@@ -92,8 +96,8 @@ class Seed:
 
 
 _TABLES = (
-    "attachments, requests, event_comments, operation_events, operation_refs, "
-    "tenant_memberships, profiles, tenants"
+    "attachments, requests, event_comments, operation_events, operation_refs, client_memberships, "
+    "client_accounts, tenant_memberships, profiles, tenants"
 )
 
 
@@ -147,6 +151,30 @@ def seed(owner_engine: Engine) -> Iterator[Seed]:
             ]
         )
         session.flush()
+        # Clientes finales (nivel B). Membresías de cliente: ana/beto en A1, carla/dora en B1.
+        # dora pertenece a A y a B como miembro de tenant, pero NO tiene acceso a A1 ni a A2.
+        for name, tenant, legal in (
+            ("client_a1", "tenant_a", "Cliente Sintético A1 S.A.S."),
+            ("client_a2", "tenant_a", "Cliente Sintético A2 S.A.S."),
+            ("client_b1", "tenant_b", "Cliente Sintético B1 Ltda."),
+        ):
+            session.execute(
+                text("INSERT INTO client_accounts (id, tenant_id, legal_name) VALUES (:id, :tenant, :legal)"),
+                {"id": ids[name], "tenant": ids[tenant], "legal": legal},
+            )
+        for user, client, tenant, role in (
+            ("ana", "client_a1", "tenant_a", "client_admin"),
+            ("beto", "client_a1", "tenant_a", "client_viewer"),
+            ("carla", "client_b1", "tenant_b", "client_admin"),
+            ("dora", "client_b1", "tenant_b", "client_viewer"),
+        ):
+            session.execute(
+                text(
+                    "INSERT INTO client_memberships (tenant_id, client_account_id, user_id, role) "
+                    "VALUES (:tenant, :client, :user, :role)"
+                ),
+                {"tenant": ids[tenant], "client": ids[client], "user": ids[user], "role": role},
+            )
         session.add_all(
             [
                 OperationRef(
@@ -165,9 +193,23 @@ def seed(owner_engine: Engine) -> Iterator[Seed]:
                     reference="Pedido sintético B",
                     last_known_status="Recibida",
                 ),
+                OperationRef(
+                    id=ids["op_a2"],
+                    tenant_id=ids["tenant_a"],
+                    external_id="LX-A-2",
+                    do_number="DO-A-1002",
+                    reference="Pedido sintético A2",
+                    last_known_status="Recibida",
+                ),
             ]
         )
         session.flush()  # las claves compuestas no están en el ORM: se fuerza el orden
+        # Asignación de cliente final (la columna no está en el ORM).
+        for op, client in (("op_a", "client_a1"), ("op_a2", "client_a2"), ("op_b", "client_b1")):
+            session.execute(
+                text("UPDATE operation_refs SET client_account_id = :client WHERE id = :op"),
+                {"client": ids[client], "op": ids[op]},
+            )
         session.add_all(
             [
                 OperationEvent(

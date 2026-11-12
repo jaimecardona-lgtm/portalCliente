@@ -41,9 +41,10 @@ def _provision(
                 tenant_legal_name=f"Empresa sintética {slug}",
                 tenant_tax_id="900999999-9",
                 role=role,
+                client_legal_name="Cliente Sintético Nuevo S.A.S.",
             ),
         )
-        return provision_synthetic_operation(conn, slug)
+        return provision_synthetic_operation(conn, slug, "Cliente Sintético Nuevo S.A.S.")
 
 
 def test_provisioning_is_idempotent(owner_engine: Engine, seed: Seed) -> None:

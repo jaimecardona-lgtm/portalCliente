@@ -26,6 +26,9 @@ _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _NAMESPACE = UUID("6f1c2a3e-8d4b-4c7a-9e21-0b5d7f3a9c10")  # espacio fijo para ids sintéticos
 
 
+CLIENT_ROLES = frozenset({"client_admin", "client_viewer"})
+
+
 @dataclass(frozen=True)
 class DevMembership:
     user_id: UUID
@@ -35,6 +38,15 @@ class DevMembership:
     tenant_legal_name: str
     tenant_tax_id: str
     role: str
+    # Cliente final (nivel B). Sin cliente, la persona no ve ninguna operación del tenant.
+    client_legal_name: str | None = None
+    client_tax_id: str | None = None
+    client_role: str = "client_admin"
+
+
+def client_account_id(tenant_slug: str, client_legal_name: str) -> UUID:
+    """Identificador determinista del cliente final dentro de una empresa (idempotencia)."""
+    return uuid5(_NAMESPACE, f"client:{tenant_slug}:{client_legal_name.strip()}")
 
 
 def _validate(member: DevMembership) -> DevMembership:
@@ -47,6 +59,11 @@ def _validate(member: DevMembership) -> DevMembership:
         raise ValueError("Correo no válido.")
     if not (2 <= len(member.full_name.strip()) <= 120):
         raise ValueError("Nombre no válido.")
+    client_name = member.client_legal_name.strip() if member.client_legal_name else None
+    if client_name is not None and not (2 <= len(client_name) <= 200):
+        raise ValueError("Razón social del cliente no válida.")
+    if member.client_role not in CLIENT_ROLES:
+        raise ValueError("Rol de cliente no permitido.")
     return DevMembership(
         user_id=member.user_id,
         email=email,
@@ -55,6 +72,9 @@ def _validate(member: DevMembership) -> DevMembership:
         tenant_legal_name=member.tenant_legal_name.strip(),
         tenant_tax_id=member.tenant_tax_id.strip(),
         role=member.role,
+        client_legal_name=client_name,
+        client_tax_id=member.client_tax_id.strip() if member.client_tax_id else None,
+        client_role=member.client_role,
     )
 
 
@@ -92,10 +112,46 @@ def provision_membership(conn: Connection, member: DevMembership) -> UUID:
         ),
         {"user_id": m.user_id, "tenant_id": tenant_id, "role": m.role},
     )
+    if m.client_legal_name:
+        client_id = client_account_id(m.tenant_slug, m.client_legal_name)
+        conn.execute(
+            text(
+                """
+                INSERT INTO client_accounts (id, tenant_id, legal_name, tax_id)
+                VALUES (:id, :tenant_id, :legal_name, :tax_id)
+                ON CONFLICT (id) DO UPDATE SET legal_name = EXCLUDED.legal_name,
+                    tax_id = EXCLUDED.tax_id, updated_at = now()
+                """
+            ),
+            {
+                "id": client_id,
+                "tenant_id": tenant_id,
+                "legal_name": m.client_legal_name,
+                "tax_id": m.client_tax_id,
+            },
+        )
+        # La clave compuesta (user_id, tenant_id) exige que la persona ya sea miembro del tenant.
+        conn.execute(
+            text(
+                """
+                INSERT INTO client_memberships (tenant_id, client_account_id, user_id, role, active)
+                VALUES (:tenant_id, :client_id, :user_id, :role, true)
+                ON CONFLICT (client_account_id, user_id) DO UPDATE SET role = EXCLUDED.role, active = true
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "client_id": client_id,
+                "user_id": m.user_id,
+                "role": m.client_role,
+            },
+        )
     return tenant_id  # type: ignore[no-any-return]
 
 
-def provision_synthetic_operation(conn: Connection, tenant_slug: str) -> UUID:
+def provision_synthetic_operation(
+    conn: Connection, tenant_slug: str, client_legal_name: str | None = None
+) -> UUID:
     """Crea una operación y un evento sintéticos para una empresa. Idempotente.
 
     Los identificadores son deterministas (uuid5 por empresa), así que repetir la llamada no duplica nada.
@@ -111,8 +167,9 @@ def provision_synthetic_operation(conn: Connection, tenant_slug: str) -> UUID:
     conn.execute(
         text(
             """
-            INSERT INTO operation_refs (id, tenant_id, external_id, do_number, reference, last_known_status)
-            VALUES (:id, :tenant_id, :external_id, :do_number, :reference, :status)
+            INSERT INTO operation_refs (id, tenant_id, external_id, do_number, reference, last_known_status,
+                                        client_account_id)
+            VALUES (:id, :tenant_id, :external_id, :do_number, :reference, :status, :client_id)
             ON CONFLICT (tenant_id, external_system, external_id) DO NOTHING
             """
         ),
@@ -123,6 +180,8 @@ def provision_synthetic_operation(conn: Connection, tenant_slug: str) -> UUID:
             "do_number": f"DO-SYN-{tenant_slug[:8]}-1",
             "reference": "Operación sintética de prueba",
             "status": "En tránsito",
+            # Sin cliente indicado, la operación no es visible para ninguna persona del portal.
+            "client_id": client_account_id(tenant_slug, client_legal_name) if client_legal_name else None,
         },
     )
     conn.execute(
