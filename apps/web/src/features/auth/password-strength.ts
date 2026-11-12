@@ -27,7 +27,7 @@ export function passwordStrength(value: string): PasswordStrength {
   const map: Record<number, Pick<PasswordStrength, 'label' | 'color'>> = {
     1: { label: 'Débil', color: 'bg-warning' },
     2: { label: 'Aceptable', color: 'bg-warning' },
-    3: { label: 'Buena', color: 'bg-cyan' },
+    3: { label: 'Buena', color: 'bg-blue' },
     4: { label: 'Excelente', color: 'bg-success' },
   }
   const top = map[Math.max(1, score)] ?? map[1]!

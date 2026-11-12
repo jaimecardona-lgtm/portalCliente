@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft, FileText, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { LogoMark, Logo } from '@/components/brand/logo'
+import { Logo } from '@/components/brand/logo'
 import legal from '@/content/legal/legal-meta.json'
 import { PRIVACY_SECTIONS, TERMS_SECTIONS, type LegalSection } from '@/content/legal/legal-content'
 
@@ -20,10 +20,10 @@ function LegalLayout({ title, icon: Icon, intro, sections, backTo, extra }: { ti
       <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8 lg:py-14">
         <div className="rounded-[18px] bg-midnight p-7 text-white shadow-pop sm:p-10">
           <div className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-xl bg-white/10 text-cyan">
+            <span className="grid size-11 place-items-center rounded-xl bg-white/10 text-blue">
               <Icon className="size-5" aria-hidden />
             </span>
-            <p className="text-xs font-semibold tracking-[0.2em] text-cyan uppercase">Logixtic · Documento legal</p>
+            <p className="text-xs font-semibold tracking-[0.2em] text-blue uppercase">Logixtic · Documento legal</p>
           </div>
           <h1 className="mt-5 text-3xl font-extrabold tracking-tight sm:text-4xl">{title}</h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-white/70">{intro}</p>
@@ -75,7 +75,6 @@ function LegalLayout({ title, icon: Icon, intro, sections, backTo, extra }: { ti
                 Este texto es un borrador estructurado. No constituye una política aprobada hasta que Logixtic lo valide.
               </p>
             </div>
-            <LogoMark className="mx-auto mt-2 size-9 opacity-60" />
           </aside>
         </div>
       </main>

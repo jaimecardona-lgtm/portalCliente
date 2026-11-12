@@ -137,7 +137,7 @@ export function DashboardPage() {
             <ol className="relative ml-2 flex flex-col gap-4 border-l border-line pl-5">
               {events.map((e) => (
                 <li key={e.id} className="relative">
-                  <span aria-hidden className={cn('absolute -left-[26px] top-1.5 size-2.5 rounded-full ring-4 ring-surface', e.type === 'action_required' ? 'bg-danger' : e.type === 'document' ? 'bg-cyan' : 'bg-blue')} />
+                  <span aria-hidden className={cn('absolute -left-[26px] top-1.5 size-2.5 rounded-full ring-4 ring-surface', e.type === 'action_required' ? 'bg-danger' : e.type === 'document' ? 'bg-blue' : 'bg-blue')} />
                   <Link to="/operaciones/$operationId" params={{ operationId: e.operationId }} className="group block">
                     <p className="text-xs text-ink-muted tabular">
                       <span className="font-mono font-semibold text-blue">{e.doNumber}</span> · {formatRelative(e.occurredAt, now)}
@@ -189,7 +189,7 @@ function Hero({
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
       <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.16em] text-cyan uppercase">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.16em] text-blue uppercase">
             <Sparkles className="size-3.5" aria-hidden /> Torre de control
           </p>
           <h1 id="hero-title" className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
@@ -211,7 +211,7 @@ function Hero({
 
 function HeroStat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
   return (
-    <div className={cn('min-w-[140px] rounded-xl border px-4 py-3 backdrop-blur-sm', highlight ? 'border-red-300/30 bg-danger/15' : 'border-white/10 bg-white/[0.06]')}>
+    <div className={cn('min-w-[140px] rounded-xl border px-4 py-3 backdrop-blur-sm', highlight ? 'border-warning-200/30 bg-danger/15' : 'border-white/10 bg-white/[0.06]')}>
       <p className="text-[11px] font-semibold tracking-wide text-white/55 uppercase">{label}</p>
       <p className="mt-0.5 text-2xl font-bold tabular">{value}</p>
     </div>
@@ -227,7 +227,7 @@ function greeting(now: Date): string {
 
 const KPI_BAR = {
   blue: 'bg-gradient-to-r from-cyan to-blue',
-  cyan: 'bg-cyan',
+  cyan: 'bg-blue',
   danger: 'bg-gradient-to-r from-danger to-warning',
   success: 'bg-gradient-to-r from-success to-cyan',
   neutral: 'bg-gradient-to-r from-line-strong to-line-strong',
@@ -235,7 +235,7 @@ const KPI_BAR = {
 
 const KPI_TONES = {
   blue: 'bg-blue-50 text-blue',
-  cyan: 'bg-cyan-50 text-cyan-700',
+  cyan: 'bg-blue-50 text-navy-700',
   danger: 'bg-danger-50 text-danger-700',
   success: 'bg-success-50 text-success-700',
   neutral: 'bg-surface-muted text-ink-soft',
@@ -411,7 +411,7 @@ function RoutesList({ ops }: { ops: Operation[] }) {
 function QuickLink({ to, icon: Icon, title, text }: { to: '/solicitudes/nueva' | '/cotizaciones' | '/cuenta'; icon: typeof Plus; title: string; text: string }) {
   return (
     <Link to={to} className="group flex items-center gap-4 rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-pop">
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-midnight text-cyan">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-midnight text-blue">
         <Icon className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">

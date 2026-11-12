@@ -161,7 +161,7 @@ export function ResetPasswordPage() {
         <p className="mt-3 text-[15px] leading-relaxed text-ink-muted">
           El enlace no es válido, ya se usó o venció (caducan a los 15 minutos). Solicita uno nuevo.
         </p>
-        <Link to="/recuperar-contrasena" className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-lg bg-blue text-[15px] font-medium text-white hover:bg-blue-600">
+        <Link to="/recuperar-contrasena" className="mt-8 inline-flex h-12 w-full items-center justify-center rounded-lg bg-blue text-[15px] font-medium text-white hover:bg-navy">
           Solicitar un nuevo enlace
         </Link>
       </AuthLayout>

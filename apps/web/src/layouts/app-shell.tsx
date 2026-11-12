@@ -197,8 +197,8 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
         active ? 'bg-white/10 text-white' : 'text-white/65 hover:bg-white/[0.06] hover:text-white',
       )}
     >
-      {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-[3px] rounded-r-full bg-cyan" />}
-      <Icon className={cn('size-[18px] shrink-0', active && 'text-cyan')} />
+      {active && <span aria-hidden className="absolute top-2 bottom-2 -left-3 w-[3px] rounded-r-full bg-blue" />}
+      <Icon className={cn('size-[18px] shrink-0', active && 'text-blue')} />
       {!collapsed && <span className="truncate">{item.label}</span>}
       {!collapsed && item.futureOnly && (
         <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white/60 uppercase">

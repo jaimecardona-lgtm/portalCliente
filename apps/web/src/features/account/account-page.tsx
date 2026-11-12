@@ -74,7 +74,7 @@ export function AccountPage() {
             <ul className="flex flex-col gap-3">
               {(addresses.data ?? []).map((a) => (
                 <li key={a.id} className="flex items-start gap-3 rounded-lg border border-line bg-canvas p-3.5">
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-cyan" aria-hidden />
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-navy-700" aria-hidden />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-ink">{a.label}</p>
                     <p className="text-sm text-ink-soft">{a.line}</p>
@@ -125,7 +125,7 @@ function ContactCard({
         <ul className="flex flex-col gap-3">
           {contacts.map((c) => (
             <li key={c.id} className="flex items-start gap-3 rounded-lg border border-line bg-canvas p-3.5">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-midnight text-xs font-bold text-cyan" aria-hidden>
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-midnight text-xs font-bold text-navy-700" aria-hidden>
                 {c.fullName.split(' ').slice(0, 2).map((p) => p[0]).join('')}
               </span>
               <div className="min-w-0 flex-1">

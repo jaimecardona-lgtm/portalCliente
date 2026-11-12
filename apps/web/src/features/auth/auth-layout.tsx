@@ -11,7 +11,7 @@ import { useState, type ReactNode } from 'react'
 import type { UseFormRegisterReturn } from 'react-hook-form'
 import { Link } from '@tanstack/react-router'
 import { Eye, EyeOff, FileText, FolderArchive, Package, Route, ShieldCheck } from 'lucide-react'
-import { Logo, LogoMark } from '@/components/brand/logo'
+import { Logo } from '@/components/brand/logo'
 import { Field, inputClass } from '@/components/ui/primitives'
 import { passwordStrength } from './password-strength'
 import { cn } from '@/lib/format'
@@ -20,15 +20,15 @@ import { cn } from '@/lib/format'
 export function AuthLayout({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      <aside className="relative hidden overflow-hidden bg-midnight text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12">
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 15% 15%, rgba(34,199,242,0.22), transparent 42%), radial-gradient(circle at 85% 80%, rgba(37,99,235,0.28), transparent 48%)' }} />
+      <aside className="relative hidden overflow-hidden bg-navy text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12">
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.9) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.9) 1px, transparent 1px)', backgroundSize: '56px 56px' }} />
         <div className="relative">
           <Logo />
         </div>
         <div className="relative max-w-lg">
-          <p className="text-xs font-semibold tracking-[0.2em] text-cyan uppercase">Portal de clientes</p>
-          <h2 className="mt-4 text-4xl leading-[1.15] font-extrabold tracking-tight">Tu operación logística, siempre bajo control.</h2>
+          <p className="font-display text-2xl font-bold tracking-tight text-white">Simplify Your Logistics.</p>
+          <p className="mt-10 text-xs font-semibold tracking-[0.2em] text-blue uppercase">Portal de clientes</p>
+          <h2 className="mt-4 text-4xl leading-[1.15] font-semibold tracking-tight">Tu operación logística, siempre bajo control.</h2>
           <p className="mt-5 text-base leading-relaxed text-white/70">
             Consulta embarques, gestiona documentos, revisa cotizaciones y mantente conectado con tu equipo logístico.
           </p>
@@ -42,7 +42,7 @@ export function AuthLayout({ children, footer }: { children: ReactNode; footer?:
             ].map(({ icon: Icon, label }) => (
               <li key={label} className="flex items-center gap-3 text-sm text-white/80">
                 <span className="grid size-8 place-items-center rounded-lg bg-white/[0.07] ring-1 ring-white/10">
-                  <Icon className="size-4 text-cyan" aria-hidden />
+                  <Icon className="size-4 text-blue" aria-hidden />
                 </span>
                 {label}
               </li>
@@ -54,12 +54,9 @@ export function AuthLayout({ children, footer }: { children: ReactNode; footer?:
 
       <main className="flex min-h-dvh flex-col bg-canvas px-5 py-8 sm:px-10 lg:bg-surface lg:px-16">
         <div className="lg:hidden">
-          <Logo />
+          <Logo variant="primary" />
         </div>
         <div className="m-auto w-full max-w-[440px] py-10">
-          <div className="mb-8 lg:hidden">
-            <LogoMark className="size-11" />
-          </div>
           {children}
         </div>
         <footer className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-center text-xs text-ink-muted lg:justify-start">

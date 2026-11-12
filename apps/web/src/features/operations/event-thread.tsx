@@ -197,11 +197,11 @@ function Comment({ comment, isOperator }: { comment: EventComment; isOperator: b
   return (
     <article className="rounded-lg bg-surface p-3 shadow-sm ring-1 ring-line">
       <header className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-        <span className={cn('grid size-6 place-items-center rounded-full', isOperator ? 'bg-cyan/20 text-navy' : 'bg-blue-50 text-blue')} aria-hidden>
+        <span className={cn('grid size-6 place-items-center rounded-full', isOperator ? 'bg-blue/20 text-navy' : 'bg-blue-50 text-blue')} aria-hidden>
           {isOperator ? <Headphones className="size-3.5" /> : <User2 className="size-3.5" />}
         </span>
         <span className="font-semibold text-ink">{comment.authorName}</span>
-        <span className={cn('rounded px-1.5 py-px text-[10px] font-semibold uppercase', isOperator ? 'bg-cyan/15 text-navy' : 'bg-blue-50 text-blue')}>
+        <span className={cn('rounded px-1.5 py-px text-[10px] font-semibold uppercase', isOperator ? 'bg-blue/15 text-navy' : 'bg-blue-50 text-blue')}>
           {isOperator ? 'Operador' : 'Cliente'}
         </span>
         <time dateTime={comment.createdAt} className="ml-auto text-ink-muted tabular">{formatDateTime(comment.createdAt)}</time>

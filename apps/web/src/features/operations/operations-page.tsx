@@ -430,7 +430,7 @@ function OperationsSummary({ ops }: { ops: Operation[] }) {
   const pending = ops.filter((o) => o.pendingClientResponse).length
   const items = [
     { label: 'Activas', value: active, tone: 'text-blue' },
-    { label: 'En movimiento', value: inMotion, tone: 'text-cyan-700' },
+    { label: 'En movimiento', value: inMotion, tone: 'text-navy-700' },
     { label: 'Requieren su respuesta', value: pending, tone: pending > 0 ? 'text-danger-700' : 'text-ink' },
     { label: 'Total registradas', value: ops.length, tone: 'text-ink' },
   ]

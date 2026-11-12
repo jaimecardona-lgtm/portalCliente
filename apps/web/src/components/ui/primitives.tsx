@@ -8,8 +8,8 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent'
 type ButtonSize = 'sm' | 'md'
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'bg-blue text-white shadow-sm hover:bg-blue-600 disabled:bg-blue/50',
-  accent: 'bg-cyan text-midnight hover:brightness-95 disabled:opacity-50',
+  primary: 'bg-blue text-white shadow-sm hover:bg-navy disabled:bg-blue/50',
+  accent: 'bg-blue text-midnight hover:brightness-95 disabled:opacity-50',
   secondary: 'bg-surface text-ink border border-line-strong hover:bg-surface-muted disabled:opacity-50',
   ghost: 'text-ink-soft hover:bg-surface-muted hover:text-ink disabled:opacity-50',
   danger: 'bg-danger text-white hover:brightness-95 disabled:opacity-50',
@@ -94,11 +94,11 @@ export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'bran
 
 const toneClasses: Record<Tone, string> = {
   neutral: 'bg-surface-muted text-ink-soft ring-line-strong/60',
-  info: 'bg-info-50 text-info-700 ring-indigo-200',
-  success: 'bg-success-50 text-success-700 ring-emerald-200',
-  warning: 'bg-warning-50 text-warning-700 ring-amber-200',
-  danger: 'bg-danger-50 text-danger-700 ring-red-200',
-  brand: 'bg-blue-50 text-blue-600 ring-blue-200',
+  info: 'bg-info-50 text-info-700 ring-blue-200',
+  success: 'bg-success-50 text-success-700 ring-blue-200',
+  warning: 'bg-warning-50 text-warning-700 ring-warning-200',
+  danger: 'bg-danger-50 text-danger-700 ring-warning-200',
+  brand: 'bg-blue-50 text-navy-700 ring-blue-200',
 }
 
 export function Badge({

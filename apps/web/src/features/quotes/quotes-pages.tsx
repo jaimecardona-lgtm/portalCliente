@@ -151,7 +151,7 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
       <section className="relative overflow-hidden rounded-[18px] bg-midnight p-6 text-white shadow-pop sm:p-8">
         <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
-            <p className="font-mono text-xs font-semibold tracking-wide text-cyan">{q.number} · versión {q.version}</p>
+            <p className="font-mono text-xs font-semibold tracking-wide text-navy-700">{q.number} · versión {q.version}</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{q.service}</h1>
             <p className="mt-2 flex items-center gap-2 text-sm text-white/70">
               {q.origin} <ArrowRight className="size-3.5" aria-hidden /> {q.destination}

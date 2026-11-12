@@ -31,7 +31,7 @@ export const OPERATION_STATUSES: OperationStatus[] = [
 export const STATUS_META: Record<OperationStatus, StatusMeta> = {
   Creado: { tone: 'neutral', icon: CircleDot, dot: 'bg-ink-muted', step: 0 },
   'En tránsito': { tone: 'info', icon: Ship, dot: 'bg-blue', step: 1 },
-  'En puerto': { tone: 'brand', icon: Anchor, dot: 'bg-cyan', step: 2 },
+  'En puerto': { tone: 'brand', icon: Anchor, dot: 'bg-blue', step: 2 },
   'En aduana': { tone: 'warning', icon: Clock, dot: 'bg-warning', step: 3 },
   'Pendiente cliente': { tone: 'danger', icon: AlertTriangle, dot: 'bg-danger', step: 3 },
   Entregado: { tone: 'success', icon: CheckCircle2, dot: 'bg-success', step: 4 },

@@ -210,7 +210,7 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
       <div className="relative grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <p className="text-[11px] font-semibold tracking-[0.2em] text-cyan uppercase">Número DO</p>
+            <p className="text-[11px] font-semibold tracking-[0.2em] text-blue uppercase">Número DO</p>
           </div>
           <h1 id="op-title" className="mt-1 font-mono text-3xl font-extrabold tracking-tight sm:text-4xl">{op.doNumber}</h1>
           <p className="mt-1 truncate text-sm text-white/65">{op.reference}</p>
@@ -218,7 +218,7 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
             <OperationStatusBadge status={op.status} className="!bg-white/10 !text-white !ring-white/20" />
             <Badge tone="neutral" className="!bg-white/10 !text-white/80 !ring-white/15" icon={<TransportIcon className="size-3.5" aria-hidden />}>{op.transport}</Badge>
             <Badge tone="neutral" className="!bg-white/10 !text-white/80 !ring-white/15">{op.kind}</Badge>
-            {op.pendingClientResponse && <Badge tone="danger" className="!bg-danger/20 !text-red-100 !ring-red-300/30">Requiere su respuesta</Badge>}
+            {op.pendingClientResponse && <Badge tone="danger" className="!bg-danger/20 !text-white/85 !ring-warning-200/30">Requiere su respuesta</Badge>}
           </div>
 
           {/* Ruta */}
@@ -229,10 +229,10 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
             </div>
             <div className="relative flex min-w-[60px] flex-1 items-center" aria-hidden>
               <span className="h-px w-full border-t border-dashed border-white/30" />
-              <span className="absolute left-1/2 grid size-8 -translate-x-1/2 place-items-center rounded-full bg-midnight text-cyan ring-1 ring-white/25">
+              <span className="absolute left-1/2 grid size-8 -translate-x-1/2 place-items-center rounded-full bg-midnight text-blue ring-1 ring-white/25">
                 <TransportIcon className="size-4" />
               </span>
-              <span className="absolute right-0 grid size-6 place-items-center rounded-full bg-cyan text-midnight">
+              <span className="absolute right-0 grid size-6 place-items-center rounded-full bg-blue text-midnight">
                 <ArrowRight className="size-3.5" />
               </span>
             </div>
@@ -256,13 +256,13 @@ function OperationHero({ op, TransportIcon }: { op: Operation; TransportIcon: ty
                 const current = i === stepIndex
                 return (
                   <li key={label} className="min-w-0">
-                    <span className={cn('block h-1.5 rounded-full transition-colors duration-200', done ? (current ? 'bg-cyan' : 'bg-blue') : 'bg-white/15')} />
+                    <span className={cn('block h-1.5 rounded-full transition-colors duration-200', done ? (current ? 'bg-blue' : 'bg-blue') : 'bg-white/15')} />
                     <span className={cn('mt-1.5 block text-[10px] leading-tight sm:text-[11px]', current ? 'font-semibold text-white' : 'text-white/45')}>{label}</span>
                   </li>
                 )
               })}
             </ol>
-            {op.status === 'Pendiente cliente' && <p className="mt-2 text-xs text-red-200">La operación está en espera de su respuesta.</p>}
+            {op.status === 'Pendiente cliente' && <p className="mt-2 text-xs text-white/85">La operación está en espera de su respuesta.</p>}
           </div>
 
           {/* Fechas */}

@@ -6,7 +6,6 @@ import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { cn } from '@/lib/format'
 import { FEATURES } from '@/config/runtime'
-import { LogoMark } from '@/components/brand/logo'
 import { answerLogixQuestion, SUGGESTED_QUESTIONS, type LogixAnswer } from './logix-engine'
 
 interface Message {
@@ -34,7 +33,7 @@ function LogixLauncherUnavailable() {
       className="fixed right-3 bottom-3 z-40 flex h-12 items-center gap-2 rounded-full bg-midnight/80 pr-4 pl-2 text-white/70 shadow-pop ring-1 ring-white/10 sm:right-6 sm:bottom-6"
     >
       <span className="grid size-8 place-items-center rounded-full bg-white/10">
-        <LogoMark className="size-5 opacity-70" />
+        <Bot className="size-5 opacity-70" aria-hidden />
       </span>
       <span className="text-sm font-semibold">Logix</span>
       <span className="rounded-full bg-white/10 px-1.5 py-px text-[9px] font-bold tracking-wide uppercase">Próximamente</span>
@@ -130,7 +129,7 @@ function LogixPanel() {
           className="fixed right-3 bottom-3 z-40 flex h-12 items-center gap-2 rounded-full bg-midnight pr-3 pl-2 sm:right-6 sm:bottom-6 sm:pr-4 text-white shadow-pop ring-1 ring-white/10 transition-transform duration-200 hover:-translate-y-0.5"
         >
           <span className="grid size-8 place-items-center rounded-full bg-white/10">
-            <LogoMark className="size-5" />
+            <Bot className="size-5" aria-hidden />
           </span>
           <span className="hidden text-sm font-semibold sm:inline">Logix</span>
         </button>
@@ -150,7 +149,7 @@ function LogixPanel() {
         >
           <header className="flex items-center gap-3 bg-midnight px-4 py-3 text-white">
             <span className="grid size-9 place-items-center rounded-full bg-white/10">
-              <Bot className="size-5 text-cyan" aria-hidden />
+              <Bot className="size-5 text-blue" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Logix</p>
@@ -170,7 +169,7 @@ function LogixPanel() {
             <>
               <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-canvas px-4 py-4" aria-live="polite">
                 {contextOp && (
-                  <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-600">
+                  <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-navy-700">
                     Contexto: <Link to="/operaciones/$operationId" params={{ operationId: contextOp.id }} className="font-semibold underline-offset-2 hover:underline">{contextOp.doNumber}</Link>
                   </p>
                 )}
@@ -204,7 +203,7 @@ function LogixPanel() {
                   maxLength={300}
                   className="h-10 flex-1 rounded-lg border border-line-strong px-3 text-sm focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/15"
                 />
-                <button type="submit" aria-label="Enviar pregunta" disabled={!input.trim()} className="grid size-10 place-items-center rounded-lg bg-blue text-white transition-colors duration-200 hover:bg-blue-600 disabled:opacity-40">
+                <button type="submit" aria-label="Enviar pregunta" disabled={!input.trim()} className="grid size-10 place-items-center rounded-lg bg-blue text-white transition-colors duration-200 hover:bg-navy disabled:opacity-40">
                   <Send className="size-4" />
                 </button>
               </form>

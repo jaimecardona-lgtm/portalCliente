@@ -42,7 +42,7 @@ interface EventMeta {
 const EVENT_META: Record<EventType, EventMeta> = {
   status_change: { label: 'Cambio de estado', tone: 'info', icon: RefreshCcw, dot: 'bg-blue', ring: 'ring-blue/20' },
   news: { label: 'Novedad', tone: 'neutral', icon: Info, dot: 'bg-ink-soft', ring: 'ring-ink-soft/20' },
-  document: { label: 'Documento', tone: 'brand', icon: FileText, dot: 'bg-cyan', ring: 'ring-cyan/25' },
+  document: { label: 'Documento', tone: 'brand', icon: FileText, dot: 'bg-blue', ring: 'ring-blue/25' },
   action_required: { label: 'Acción requerida', tone: 'danger', icon: AlertTriangle, dot: 'bg-danger', ring: 'ring-danger/25' },
 }
 

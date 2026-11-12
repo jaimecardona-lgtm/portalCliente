@@ -34,7 +34,7 @@ export const tenants: Tenant[] = [
     city: 'Bogotá D.C.',
     segment: 'Manufactura · Textil',
     accountManager: 'Mariana Rojas',
-    accent: '#2563EB',
+    accent: '#2296F3',
   },
   {
     id: 'tn-pacifico',
@@ -45,7 +45,7 @@ export const tenants: Tenant[] = [
     city: 'Cali',
     segment: 'Agroexportación',
     accountManager: 'Sebastián Gil',
-    accent: '#10B981',
+    accent: '0F2341',
   },
 ]
 

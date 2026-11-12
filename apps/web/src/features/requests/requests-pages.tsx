@@ -67,7 +67,7 @@ export function RequestsListPage() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Solicitudes</h1>
           <p className="mt-1 text-sm text-ink-muted">Consultas, documentación y cambios de datos con su equipo.</p>
         </div>
-        <Link to="/solicitudes/nueva" className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-sm font-medium text-white transition-colors duration-200 hover:bg-blue-600">
+        <Link to="/solicitudes/nueva" className="inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-sm font-medium text-white transition-colors duration-200 hover:bg-navy">
           <MessageSquarePlus className="size-4" aria-hidden /> Nueva solicitud
         </Link>
       </header>
