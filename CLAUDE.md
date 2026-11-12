@@ -59,7 +59,11 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 
 ## Estilo y UI
 
-- Colores **solo** mediante tokens de `src/styles/globals.css` (`@theme`). No añadir hexadecimales sueltos en componentes.
+- **Marca (obligatorio):** antes de modificar la interfaz, lee `docs/brand/BRAND_SYSTEM.md` (Manual de Marca Corporativa v2.0). El manual y los archivos oficiales no se incorporan al repositorio.
+- Colores **solo** mediante tokens de `src/styles/globals.css` (`@theme`). Los cinco colores de marca son `#2296F3`, `#FBBE0A`, `#0F2341`, `#F7801E` y `#6E7D95`; el resto son variaciones por opacidad. No añadir hexadecimales sueltos en componentes ni clases de la paleta por defecto de Tailwind (la paleta está desactivada).
+- Naranja solo para alertas (con icono y texto). Nunca fondo de logotipo. Nunca texto blanco sobre amarillo ni blanco sobre azul royal para texto normal.
+- Tipografía: Poppins para H1–H3 y eslogan; Inter para el resto. No redibujar el logotipo ni la X: usar solo los recursos oficiales de `apps/web/public/brand/`. Si faltan, no crear sustitutos.
+- Logix: casco azul, chaleco amarillo, X visible. No inventar poses ni variantes.
 - Estado de operación: color + icono + texto (nunca solo color).
 - Animaciones de 150–250 ms; `prefers-reduced-motion` se respeta globalmente.
 - Diseño responsive: revisar a 390 px y 1440 px. No puede haber scroll horizontal de página.

@@ -101,6 +101,26 @@ Hoy: `apps/web/local/auth/users.json` (cuentas, ignorado por Git) y `sessions.js
 Interfaces que deben sustituirse sin reconstruir las páginas: `AuthService`, `UserRepository`,
 `SessionService` y `TenantMembershipRepository` (`apps/web/src/services/auth/contracts.ts`).
 
+## 7b. Frontend: módulos preparados (no conectados a las pantallas)
+
+| Módulo | Qué hace | Estado |
+|---|---|---|
+| `apps/web/src/services/auth/supabase-config.ts` | Lee `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Exige https (http solo en loopback). **Rechaza** `sb_secret_*` y JWT con rol `service_role`. | Probado |
+| `supabase-session.ts` | Inicio y cierre de sesión, token de acceso vigente, restablecimiento de contraseña (respuesta igual exista o no la cuenta), cambio de contraseña, suscripción a cambios. Errores reducidos a `ok`, `invalid` o `unavailable`. | Probado con cliente sintético |
+| `supabase-client.ts` | Crea el cliente con PKCE y renovación automática. Carga el SDK solo si hay configuración válida. | Compilado; no ejecutado contra un proyecto real |
+| `membership.ts` | Decide empresa única, elección obligatoria o elección inválida a partir de `/me`. El servidor sigue siendo la autoridad. | Probado |
+| `HttpPortalRepository` | Recibe `getToken` y envía el token de Supabase. Sin sesión, no hay petición. | Probado con respuestas sintéticas |
+
+**Lo que falta para conectar** (no hecho en esta fase):
+
+1. Sustituir en `login-page`, `recovery-pages` y `use-end-session` la llamada al JSON local por el servicio de Supabase cuando el modo sea `supabase`.
+2. Protección de rutas: la guarda de `router.tsx` debe comprobar la sesión de Supabase en ese modo, no `sessionStorage`.
+3. Crear la sesión de la aplicación con la empresa que devuelve `/me` (con `membership.ts` si hay varias).
+4. Pantallas de operaciones que consuman `listOperationSummaries` y `getOperationSummary`, con estado de información no disponible para los campos que la API no tiene.
+5. Revisión visual, E2E y verificación del modo JSON local, que debe seguir funcionando sin Supabase.
+
+**Variables de entorno del frontend:** `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` (públicas por diseño), `VITE_API_BASE_URL`. Nunca `service_role`.
+
 ## 8. Qué falta antes de usuarios reales
 
 1. Proyecto de Supabase configurado y migraciones aplicadas tras revisión.

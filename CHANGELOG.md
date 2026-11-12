@@ -2,6 +2,28 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). El versionado sigue [SemVer](https://semver.org/lang/es/) con sufijos de prerelease para hitos internos.
 
+## [Sin publicar] · Integración preparada y sistema de marca v2.0
+
+### Añadido
+
+- **Backend**: aprovisionamiento de desarrollo idempotente (empresa, perfil, membresía y operación sintética) y pruebas del primer flujo persistente. Pendiente de ejecución con PostgreSQL en esta sesión (ver el informe de la fase).
+- **Frontend**: módulos de Supabase Auth (configuración que rechaza claves de servicio, servicio de sesión, selección de membresía y fábrica de cliente diferida). Pruebas con cliente sintético. No conectados a las pantallas.
+- **Marca**: sistema de marca v2.0 documentado en `docs/brand/BRAND_SYSTEM.md`; prueba `brand-tokens.test.ts` que fija la paleta y el contraste.
+- Dependencias: `@supabase/supabase-js@2.118.0` (publicada el 15 de octubre de 2026) y `@fontsource/poppins`.
+
+### Cambiado
+
+- Paleta de la interfaz sustituida por los cinco colores oficiales. La paleta por defecto de Tailwind queda desactivada.
+- Tipografía: Poppins para H1–H3 y eslogan; Inter para el resto.
+- Logotipo: se retira el símbolo dibujado a mano. El componente carga los recursos oficiales y, mientras faltan, no muestra ninguna X.
+- Avatar de Logix: icono genérico provisional hasta recibir el render oficial.
+- Panel de acceso: fondo Azul Noche sólido y eslogan oficial "Simplify Your Logistics.".
+
+### Pendiente
+
+- Recursos oficiales de logotipo, isotipo y avatar de Logix (`apps/web/public/brand/README.md`).
+- Conexión de las pantallas de acceso al proveedor Supabase y protección de rutas.
+
 ## [0.1.0-alpha.1] — 2026-11-11 · Frontend Foundation & Local Authentication
 
 Primer hito interno, **no desplegable**. Interfaz completa con datos sintéticos y autenticación de desarrollo. No hay backend, ni autenticación real, ni integración con Logixtic.
