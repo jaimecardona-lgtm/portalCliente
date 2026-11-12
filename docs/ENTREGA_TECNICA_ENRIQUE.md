@@ -512,3 +512,22 @@ Estado: el paso 1 no se ha ejecutado en esta fase.
 - Un usuario con varias empresas debe elegirla con `X-Tenant-Id`; la pantalla de elección aún no existe.
 - Los archivos reales no se han subido a Supabase Storage desde el sprint: toda la verificación de almacenamiento es simulada.
 - Antes de datos reales: registro público desactivado, `portal_api` verificado, migraciones aplicadas con autorización.
+
+### 22.6 Preflight de salida a producción (verificado el 12/11/2026)
+
+| Comprobación | Resultado | Tipo de bloqueo |
+|---|---|---|
+| Repositorio GitHub | Privado | Ninguno |
+| Proyecto Supabase vinculado | `fjfnuttziwhxbjhkdtmk` (coincide) | Ninguno |
+| Host del Session Pooler en `DATABASE_URL` | No resuelve por DNS | **Error DNS** |
+| Rol `portal_api` | No verificable: sin conexión | **Bloqueado por el error DNS** |
+| Migraciones en el historial remoto | Solo `20261111000000` y `20261111000100` | Ninguno (estado conocido) |
+| Migraciones pendientes (dry-run) | `…112000000`, `…112000100`, `…112000200`, `…112000300` | Ninguno (solo listado) |
+| Objetos de las migraciones pendientes en remoto | **Ya existen** tablas `client_documents`, `client_accounts`, `client_memberships`, `storage_cleanup_jobs`, `sync_runs`, `client_document_events` | **Desviación**: estructura aplicada fuera del historial. Requiere revisión antes de cualquier `db push` |
+| Bucket `logixtic-client-documents` | La CLI no muestra buckets. No verificado | Pendiente de consulta autorizada |
+| `SUPABASE_SECRET_KEY` en el entorno local | Ausente | **Configuración ausente** |
+| Registro público de Auth | Activo (comprobado el 12/11) | Pendiente del propietario |
+| Login, JWT, `/me`, RLS con usuario real | No probado | Bloqueado: sin cuenta autorizada ni conexión |
+
+Conclusión: **no existe todavía ninguna prueba E2E real completada**. La validación de la estructura remota exige la
+consulta de solo lectura `docs/sql/fase-13-estado-remoto-solo-lectura.sql`, ejecutada por el propietario.
