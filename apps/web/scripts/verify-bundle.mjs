@@ -35,6 +35,8 @@ const FORBIDDEN = [
   'outbox.json',
   'local/auth',
   'logixtic.portal.demo-session',
+  // Motor de respuestas predefinidas de Logix (solo desarrollo): ninguna frase suya puede llegar a producción.
+  'operaciones activas tengo',
 ]
 
 function collect(dir) {

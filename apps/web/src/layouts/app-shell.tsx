@@ -14,7 +14,6 @@ import {
 } from 'lucide-react'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useEndSession } from '@/features/auth/use-end-session'
-import { LogixAssistant } from '@/features/assistant/logix-assistant'
 import { useRepository } from '@/services/repositories'
 import { FEATURES } from '@/config/runtime'
 import { Logo, LogoMark } from '@/components/brand/logo'
@@ -113,10 +112,23 @@ export function AppShell() {
         </main>
       </div>
 
-      <LogixAssistant />
+      {LogixAssistantDev && (
+        <Suspense fallback={null}>
+          <LogixAssistantDev />
+        </Suspense>
+      )}
     </div>
   )
 }
+
+/**
+ * Asistente Logix: solo en desarrollo. Su motor de reglas contiene respuestas predefinidas y NO puede
+ * llegar a presentación, staging ni producción (política de datos reales, CLAUDE.md).
+ * `import.meta.env.DEV` se sustituye por false en producción: el import dinámico y el módulo desaparecen del bundle.
+ */
+const LogixAssistantDev = import.meta.env.DEV
+  ? lazy(() => import('@/features/assistant/logix-assistant').then((m) => ({ default: m.LogixAssistant })))
+  : null
 
 function SidebarContent({
   collapsed,
