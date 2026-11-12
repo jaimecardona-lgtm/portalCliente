@@ -378,3 +378,37 @@ y el workflow de GitHub Actions. Docker no se ha arrancado por memoria. La CI ta
 - Proyecto de Supabase de desarrollo configurado, con la prueba del punto 6 superada.
 - Pantallas de acceso conectadas a Supabase (hoy el modo de producción sigue bloqueado por diseño).
 - Recursos oficiales de marca (logotipo, isotipo y avatar de Logix).
+
+## 20. Verificación de contenedor y primera verificación remota (fase 09B)
+
+### Ejecutado localmente
+
+- **Proceso igual al del contenedor:** Uvicorn con un solo worker, sirviendo el `dist` compilado con valores sintéticos,
+  sin base de datos (`/health` y las rutas de navegación no la usan):
+  - `GET /health` → 200 JSON.
+  - `GET /login`, `GET /operaciones` y `GET /operaciones/{id}` → 200 HTML de React, también al recargar.
+  - `GET /api/v1/ruta-inexistente` → 404 JSON con el sobre de error, nunca HTML.
+  - `GET /api/v1/me` sin token → 401 JSON `authentication_required`.
+- **Sin autenticación configurada en desarrollo:** las rutas protegidas responden 503 `auth_not_configured`.
+- **Producción sin autenticación configurada:** la aplicación no arranca (error de validación de configuración).
+
+### No ejecutado
+
+- **Construcción de la imagen Docker** y comprobaciones sobre el contenedor. Docker Desktop está parado y no hay memoria para arrancarlo.
+- **Workflow `verify` en GitHub Actions.** Requiere push, y el repositorio sigue público, así que no se ha hecho push.
+- **E2E de Playwright**, incluidas las especificaciones que se modificaron para retirar la credencial de demostración.
+
+### Seguridad
+
+- El repositorio público sigue siendo público. **No se debe publicar la rama mientras lo sea.**
+- La credencial de demostración se ha retirado del código. Sigue en el historial de la rama pública. Reescribir el historial requiere autorización explícita; se recomienda tratarla como comprometida.
+- No hay `.env`, JSON locales de autenticación, claves de servicio ni manuales internos rastreados por Git.
+
+### Primera verificación remota (cuando haya autorización de push)
+
+1. Cambiar la visibilidad del repositorio a privado, o confirmar explícitamente que se puede publicar la rama.
+2. Hacer push de `feat/supabase-auth-integration`. El workflow `verify` se dispara en `pull_request` o con `workflow_dispatch`.
+3. Revisar los tres jobs. Si `backend` falla, revisar primero la aplicación de las migraciones (`psql -v ON_ERROR_STOP=1`).
+4. Si `container` falla, revisar la compilación del frontend dentro del contenedor (posibles binarios nativos de Vite
+   para `node:22-alpine`) y las comprobaciones HTTP del paso de arranque.
+5. Solo cuando los tres jobs pasen en verde, registrar el resultado aquí. Hasta entonces, el estado es **pendiente**.
