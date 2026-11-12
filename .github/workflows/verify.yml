@@ -73,7 +73,7 @@ jobs:
           done
           psql "postgresql://postgres@127.0.0.1:5432/portal_ci" -v ON_ERROR_STOP=1 -q -f supabase/seed.sql
 
-      - name: Pruebas unitarias y de integración de la API (contra la base migrada por Supabase CLI)
+      - name: "Pytest: unitarias, RLS, aislamiento multi-tenant, comentarios y aprovisionamiento (base migrada por Supabase CLI)"
         working-directory: apps/api
         run: python -m pytest -q
 
