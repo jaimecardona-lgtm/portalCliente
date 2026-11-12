@@ -4,9 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { createLocalAuth } from './scripts/lib/local-auth/index.mjs'
+import { isAllowedProductionApiUrl } from './scripts/lib/production-api-url.mjs'
+import { readSupabaseConfig, type SupabaseEnv } from './src/services/auth/supabase-config'
 
 /** Proveedores de identidad permitidos en producción (debe coincidir con src/config/runtime.ts). */
-const ALLOWED_PRODUCTION_PROVIDERS = ['oidc']
+const ALLOWED_PRODUCTION_PROVIDERS = ['supabase']
+
 
 /**
  * Impide generar un build de producción sin un proveedor de identidad y una API configurados.
@@ -26,9 +29,22 @@ function productionAccessGuard(mode: string, env: Record<string, string>): Plugi
       if (!ALLOWED_PRODUCTION_PROVIDERS.includes(provider)) {
         this.error(`Build de producción bloqueado: VITE_AUTH_PROVIDER="${provider}" no es un proveedor permitido.`)
       }
-      if (!/^https:\/\//.test(apiUrl)) {
-        this.error('Build de producción bloqueado: VITE_API_BASE_URL debe ser una URL https.')
+      if (!isAllowedProductionApiUrl(apiUrl)) {
+        this.error(
+          'Build de producción bloqueado: VITE_API_BASE_URL debe ser una URL https absoluta o una ruta relativa del mismo origen (p. ej. /api/v1).',
+        )
       }
+      // Supabase exige configuración pública válida. La clave que llega al bundle se valida para que no sea
+      // una clave con privilegios de servicio. Sin configuración, el build no se genera.
+      let supabaseProblem: string | null = null
+      try {
+        if (readSupabaseConfig(env as SupabaseEnv) === null) {
+          supabaseProblem = 'requiere VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY.'
+        }
+      } catch (error) {
+        supabaseProblem = error instanceof Error ? error.message : 'configuración de Supabase no válida.'
+      }
+      if (supabaseProblem) this.error(`Build de producción bloqueado: Supabase ${supabaseProblem}`)
     },
   }
 }

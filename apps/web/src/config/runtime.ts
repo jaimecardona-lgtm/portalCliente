@@ -1,27 +1,38 @@
 /**
  * Configuración de entorno y funciones disponibles.
  *
- * Dos entornos explícitos:
- * - Presentación local ("local"): solo existe en desarrollo (`vite dev`). Usa datos sintéticos
- *   y un acceso local con cuentas de prueba. Nunca llega al bundle de producción.
- * - Producción ("blocked" hasta que exista backend): exige un proveedor de identidad real.
- *   No acepta credenciales sintéticas, no usa sesiones simuladas y no ofrece cambio de empresa.
+ * Dos modos de acceso, separados a propósito:
+ * - Presentación local ("local"): solo existe en desarrollo (`vite dev`). Usa cuentas JSON locales
+ *   y datos sintéticos. Nunca llega al bundle de producción.
+ * - Supabase Auth ("supabase"): único proveedor real. Exige configuración pública válida
+ *   (VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY) y una implementación de pantallas registrada en
+ *   IMPLEMENTED_AUTH_PROVIDERS. Hasta entonces, la aplicación queda BLOQUEADA en producción.
  *
- * `import.meta.env.DEV` se sustituye por una constante en el build, por lo que el código
- * de la rama local (y sus fixtures) se elimina del bundle de producción.
+ * Reglas:
+ * - Ninguna sesión JSON ni simulada concede acceso fuera de desarrollo.
+ * - Sin proveedor implementado no hay acceso, aunque la configuración esté completa.
+ * - `import.meta.env.DEV` se sustituye por una constante en el build, así el código local y sus
+ *   fixtures se eliminan del bundle de producción.
  */
+import { readSupabaseConfig, type SupabaseEnv } from '@/services/auth/supabase-config'
 
 export const IS_LOCAL_PRESENTATION: boolean = import.meta.env.DEV
 
-/** Proveedores de identidad reconocidos. Ninguno está implementado todavía. */
-export const KNOWN_AUTH_PROVIDERS: readonly string[] = ['oidc']
-/** Proveedores con implementación real en el frontend. Vacío hasta integrar el backend. */
+/** Proveedores de identidad reconocidos. Único valor real: Supabase Auth. */
+export const KNOWN_AUTH_PROVIDERS: readonly string[] = ['supabase']
+
+/**
+ * Proveedores con pantallas de inicio de sesión conectadas al proveedor. VACÍO: el login, la recuperación y
+ * la guarda de rutas todavía usan el modo local. Añadir 'supabase' solo cuando las pantallas estén conectadas
+ * y verificadas (ver docs/supabase-preparation.md, sección 7b).
+ */
 export const IMPLEMENTED_AUTH_PROVIDERS: readonly string[] = []
 
 export type BlockReason =
   | 'provider-missing'
   | 'provider-unknown'
   | 'api-url-missing'
+  | 'supabase-config-missing'
   | 'provider-not-implemented'
 
 export type AccessState = { mode: 'local' } | { mode: 'blocked'; reason: BlockReason }
@@ -30,6 +41,8 @@ export interface AccessInput {
   isLocal: boolean
   provider?: string
   apiBaseUrl?: string
+  /** true solo si la configuración pública de Supabase es válida (ver supabase-config.ts). */
+  supabaseConfigured?: boolean
 }
 
 /** Decide si la aplicación puede dar acceso. Función pura para poder probarla. */
@@ -39,14 +52,30 @@ export function resolveAccessState(input: AccessInput): AccessState {
   if (!provider) return { mode: 'blocked', reason: 'provider-missing' }
   if (!KNOWN_AUTH_PROVIDERS.includes(provider)) return { mode: 'blocked', reason: 'provider-unknown' }
   if (!(input.apiBaseUrl ?? '').trim()) return { mode: 'blocked', reason: 'api-url-missing' }
-  if (!IMPLEMENTED_AUTH_PROVIDERS.includes(provider)) return { mode: 'blocked', reason: 'provider-not-implemented' }
+  if (provider === 'supabase' && !input.supabaseConfigured) {
+    return { mode: 'blocked', reason: 'supabase-config-missing' }
+  }
+  // Configuración válida pero sin pantallas conectadas al proveedor: sigue bloqueado.
   return { mode: 'blocked', reason: 'provider-not-implemented' }
+}
+
+/** true si la configuración pública de Supabase es válida. Nunca lanza: una configuración insegura cuenta como no configurada. */
+export function isSupabaseConfigured(env: SupabaseEnv): boolean {
+  try {
+    return readSupabaseConfig(env) !== null
+  } catch {
+    return false
+  }
 }
 
 export const ACCESS_STATE: AccessState = resolveAccessState({
   isLocal: IS_LOCAL_PRESENTATION,
   provider: import.meta.env.VITE_AUTH_PROVIDER,
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
+  supabaseConfigured: isSupabaseConfigured({
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  }),
 })
 
 export interface FeatureFlags {

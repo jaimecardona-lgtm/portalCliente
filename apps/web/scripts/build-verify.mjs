@@ -1,12 +1,15 @@
 // Build de producción con una configuración de verificación y comprobación del bundle resultante.
-// La configuración usa valores de prueba: el proveedor "oidc" aún no está implementado, así que la
-// aplicación generada bloquea el acceso. Su único propósito es comprobar la compilación y el bundle.
+// Valores SINTÉTICOS: el proyecto de Supabase no es real y no se afirma ninguna conexión. Con proveedor
+// "supabase" y pantallas no conectadas, la aplicación generada bloquea el acceso. Su único propósito es
+// comprobar que la compilación de producción acepta una configuración pública válida y que el bundle está limpio.
 import { spawnSync } from 'node:child_process'
 
 const env = {
   ...process.env,
-  VITE_AUTH_PROVIDER: 'oidc',
-  VITE_API_BASE_URL: 'https://api-verificacion.invalid',
+  VITE_AUTH_PROVIDER: 'supabase',
+  VITE_API_BASE_URL: '/api/v1',
+  VITE_SUPABASE_URL: 'https://proyecto-verificacion.supabase.test',
+  VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_verificacion_sintetica_000000',
 }
 
 const build = spawnSync('npx', ['vite', 'build'], { stdio: 'inherit', env, shell: true })

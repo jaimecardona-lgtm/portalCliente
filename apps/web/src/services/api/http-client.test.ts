@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createApiClient, errorFromPayload, normalizeBaseUrl, PortalApiError } from './http-client'
+import { apiRootFor, createApiClient, errorFromPayload, normalizeBaseUrl, PortalApiError } from './http-client'
 
 const BASE = 'https://api.portal.test'
 
@@ -17,6 +17,22 @@ describe('normalizeBaseUrl', () => {
   it('rechaza esquemas distintos de http y https', () => {
     expect(() => normalizeBaseUrl('ftp://api.portal.test')).toThrow(PortalApiError)
     expect(() => normalizeBaseUrl('javascript:alert(1)')).toThrow(PortalApiError)
+  })
+
+  it('acepta una ruta relativa del mismo origen', () => {
+    expect(normalizeBaseUrl('/api/v1')).toBe('/api/v1')
+    expect(normalizeBaseUrl('/api/v1/')).toBe('/api/v1')
+  })
+
+  it('no permite protocolo relativo ni credenciales en rutas', () => {
+    expect(() => normalizeBaseUrl('//otro.test/api/v1')).toThrow(PortalApiError)
+    expect(() => normalizeBaseUrl('/api@otro.test')).toThrow(PortalApiError)
+  })
+
+  it('apiRootFor añade /api/v1 una sola vez', () => {
+    expect(apiRootFor('https://api.portal.test')).toBe('https://api.portal.test/api/v1')
+    expect(apiRootFor('/api/v1')).toBe('/api/v1')
+    expect(apiRootFor('https://api.portal.test/api/v1')).toBe('https://api.portal.test/api/v1')
   })
 
   it('rechaza URLs con credenciales embebidas y valores que no son URL', () => {

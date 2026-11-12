@@ -64,9 +64,17 @@ export interface ApiClient {
 const DEFAULT_TIMEOUT_MS = 15_000
 const API_PREFIX = '/api/v1'
 
-/** Valida y normaliza la URL base. Solo http(s) y sin credenciales embebidas. */
+/**
+ * Valida y normaliza la URL base de la API. Acepta:
+ * - Absoluta http(s) sin credenciales: https://api.ejemplo.test  (o con /api/v1 al final).
+ * - Ruta relativa del mismo origen que empiece por "/": /api/v1 (React y FastAPI en el mismo servicio).
+ * El prefijo /api/v1 se añade solo si la base no lo incluye ya.
+ */
 export function normalizeBaseUrl(raw: string): string {
   const trimmed = raw.trim()
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !/\s/.test(trimmed) && !trimmed.includes('@')) {
+    return trimmed.replace(/\/+$/, '')
+  }
   let url: URL
   try {
     url = new URL(trimmed)
@@ -82,6 +90,11 @@ export function normalizeBaseUrl(raw: string): string {
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
 }
 
+/** Raíz de la API: la base con /api/v1 garantizado una sola vez. */
+export function apiRootFor(baseUrl: string): string {
+  return baseUrl.endsWith(API_PREFIX) ? baseUrl : `${baseUrl}${API_PREFIX}`
+}
+
 /** Convierte el cuerpo de error de la API en PortalApiError. Sin sobre válido, usa un código genérico. */
 export function errorFromPayload(status: number, payload: unknown): PortalApiError {
   const body = (payload as { error?: { code?: unknown; message?: unknown; request_id?: unknown } } | null)?.error
@@ -93,7 +106,7 @@ export function errorFromPayload(status: number, payload: unknown): PortalApiErr
 }
 
 export function createApiClient(options: ApiClientOptions): ApiClient {
-  const baseUrl = normalizeBaseUrl(options.baseUrl)
+  const apiRoot = apiRootFor(normalizeBaseUrl(options.baseUrl))
   const fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init))
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
@@ -114,7 +127,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     let response: Response
     try {
-      response = await fetchImpl(`${baseUrl}${API_PREFIX}${path}`, {
+      response = await fetchImpl(`${apiRoot}${path}`, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
