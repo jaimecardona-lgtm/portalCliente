@@ -6,6 +6,8 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). E
 
 ### Añadido
 
+- **Fase 11B, acceso con Supabase Auth**: con `VITE_AUTH_PROVIDER=supabase`, el inicio de sesión, la recuperación de contraseña, la guarda de rutas y el cierre de sesión usan Supabase; la identidad sale de `GET /api/v1/me`. Estados neutros para cuenta sin empresa, suspendida, sesión caducada y empresa pendiente de elegir. Procedimiento de primer acceso real en `docs/supabase-primer-acceso.md`.
+- **Backend**: `apps/api/scripts/check_db_role.py`, comprobación de solo lectura del rol de conexión de la API (sin BYPASSRLS, miembro de `portal_app`, sin privilegios para `anon`/`authenticated`).
 - **Backend**: aprovisionamiento de desarrollo idempotente (empresa, perfil, membresía y operación sintética) y pruebas del primer flujo persistente. Pendiente de ejecución con PostgreSQL en esta sesión (ver el informe de la fase).
 - **Frontend**: módulos de Supabase Auth (configuración que rechaza claves de servicio, servicio de sesión, selección de membresía y fábrica de cliente diferida). Pruebas con cliente sintético. No conectados a las pantallas.
 - **Marca**: sistema de marca v2.0 documentado en `docs/brand/BRAND_SYSTEM.md`; prueba `brand-tokens.test.ts` que fija la paleta y el contraste.

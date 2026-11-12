@@ -6,9 +6,11 @@ Este documento separa tres cosas que antes se mezclaban:
 2. **Adaptador frontend preparado, no conectado**: `apps/web/src/services/api/`.
 3. **Previsto**: contratos que aún no existen en ninguna capa.
 
-> **Estado de la integración:** la API responde en local contra PostgreSQL. **No está conectada a Supabase
-> Auth ni a Supabase PostgreSQL**, no está desplegada y **las pantallas siguen usando el repositorio mock**.
-> El inicio de sesión de desarrollo (JSON local) no envía credenciales a la API.
+> **Estado de la integración (fase 11B):** con `VITE_AUTH_PROVIDER=supabase`, el inicio de sesión usa Supabase Auth
+> y la aplicación lee la identidad de `GET /api/v1/me` con el token vigente. Las pantallas de datos usan
+> `HttpPortalRepository`; las funciones que la API v1 no cubre muestran "información no disponible".
+> Sin esa variable (desarrollo), se mantiene la presentación local con el repositorio mock y el JSON local.
+> Procedimiento de primer acceso real: `docs/supabase-primer-acceso.md`. No desplegado.
 
 ## 1. Transición en tres ejes
 
@@ -18,8 +20,8 @@ Este documento separa tres cosas que antes se mezclaban:
 | Datos | Repositorio mock (`mock-repository.ts`, datos sintéticos) | FastAPI (`/api/v1`) mediante `HttpPortalRepository` | Se añadirá `loadRemoteRepository()` en `src/services/repositories/index.ts` y una rama que lo elija. | Las pantallas consumen `PortalRepository` y no cambian. |
 | Base de datos | PostgreSQL 18 local (`portal_test`) con migraciones 0001 y 0002 | Supabase PostgreSQL | Solo la cadena de conexión `DATABASE_URL` y los secretos de Supabase. | Esquema, RLS y rol `portal_app`, siempre que la migración se aplique igual. |
 
-**Qué se queda como está hasta que exista identidad real:** el repositorio mock sigue siendo la opción de
-desarrollo. `HttpPortalRepository` existe y tiene pruebas, pero ninguna ruta de la aplicación lo usa.
+**Qué sigue en modo local:** el repositorio mock y el JSON local solo existen en desarrollo sin proveedor declarado.
+En modo `supabase` la aplicación usa `HttpPortalRepository` (ver `apps/web/src/services/auth/supabase-runtime.ts`).
 
 ## 2. Endpoints implementados (`apps/api/app/api/v1.py`)
 

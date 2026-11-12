@@ -1,8 +1,9 @@
 # Preparación para Supabase
 
-**Estado:** la base de datos y la verificación de tokens están preparadas y probadas contra PostgreSQL local.
-**No hay ningún proyecto de Supabase configurado**, ni credenciales, ni migraciones aplicadas en remoto. Todo lo
-que sigue se ejecuta solo con autorización del responsable del proyecto.
+**Estado:** la base de datos, la verificación de tokens y la interfaz con Supabase Auth están preparadas y probadas
+contra PostgreSQL local y con un cliente sintético. El responsable ha verificado la estructura del proyecto de
+desarrollo y las migraciones de `supabase/migrations/` aplicadas. **Ninguna credencial está en el repositorio.**
+El primer acceso real requiere pasos manuales: ver `docs/supabase-primer-acceso.md`.
 
 ## 0. Fuente canónica de migraciones (fase 08C)
 
@@ -85,18 +86,14 @@ Ejecutar solo con autorización. Ningún paso necesita credenciales de producci�
 2. **Configurar Auth**: correo y contraseña. Definir política de contraseñas y confirmación de correo.
 3. **Obtener la configuración**: URL del proyecto, tipo de firma JWT (JWKS o secreto) y cadena de conexión
    del rol de servicio. Guardarla en un `.env` local de la API (no versionado, ver `apps/api/.env.example`).
-4. **Crear el rol de servicio** de la API sin `BYPASSRLS` y conceder membresía en `portal_app`. Sin esta
-   concesión, cada petición falla con `permission denied to set role`. La migración `0001` solo la concede al rol
-   que la ejecuta, y el nombre del rol de la API depende de cada proyecto, así que el paso va fuera de las migraciones:
-   ```sql
-   -- Ejecutar una vez, como postgres, en el proyecto de desarrollo (reemplazar el nombre del rol):
-   CREATE ROLE portal_api LOGIN NOBYPASSRLS PASSWORD '<generar fuera del repositorio>';
-   GRANT portal_app TO portal_api;
-   ```
-   La contraseña se genera y se guarda fuera del repositorio. Nunca se escribe en un archivo versionado.
-5. **Aplicar las migraciones** (`alembic upgrade head`) contra el proyecto de prueba. Comprobar:
+4. **Crear el rol de conexión de la API** (`portal_api`) sin `BYPASSRLS` y conceder membresía en `portal_app`. Sin esta
+   concesión, cada petición falla con `permission denied to set role`. El procedimiento completo, con la contraseña
+   fuera del repositorio y la verificación con `apps/api/scripts/check_db_role.py`, está en
+   **`docs/supabase-primer-acceso.md`, sección 4**. No se añade a las migraciones: depende del proyecto.
+5. **Aplicar las migraciones** con Supabase CLI (`supabase/migrations/`, no Alembic). Comprobar:
    - Que `portal_app` existe y no tiene `BYPASSRLS`.
    - Que `anon` y `authenticated` no tienen privilegios sobre las tablas del portal.
+   - Con `scripts/check_db_role.py` y la cadena de `portal_api`: todas las comprobaciones en `[OK]`.
 6. **Aprovisionar empresas, perfiles y membresías** con un proceso controlado (no existe API de alta).
    Para pruebas, usar solo datos sintéticos: dominios `.test`, nombres ficticios y NIT de ejemplo.
 7. **Crear un usuario de prueba** por Supabase Auth, iniciar sesión y obtener un token real.
@@ -119,23 +116,33 @@ Hoy: `apps/web/local/auth/users.json` (cuentas, ignorado por Git) y `sessions.js
 Interfaces que deben sustituirse sin reconstruir las páginas: `AuthService`, `UserRepository`,
 `SessionService` y `TenantMembershipRepository` (`apps/web/src/services/auth/contracts.ts`).
 
-## 7b. Frontend: módulos preparados (no conectados a las pantallas)
+## 7b. Frontend: conectado al modo `supabase` (fase 11B)
+
+Con `VITE_AUTH_PROVIDER=supabase` y configuración válida, el acceso pasa por Supabase Auth y la API. Sin esa variable
+(desarrollo) se mantiene la presentación local con datos sintéticos.
 
 | Módulo | Qué hace | Estado |
 |---|---|---|
 | `apps/web/src/services/auth/supabase-config.ts` | Lee `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Exige https (http solo en loopback). **Rechaza** `sb_secret_*` y JWT con rol `service_role`. | Probado |
 | `supabase-session.ts` | Inicio y cierre de sesión, token de acceso vigente, restablecimiento de contraseña (respuesta igual exista o no la cuenta), cambio de contraseña, suscripción a cambios. Errores reducidos a `ok`, `invalid` o `unavailable`. | Probado con cliente sintético |
 | `supabase-client.ts` | Crea el cliente con PKCE y renovación automática. Carga el SDK solo si hay configuración válida. | Compilado; no ejecutado contra un proyecto real |
-| `membership.ts` | Decide empresa única, elección obligatoria o elección inválida a partir de `/me`. El servidor sigue siendo la autoridad. | Probado |
-| `HttpPortalRepository` | Recibe `getToken` y envía el token de Supabase. Sin sesión, no hay petición. | Probado con respuestas sintéticas |
+| `supabase-runtime.ts` | Crea una vez el cliente y el repositorio HTTP con el token vigente. Sin configuración válida devuelve `null` y no hay acceso. | Probado indirectamente (build y guarda) |
+| `account-issues.ts` | Traduce los errores de `/me` (sin membresía, suspendido, sesión caducada, selección pendiente) a textos neutros. | Probado |
+| `membership.ts` | Decide empresa única, elección obligatoria o elección inválida a partir de `/me`. El servidor sigue siendo la autoridad. | Probado. **Aún sin pantalla de elección**: con varias empresas se muestra "no disponible". |
+| `HttpPortalRepository` | Recibe `getToken` y envía el token de Supabase. Sin sesión, no hay petición. Los métodos que la API no cubre responden "información no disponible". | Probado |
 
-**Lo que falta para conectar** (no hecho en esta fase):
+**Qué cambia en las pantallas (modo `supabase`):**
 
-1. Sustituir en `login-page`, `recovery-pages` y `use-end-session` la llamada al JSON local por el servicio de Supabase cuando el modo sea `supabase`.
-2. Protección de rutas: la guarda de `router.tsx` debe comprobar la sesión de Supabase en ese modo, no `sessionStorage`.
-3. Crear la sesión de la aplicación con la empresa que devuelve `/me` (con `membership.ts` si hay varias).
-4. Pantallas de operaciones que consuman `listOperationSummaries` y `getOperationSummary`, con estado de información no disponible para los campos que la API no tiene.
-5. Revisión visual, E2E y verificación del modo JSON local, que debe seguir funcionando sin Supabase.
+- `/login`, `/recuperar-contrasena` y `/restablecer-contrasena` usan Supabase. El restablecimiento usa la sesión que crea el enlace (PKCE), no un token en la URL.
+- La guarda de `/` y del resto de rutas exige un token vigente; la identidad sale de `GET /api/v1/me`.
+- `/registro` no crea cuentas: el alta es por invitación.
+- El selector de empresa de QA, el asistente Logix y el modo JSON local **no se cargan** en este modo, incluso en desarrollo.
+
+**Lo que falta** (pendiente de decisión o de la API):
+
+1. Pantalla para elegir empresa cuando una cuenta tiene varias.
+2. Modelos de operación completos en la API (`docs/fastapi-integration.md`, sección 6). Hasta entonces, las pantallas de datos muestran "información no disponible".
+3. Primer acceso real con datos autorizados: ver `docs/supabase-primer-acceso.md`, sección 5.
 
 **Variables de entorno del frontend:** `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` (públicas por diseño), `VITE_API_BASE_URL`. Nunca `service_role`.
 

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal Cliente Logixtic · C4</title>
+<style>
+  /* Paleta oficial Logixtic v2.0 (manual de marca). Solo estos colores y sus variaciones por opacidad. */
+  :root {
+    --azul: #2296F3;
+    --amarillo: #FBBE0A;
+    --noche: #0F2341;
+    --naranja: #F7801E;
+    --gris: #6E7D95;
+    --fondo: #ffffff;
+    --texto: #0F2341;
+    --borde: rgba(15, 35, 65, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --fondo: #0F2341; --texto: #ffffff; --borde: rgba(244, 247, 251, 0.2); }
+  }
+  :root[data-theme="dark"] { --fondo: #0F2341; --texto: #ffffff; --borde: rgba(244, 247, 251, 0.2); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font-family: Inter, system-ui, sans-serif; line-height: 1.5; }
+  header { background: var(--noche); color: #ffffff; padding: 20px 16px; }
+  header h1 { font-family: Poppins, Inter, sans-serif; font-size: 22px; margin: 0; }
+  header p { margin: 6px 0 0; color: rgba(255, 255, 255, 0.85); font-size: 14px; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-family: Poppins, Inter, sans-serif; font-size: 18px; margin: 28px 0 8px; }
+  .leyenda { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; font-size: 13px; }
+  .chip { border-radius: 6px; padding: 4px 10px; border: 2px solid; }
+  .existe { border-color: var(--azul); background: rgba(34, 150, 243, 0.12); }
+  .propuesto { border-color: var(--amarillo); border-style: dashed; background: rgba(251, 190, 10, 0.16); }
+  .desconocido { border-color: var(--gris); border-style: dotted; background: rgba(110, 125, 149, 0.14); }
+  .alerta { border-color: var(--naranja); background: rgba(247, 128, 30, 0.12); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 10px; }
+  .caja { border: 2px solid; border-radius: 10px; padding: 12px 14px; background: var(--fondo); min-height: 110px; }
+  .caja h3 { font-size: 15px; margin: 0 0 4px; }
+  .caja small { color: var(--gris); display: block; margin-bottom: 6px; }
+  .caja ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .caja.existe { border-color: var(--azul); }
+  .caja.propuesto { border-color: var(--amarillo); border-style: dashed; }
+  .caja.desconocido { border-color: var(--gris); border-style: dotted; }
+  .caja.externo { border-color: var(--noche); }
+  .caja.alerta { border-color: var(--naranja); }
+  .etiqueta { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; margin-bottom: 6px; border: 1px solid; }
+  .e-existe { border-color: var(--azul); color: var(--texto); }
+  .e-propuesto { border-color: var(--amarillo); color: var(--texto); background: rgba(251, 190, 10, 0.25); }
+  .e-desconocido { border-color: var(--gris); color: var(--texto); }
+  .e-alerta { border-color: var(--naranja); color: var(--texto); }
+  .flujo { list-style: none; padding: 0; margin: 0; counter-reset: paso; }
+  .flujo li { counter-increment: paso; padding: 8px 0 8px 36px; position: relative; border-bottom: 1px solid var(--borde); font-size: 14px; }
+  .flujo li::before { content: counter(paso); position: absolute; left: 0; top: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--noche); color: #ffffff; text-align: center; line-height: 24px; font-size: 12px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--fondo); }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+  .tabla-wrap { overflow-x: auto; }
+  footer { color: var(--gris); font-size: 12px; padding: 24px 16px; text-align: center; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Portal Cliente Logixtic · Arquitectura C4</h1>
+  <p>Fase 12A. Separa lo existente, lo propuesto y lo desconocido. Datos sintéticos: ninguna empresa real aparece en este diagrama.</p>
+</header>
+<main>
+
+<div class="leyenda" aria-label="Leyenda">
+  <span class="chip existe">Existente (en el repositorio o en el proyecto)</span>
+  <span class="chip propuesto">Propuesto (aún no implementado)</span>
+  <span class="chip desconocido">Desconocido (sin contrato ni fuente confirmada)</span>
+  <span class="chip alerta">Bloqueante o decisión pendiente</span>
+</div>
+
+<h2>Nivel 1 · Contexto</h2>
+<div class="grid">
+  <div class="caja externo">
+    <span class="etiqueta e-existe">Persona</span>
+    <h3>Usuario de cliente final</h3>
+    <small>Cliente de un tenant de Logixtic</small>
+    <ul><li>Inicia sesión y consulta solo sus operaciones autorizadas.</li></ul>
+  </div>
+  <div class="caja externo">
+    <span class="etiqueta e-existe">Persona</span>
+    <h3>Equipo Logixtic (operaciones)</h3>
+    <small>Administra la operación real</small>
+    <ul><li>Fuente oficial de DO, estados, eventos y cotizaciones.</li></ul>
+  </div>
+  <div class="caja desconocido">
+    <span class="etiqueta e-desconocido">Sistema externo</span>
+    <h3>Aplicación principal Logixtic (SaaS)</h3>
+    <small>Fuente oficial de datos operacionales</small>
+    <ul><li>Contrato de API: <strong>no disponible</strong> en los repositorios revisados.</li></ul>
+  </div>
+  <div class="caja externo">
+    <span class="etiqueta e-existe">Proveedor</span>
+    <h3>Supabase</h3>
+    <small>Auth y PostgreSQL gestionado</small>
+    <ul><li>Identidades, RLS, migraciones aplicadas.</li></ul>
+  </div>
+  <div class="caja externo">
+    <span class="etiqueta e-propuesto">Proveedor (propuesto)</span>
+    <h3>OpenRouter</h3>
+    <small>Modelos y embeddings para Logix</small>
+    <ul><li>Desactivado. Requiere autorización empresarial de datos.</li></ul>
+  </div>
+</div>
+
+<h2>Nivel 2 · Contenedores</h2>
+<div class="grid">
+  <div class="caja existe">
+    <span class="etiqueta e-existe">Existente</span>
+    <h3>React + Vite (SPA)</h3>
+    <small>apps/web · TanStack Router y Query</small>
+    <ul>
+      <li>Login con Supabase en modo <code>supabase</code>.</li>
+      <li>Modo local con datos sintéticos solo en desarrollo.</li>
+      <li>Pantallas de datos: "información no disponible" hasta la API.</li>
+    </ul>
+  </div>
+  <div class="caja existe">
+    <span class="etiqueta e-existe">Existente</span>
+    <h3>FastAPI (API v1)</h3>
+    <small>apps/api · verificación JWT, RLS, contexto de tenant</small>
+    <ul>
+      <li>Endpoints: /me, operaciones, eventos, comentarios.</li>
+      <li>Conexión con el rol <code>portal_api</code> (pendiente de verificar).</li>
+    </ul>
+  </div>
+  <div class="caja existe">
+    <span class="etiqueta e-existe">Existente</span>
+    <h3>PostgreSQL (Supabase)</h3>
+    <small>supabase/migrations/</small>
+    <ul>
+      <li>Foundation y grants (aplicadas).</li>
+      <li>Nivel B de cliente final (<code>20261112000000</code>, nueva, sin aplicar en remoto).</li>
+    </ul>
+  </div>
+  <div class="caja propuesto">
+    <span class="etiqueta e-propuesto">Propuesto</span>
+    <h3>Adaptador de sincronización</h3>
+    <small>Importación idempotente desde Logixtic</small>
+    <ul>
+      <li>Escribe en referencias con procedencia y auditoría (<code>sync_runs</code>).</li>
+      <li>Bloqueado por el contrato de la fuente.</li>
+    </ul>
+  </div>
+  <div class="caja propuesto">
+    <span class="etiqueta e-propuesto">Propuesto</span>
+    <h3>Núcleo Logix compartido</h3>
+    <small>Conocimiento versionado entre plataformas</small>
+    <ul>
+      <li>Separa conocimiento público, comercial interno, del tenant y del cliente final.</li>
+      <li>Origen: <code>logixtic-skills.zip</code> (sin extraer).</li>
+    </ul>
+  </div>
+  <div class="caja propuesto">
+    <span class="etiqueta e-propuesto">Propuesto</span>
+    <h3>pgvector (recuperación documental)</h3>
+    <small>Dentro de PostgreSQL</small>
+    <ul>
+      <li>Filtra por tenant y cliente final antes de entregar fragmentos.</li>
+      <li>Dimensión fijada tras elegir el modelo de embeddings.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Nivel 3 · Componentes de FastAPI</h2>
+<div class="grid">
+  <div class="caja existe">
+    <span class="etiqueta e-existe">Existente</span>
+    <h3>Seguridad y contexto</h3>
+    <small>app/core/security.py · app/api/deps.py · app/services/access.py</small>
+    <ul><li>Verifica JWT, elige la empresa entre membresías y fija la identidad para RLS.</li></ul>
+  </div>
+  <div class="caja existe">
+    <span class="etiqueta e-existe">Existente</span>
+    <h3>Comentarios y aprovisionamiento</h3>
+    <small>app/services/comments.py · app/services/provisioning.py</small>
+    <ul><li>Comentarios por evento; aprovisionamiento idempotente con cliente final opcional.</li></ul>
+  </div>
+  <div class="caja propuesto">
+    <span class="etiqueta e-propuesto">Propuesto</span>
+    <h3>Cliente OpenRouter y orquestador Logix</h3>
+    <small>app/services/ai/ (pendiente)</small>
+    <ul><li>Herramientas tipadas. El modelo nunca ejecuta SQL ni elige empresa.</li></ul>
+  </div>
+</div>
+
+<h2>Flujo de autorización (nivel B)</h2>
+<ol class="flujo">
+  <li>El navegador envía el token de Supabase. FastAPI lo verifica (firma, emisor, audiencia y caducidad).</li>
+  <li>FastAPI lee las membresías de tenant activas y elige la empresa (X-Tenant-Id solo entre las suyas).</li>
+  <li>Con <code>SET LOCAL ROLE portal_app</code> y el usuario fijado, RLS limita las operaciones al cliente final asignado.</li>
+  <li>Una operación sin cliente asignado no aparece en ninguna respuesta del portal.</li>
+  <li>Logix, cuando exista, usará los mismos filtros: el modelo no puede saltarlos.</li>
+</ol>
+
+<h2>Bloqueantes y decisiones pendientes</h2>
+<div class="tabla-wrap">
+<table>
+  <thead><tr><th>Elemento</th><th>Estado</th><th>Quién decide o ejecuta</th></tr></thead>
+  <tbody>
+    <tr><td><span class="etiqueta e-alerta">Bloqueante</span> Host de DATABASE_URL (no resuelve)</td><td>Pendiente</td><td>Responsable: pegar el Session Pooler real</td></tr>
+    <tr><td><span class="etiqueta e-alerta">Bloqueante</span> Registro público de Supabase Auth</td><td>Activo</td><td>Responsable: desactivar en el panel</td></tr>
+    <tr><td><span class="etiqueta e-alerta">Bloqueante</span> Rol <code>portal_api</code></td><td>No verificado</td><td>Responsable: crear con autorización</td></tr>
+    <tr><td><span class="etiqueta e-desconocido">Desconocido</span> Contrato de la API de Logixtic</td><td>No encontrado</td><td>Responsable: confirmar fuente oficial</td></tr>
+    <tr><td><span class="etiqueta e-desconocido">Desconocido</span> Tenants de Logixtic: productivos y de prueba</td><td>Sin verificar</td><td>Responsable</td></tr>
+    <tr><td><span class="etiqueta e-alerta">Decisión</span> Envío de datos a OpenRouter (D1, D2)</td><td>Pendiente</td><td>Responsable: autorización empresarial</td></tr>
+    <tr><td><span class="etiqueta e-alerta">Decisión</span> Modelo y dimensión de embeddings</td><td>Pendiente</td><td>Responsable, tras verificación</td></tr>
+  </tbody>
+</table>
+</div>
+
+</main>
+<footer>
+  Diagrama de arquitectura. Sin credenciales, sin datos reales de clientes y sin endpoints inventados.
+</footer>
+</body>
+</html>
