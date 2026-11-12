@@ -10,6 +10,20 @@ blob-report/
 apps/web/local/
 apps/web/local/auth/
 
+# Frontend: variables locales (solo públicas) y configuración generada por la CLI de Supabase
+apps/web/.env
+apps/web/.env.*
+!apps/web/.env.example
+supabase/.temp/
+
+# Credenciales locales en cualquier carpeta del repositorio (solo se versionan las plantillas .example)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
 # Backend FastAPI (fase 07): entorno local y artefactos de Python
 apps/api/.venv/
 apps/api/.env

@@ -64,6 +64,50 @@ class Settings(BaseSettings):
     max_comment_length: int = Field(default=2000, ge=1, le=10000)
     default_page_size: int = Field(default=50, ge=1, le=100)
 
+    # Agente Logix (OpenRouter). Todo desactivado por defecto. Las credenciales solo las usa FastAPI:
+    # nunca se envían al frontend, no son build args de Docker y no se registran en logs.
+    # Los modelos no tienen valor por defecto: se fijan tras verificar disponibilidad, precio, herramientas,
+    # privacidad y dimensiones de embeddings (ver docs/logix-arquitectura.md).
+    logix_ai_enabled: bool = False
+    logix_rag_enabled: bool = False
+    # Interruptor de negocio: sin esta autorización explícita, Logix no puede enviar datos a OpenRouter.
+    logix_external_processing_authorized: bool = False
+    openrouter_api_key: SecretStr | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str | None = None
+    openrouter_embedding_model: str | None = None
+    # Límites de contexto, tokens, tiempo y consumo. Se aplican en el cliente y en el orquestador.
+    logix_max_input_tokens: int = Field(default=4000, ge=256, le=32000)
+    logix_max_output_tokens: int = Field(default=800, ge=64, le=4000)
+    logix_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    logix_max_requests_per_user_per_hour: int = Field(default=30, ge=1, le=1000)
+    logix_daily_budget_usd: float = Field(default=5.0, ge=0, le=10000)
+    logix_max_retrieved_chunks: int = Field(default=6, ge=0, le=20)
+
+    @field_validator("openrouter_base_url")
+    @classmethod
+    def _openrouter_requires_https(cls, value: str) -> str:
+        if not value.startswith("https://"):
+            raise ValueError("OPENROUTER_BASE_URL debe usar https.")
+        return value.rstrip("/")
+
+    @model_validator(mode="after")
+    def _logix_requires_explicit_authorization(self) -> Settings:
+        if self.logix_rag_enabled and not self.logix_ai_enabled:
+            raise ValueError("LOGIX_RAG_ENABLED requiere LOGIX_AI_ENABLED.")
+        if self.logix_ai_enabled:
+            if not self.logix_external_processing_authorized:
+                raise ValueError(
+                    "LOGIX_AI_ENABLED requiere LOGIX_EXTERNAL_PROCESSING_AUTHORIZED=true (autorización)."
+                )
+            if self.openrouter_api_key is None or not self.openrouter_api_key.get_secret_value().strip():
+                raise ValueError("LOGIX_AI_ENABLED requiere OPENROUTER_API_KEY.")
+            if not (self.openrouter_model or "").strip():
+                raise ValueError("LOGIX_AI_ENABLED requiere OPENROUTER_MODEL (modelo verificado).")
+        if self.logix_rag_enabled and not (self.openrouter_embedding_model or "").strip():
+            raise ValueError("LOGIX_RAG_ENABLED requiere OPENROUTER_EMBEDDING_MODEL (modelo verificado).")
+        return self
+
     @field_validator("cors_allowed_origins")
     @classmethod
     def _no_wildcard_origins(cls, value: list[str]) -> list[str]:
