@@ -373,7 +373,7 @@ y el workflow de GitHub Actions. Docker no se ha arrancado por memoria. La CI ta
 ### Requisitos antes del primer despliegue
 
 - Decisión sobre la visibilidad del repositorio y sobre la credencial de demostración.
-- Ejecución verde del workflow `verify` en GitHub (requiere push autorizado).
+- Ejecución verde del workflow `verify` en GitHub: **cumplido** (ver sección 21).
 - Construcción y prueba de la imagen Docker.
 - Proyecto de Supabase de desarrollo configurado, con la prueba del punto 6 superada.
 - Pantallas de acceso conectadas a Supabase (hoy el modo de producción sigue bloqueado por diseño).
@@ -395,20 +395,50 @@ y el workflow de GitHub Actions. Docker no se ha arrancado por memoria. La CI ta
 ### No ejecutado
 
 - **Construcción de la imagen Docker** y comprobaciones sobre el contenedor. Docker Desktop está parado y no hay memoria para arrancarlo.
-- **Workflow `verify` en GitHub Actions.** Requiere push, y el repositorio sigue público, así que no se ha hecho push.
-- **E2E de Playwright**, incluidas las especificaciones que se modificaron para retirar la credencial de demostración.
+- **Workflow `verify` en GitHub Actions:** ejecutado en la fase 21 (sección 21). Los tres jobs pasaron en la primera ejecución.
+- **E2E de Playwright**, incluidas las especificaciones que se modificaron para retirar la credencial de demostración. Sigue sin ejecutarse; no forma parte de `verify`.
 
 ### Seguridad
 
-- El repositorio público sigue siendo público. **No se debe publicar la rama mientras lo sea.**
-- La credencial de demostración se ha retirado del código. Sigue en el historial de la rama pública. Reescribir el historial requiere autorización explícita; se recomienda tratarla como comprometida.
+- El repositorio está **privado** desde la fase 21 (verificado con `gh repo view`).
+- La credencial de demostración se ha retirado del código. Sigue en el historial de commits anteriores a `788ec62`. No se reescribió el historial. Se recomienda tratarla como comprometida y no reutilizarla.
 - No hay `.env`, JSON locales de autenticación, claves de servicio ni manuales internos rastreados por Git.
 
-### Primera verificación remota (cuando haya autorización de push)
+### Primera verificación remota
 
-1. Cambiar la visibilidad del repositorio a privado, o confirmar explícitamente que se puede publicar la rama.
-2. Hacer push de `feat/supabase-auth-integration`. El workflow `verify` se dispara en `pull_request` o con `workflow_dispatch`.
-3. Revisar los tres jobs. Si `backend` falla, revisar primero la aplicación de las migraciones (`psql -v ON_ERROR_STOP=1`).
-4. Si `container` falla, revisar la compilación del frontend dentro del contenedor (posibles binarios nativos de Vite
-   para `node:22-alpine`) y las comprobaciones HTTP del paso de arranque.
-5. Solo cuando los tres jobs pasen en verde, registrar el resultado aquí. Hasta entonces, el estado es **pendiente**.
+Resuelta en la sección 21.
+
+## 21. Verificación remota en GitHub Actions y Draft Pull Request (fase 10)
+
+### Publicación
+
+- Repositorio: `jaimecardona-lgtm/portalCliente`, **privado** (confirmado antes de publicar).
+- Rama `feat/supabase-auth-integration` sincronizada con el remoto. No hubo push nuevo: el remoto ya contenía los commits.
+- Draft Pull Request hacia `main`, sin fusionar: <https://github.com/jaimecardona-lgtm/portalCliente/pull/1>
+- No se ha modificado `main`, no se ha reescrito el historial, no se ha desplegado en Render y no se ha tocado Supabase.
+
+### Ejecución de `verify`
+
+Ejecución: <https://github.com/jaimecardona-lgtm/portalCliente/actions/runs/43254005592> (evento `pull_request`).
+No se añadió ningún secreto a GitHub Actions.
+
+| Job | Resultado | Pasos verificados | Evidencia de la ejecución |
+|---|---|---|---|
+| API y migraciones | ✅ éxito | Lint (`ruff check` y `ruff format --check`), aplicación de `supabase/migrations/*.sql` en orden y `seed.sql` sobre `postgres:17` desechable, pytest | Migraciones `20261111000000_foundation.sql` y `20261111000100_supabase_grants_hardening.sql` aplicadas sin error. **83 aprobadas, 1 omitida, 1 aviso.** |
+| Frontend | ✅ éxito | `npm ci`, `typecheck`, `vitest run`, `build:verify` | Vitest: **17 archivos aprobados**. `build:verify` construido sin errores. |
+| Imagen Docker y comprobaciones HTTP | ✅ éxito | Build con argumentos públicos, búsqueda de ficheros sensibles y secretos en la imagen, arranque y comprobaciones HTTP | `/health` → `status: ok`. `/login`, `/operaciones` y `/operaciones/{id}` → `text/html`. API inexistente → `404 application/json`. `/api/v1/me` sin token → `401 application/json`. Imagen sin ficheros sensibles. |
+
+### Diferencias respecto a la ejecución local (fase 09A)
+
+- **Pytest en CI: 83 aprobadas y 1 omitida**, frente a 84 aprobadas en local. La omitida es `tests/integration/test_rls.py:251`: exige los roles `anon` y `authenticated`, que solo existen en Supabase. No es un fallo. Se verificará cuando exista el proyecto de desarrollo de Supabase.
+- **Aviso del paso de pytest:** `StarletteDeprecationWarning` por usar `httpx` con `starlette.testclient`. No afecta al resultado; queda como deuda técnica.
+- **Docker:** la imagen se construyó y comprobó en GitHub Actions, no en local. Con esto queda cubierto el punto que la fase 09B dejó pendiente.
+
+### Pendiente tras esta fase
+
+1. Crear el proyecto de desarrollo de Supabase (no el de Logixtic). Autorización pendiente.
+2. Aplicar migraciones en Supabase con `supabase db push --dry-run` antes de cualquier cambio. Autorización pendiente.
+3. Ejecutar las pruebas de RLS contra los roles reales de Supabase, incluida la omitida.
+4. Ejecutar las pruebas E2E de Playwright, que no están en `verify`.
+5. Retirar el aviso de deprecación de `httpx` en las pruebas de la API.
+6. Tratar la credencial de demostración del historial como comprometida. No reescribir el historial sin autorización explícita.
