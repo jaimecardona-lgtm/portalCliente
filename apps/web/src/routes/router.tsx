@@ -37,6 +37,14 @@ const OperationDetailPage = lazy(() => import('@/features/operations/operation-d
 const ProfilePage = lazy(() => import('@/features/account/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/features/account/account-page').then((m) => ({ default: m.AccountPage })))
 const DocumentsPage = lazy(() => import('@/features/documents/documents-page').then((m) => ({ default: m.DocumentsPage })))
+const ClientDocumentsPage = lazy(() =>
+  import('@/features/documents/client-documents-page').then((m) => ({ default: m.ClientDocumentsPage })),
+)
+
+/** Documentos: en modo Supabase, la pantalla real de cliente final; en desarrollo local, la presentación anterior. */
+function DocumentsRoute() {
+  return SUPABASE_ACCESS_ENABLED ? <ClientDocumentsPage /> : <DocumentsPage />
+}
 const QuotesListPage = lazy(() => import('@/features/quotes/quotes-pages').then((m) => ({ default: m.QuotesListPage })))
 const QuoteDetailPage = lazy(() => import('@/features/quotes/quotes-pages').then((m) => ({ default: m.QuoteDetailPage })))
 const RequestsListPage = lazy(() => import('@/features/requests/requests-pages').then((m) => ({ default: m.RequestsListPage })))
@@ -115,7 +123,7 @@ const operationDetailRoute = createRoute({
 
 const accountRoute = createRoute({ getParentRoute: () => appRoute, path: '/cuenta', component: AccountPage })
 const profileRoute = createRoute({ getParentRoute: () => appRoute, path: '/perfil', component: ProfilePage })
-const documentsRoute = createRoute({ getParentRoute: () => appRoute, path: '/documentos', component: DocumentsPage })
+const documentsRoute = createRoute({ getParentRoute: () => appRoute, path: '/documentos', component: DocumentsRoute })
 const quotesRoute = createRoute({ getParentRoute: () => appRoute, path: '/cotizaciones', component: QuotesListPage })
 
 const quoteDetailRoute = createRoute({

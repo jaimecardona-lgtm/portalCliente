@@ -38,6 +38,12 @@ const FORBIDDEN = [
   'logixtic.portal.demo-session',
   // Motor de respuestas predefinidas de Logix (solo desarrollo): ninguna frase suya puede llegar a producción.
   'operaciones activas tengo',
+  // Secretos: ninguna clave privilegiada, de Storage o de OpenRouter puede llegar al navegador.
+  // No se incluye el prefijo 'sb_secret_': aparece en el código de validación que RECHAZA esas claves.
+  'SUPABASE_SECRET_KEY',
+  'SUPABASE_JWT_SECRET',
+  'OPENROUTER_API_KEY',
+  'sk-or-v1-',
 ]
 
 function collect(dir) {
