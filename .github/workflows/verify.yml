@@ -1,0 +1,182 @@
+# Verificación remota del Portal de Clientes. Se ejecuta en runners de GitHub, NO en la máquina local.
+#
+# Qué hace:
+#   1. Backend: ruff y pruebas de la API contra PostgreSQL de servicio (base desechable), aplicando las
+#      migraciones de supabase/migrations en orden y el seed sintético.
+#   2. Frontend: typecheck, Vitest y build de verificación con valores PÚBLICOS SINTÉTICOS.
+#   3. Contenedor: construye la imagen y comprueba /health, navegación SPA, JSON en errores de API y
+#      ausencia de secretos en la imagen.
+#
+# Qué NO hace:
+#   - No despliega. No publica imágenes. No se conecta a ningún proyecto de Supabase real.
+#   - No usa secretos del repositorio. Cualquier clave de prueba se genera en cada ejecución.
+#   - No hace push ni modifica ramas.
+
+name: verify
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: API y migraciones
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        # Base desechable de CI. La contraseña es de este servicio efímero, no un secreto.
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-desechable
+          POSTGRES_DB: portal_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGPASSWORD: ci-desechable
+      PORTAL_TEST_DATABASE_URL: postgresql+psycopg://postgres:ci-desechable@127.0.0.1:5432/portal_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias de la API
+        working-directory: apps/api
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+
+      - name: Lint de la API
+        working-directory: apps/api
+        run: |
+          python -m ruff check app tests migrations scripts
+          python -m ruff format --check app tests migrations scripts
+
+      - name: Aplicar migraciones de Supabase CLI en orden (base desechable)
+        run: |
+          set -euo pipefail
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "Aplicando $f"
+            psql "postgresql://postgres@127.0.0.1:5432/portal_ci" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+          psql "postgresql://postgres@127.0.0.1:5432/portal_ci" -v ON_ERROR_STOP=1 -q -f supabase/seed.sql
+
+      - name: Pruebas unitarias y de integración de la API (contra la base migrada por Supabase CLI)
+        working-directory: apps/api
+        run: python -m pytest -q
+
+  frontend:
+    name: Frontend (typecheck, pruebas, build de verificación)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm run typecheck
+
+      - run: npx vitest run
+
+      - name: Build de verificación con valores públicos sintéticos
+        run: npm run build:verify
+
+  container:
+    name: Imagen Docker y comprobaciones HTTP
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen (solo argumentos públicos)
+        run: |
+          docker build \
+            --build-arg VITE_AUTH_PROVIDER=supabase \
+            --build-arg VITE_API_BASE_URL=/api/v1 \
+            --build-arg VITE_SUPABASE_URL=https://proyecto-verificacion.supabase.test \
+            --build-arg VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_verificacion_sintetica_000000 \
+            -t portal-ci .
+
+      - name: Ninguna credencial ni fichero local dentro de la imagen
+        run: |
+          set -euo pipefail
+          id=$(docker create portal-ci)
+          docker export "$id" > /tmp/imagen.tar
+          docker rm "$id" >/dev/null
+          mkdir -p /tmp/imagen && tar -xf /tmp/imagen.tar -C /tmp/imagen
+          for patron in .env apps/web/local users.json sessions.json .venv node_modules; do
+            if find /tmp/imagen -path "*/$patron*" -not -path "*/site-packages/*" | grep -q .; then
+              echo "Elemento no permitido en la imagen: $patron"; exit 1
+            fi
+          done
+          if grep -rIl --exclude-dir=proc --exclude-dir=sys -e 'sb_secret_' -e 'BEGIN PRIVATE KEY' /tmp/imagen/app /tmp/imagen/web 2>/dev/null | grep -q .; then
+            echo "Se encontró material secreto en la imagen"; exit 1
+          fi
+          echo "Imagen sin ficheros sensibles."
+
+      - name: "Arrancar el contenedor (sin base de datos: /health no la usa)"
+        run: |
+          secreto=$(openssl rand -hex 32)
+          docker run -d --name portal -p 8000:8000 \
+            -e APP_ENV=production \
+            -e SUPABASE_URL=https://proyecto-verificacion.supabase.test \
+            -e SUPABASE_JWT_SECRET="$secreto" \
+            -e DATABASE_URL=postgresql+psycopg://no-usado:no-usado@127.0.0.1:1/none \
+            -e PORT=8000 \
+            portal-ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+
+      - name: Comprobaciones HTTP del mismo origen
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:8000
+          # Salud en JSON
+          curl -fsS "$base/health" | grep -q '"status":"ok"'
+          # Navegación SPA: rutas de React devuelven index.html, también al recargar
+          for ruta in /login /operaciones /operaciones/3f9c1a2e-0000-4000-8000-000000000001; do
+            tipo=$(curl -fsS -o /dev/null -w '%{content_type}' "$base$ruta")
+            echo "$ruta -> $tipo"
+            echo "$tipo" | grep -q 'text/html'
+          done
+          # API inexistente: JSON, nunca HTML
+          tipo=$(curl -s -o /tmp/err.json -w '%{http_code} %{content_type}' "$base/api/v1/no-existe")
+          echo "api inexistente -> $tipo"
+          echo "$tipo" | grep -q '404 application/json'
+          grep -q '"code":"not_found"' /tmp/err.json
+          # Sin token: 401 JSON de la API, nunca HTML
+          tipo=$(curl -s -o /tmp/err2.json -w '%{http_code} %{content_type}' "$base/api/v1/me")
+          echo "api sin token -> $tipo"
+          echo "$tipo" | grep -q '401 application/json'
+
+      - name: Registros del contenedor
+        if: always()
+        run: docker logs portal || true
+
+      - name: Parar el contenedor
+        if: always()
+        run: docker rm -f portal || true
