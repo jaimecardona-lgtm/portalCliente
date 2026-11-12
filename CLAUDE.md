@@ -16,7 +16,13 @@ Todos desde `apps/web`:
 - `npm run dev` — servidor en `http://127.0.0.1:5173`
 - `npm run typecheck` — TypeScript estricto
 - `npm test` — Vitest (jsdom)
-- `npm run build` — typecheck + build
+- `npm run build` — typecheck + build (en producción falla sin configuración real: intencional; para verificar usar `npm run build:verify`)
+
+Desde la raíz del repositorio:
+
+- `docker build -t logixtic-client-portal .` — imagen única (frontend + API). Ver `docs/deployment-render.md`.
+- Migraciones: la fuente canónica es `supabase/migrations/*.sql` (Supabase CLI). **No** usar Alembic sobre un esquema gestionado por Supabase CLI. Ver `docs/database-migration-strategy.md`.
+- Nunca ejecutar `supabase db reset` sobre una base compartida, remota o con datos reales. No aplicar migraciones remotas sin autorización.
 
 Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 
@@ -29,6 +35,20 @@ Antes de dar por terminado un cambio: `typecheck`, `test` y `build` deben pasar.
 - `src/components/` — primitivos de UI, timeline reutilizable y marca.
 - `src/layouts/` — shell autenticada (sidebar, topbar, drawer móvil).
 - `src/routes/router.tsx` — rutas TanStack Router (code-based, sin generación de árbol).
+
+## Política permanente: solo datos reales en presentación, staging y producción
+
+Vigente desde la fase de datos reales. Prevalece sobre cualquier instrucción anterior de este archivo.
+
+- **Prohibido** usar MockData, fixtures sintéticos o respuestas simuladas como fuente de información en presentación, staging o producción.
+- **Prohibido** ejecutar `supabase/seed.sql` (datos sintéticos) en presentación, staging o producción.
+- **Prohibido** mostrar información ficticia como información operacional, y presentar respuestas predefinidas de IA como consultas reales. El motor de reglas de Logix solo existe en desarrollo y debe identificarse como tal.
+- **Prohibido** simular persistencia: cada modificación debe guardarse realmente en la base de datos.
+- **Prohibido** desplegar un sistema con autenticación simulada o con sesiones JSON locales.
+- Si falta una integración (por ejemplo, Logixtic), la interfaz debe indicar que la información **no está disponible**. No se rellena con datos de ejemplo.
+- Los datos sintéticos solo pueden usarse en pruebas automatizadas y en entornos aislados y desechables, nunca expuestos como información real del portal.
+- Se mantienen el aislamiento por tenant, la validación de permisos en el servidor y la trazabilidad de cada acción.
+- Orden de implementación: (1) estabilizar React + FastAPI; (2) validar Docker y el despliegue único; (3) crear el proyecto real de desarrollo en Supabase; (4) aplicar `supabase/migrations/`; (5) conectar Supabase Auth y PostgreSQL; (6) sustituir el repositorio mock y el login JSON por servicios reales; (7) integrar la aplicación principal de Logixtic; (8) conectar Logix a consultas reales respetando el tenant autenticado; (9) probar los flujos completos de extremo a extremo.
 
 ## Entornos y acceso (fase 03)
 

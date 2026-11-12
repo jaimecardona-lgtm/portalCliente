@@ -31,6 +31,11 @@ python -m venv .venv
 
 ## Base de datos local de pruebas
 
+> **Aviso (fase 08C):** la fuente canónica del esquema es `supabase/migrations/` (Supabase CLI). Las migraciones
+> de `migrations/` son la referencia histórica de Alembic. No ejecutar `alembic upgrade` sobre un esquema gestionado
+> por Supabase CLI. Ver `docs/database-migration-strategy.md`. Los comandos de abajo sirven para la copia de
+> referencia en una base desechable.
+
 Cree una base vacía en un PostgreSQL local (nunca en un proyecto remoto para pruebas):
 
 ```sql

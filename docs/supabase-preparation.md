@@ -4,6 +4,16 @@
 **No hay ningún proyecto de Supabase configurado**, ni credenciales, ni migraciones aplicadas en remoto. Todo lo
 que sigue se ejecuta solo con autorización del responsable del proyecto.
 
+## 0. Fuente canónica de migraciones (fase 08C)
+
+El esquema se gestiona desde **`supabase/migrations/`** con Supabase CLI. `supabase/config.toml` y
+`supabase/seed.sql` (solo datos sintéticos, solo bases desechables) completan la configuración.
+
+Las migraciones Alembic de `apps/api/migrations/` se conservan como referencia histórica. Procedimiento de
+instalación nueva, transición de bases con `alembic_version` y reversión: `docs/database-migration-strategy.md`.
+
+Estado: los archivos SQL están generados y revisados, pero **no se han aplicado** a ninguna base todavía.
+
 ## 1. Qué está listo
 
 | Pieza | Dónde | Estado |
@@ -75,7 +85,15 @@ Ejecutar solo con autorización. Ningún paso necesita credenciales de producci�
 2. **Configurar Auth**: correo y contraseña. Definir política de contraseñas y confirmación de correo.
 3. **Obtener la configuración**: URL del proyecto, tipo de firma JWT (JWKS o secreto) y cadena de conexión
    del rol de servicio. Guardarla en un `.env` local de la API (no versionado, ver `apps/api/.env.example`).
-4. **Crear el rol de servicio** de la API con permiso para `SET ROLE portal_app` y sin `BYPASSRLS`.
+4. **Crear el rol de servicio** de la API sin `BYPASSRLS` y conceder membresía en `portal_app`. Sin esta
+   concesión, cada petición falla con `permission denied to set role`. La migración `0001` solo la concede al rol
+   que la ejecuta, y el nombre del rol de la API depende de cada proyecto, así que el paso va fuera de las migraciones:
+   ```sql
+   -- Ejecutar una vez, como postgres, en el proyecto de desarrollo (reemplazar el nombre del rol):
+   CREATE ROLE portal_api LOGIN NOBYPASSRLS PASSWORD '<generar fuera del repositorio>';
+   GRANT portal_app TO portal_api;
+   ```
+   La contraseña se genera y se guarda fuera del repositorio. Nunca se escribe en un archivo versionado.
 5. **Aplicar las migraciones** (`alembic upgrade head`) contra el proyecto de prueba. Comprobar:
    - Que `portal_app` existe y no tiene `BYPASSRLS`.
    - Que `anon` y `authenticated` no tienen privilegios sobre las tablas del portal.

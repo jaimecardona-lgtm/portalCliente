@@ -80,6 +80,18 @@ portalCliente/
 └── CLAUDE.md                Reglas de trabajo para asistentes de código
 ```
 
+## Despliegue y contenedor
+
+Un monorepo, una imagen Docker, un servicio HTTP: `Dockerfile` compila React y sirve el frontend y la API FastAPI
+desde el mismo origen (`/api/v1`). Plan previsto: un Web Service gratuito de Render (`render.yaml`).
+
+- Guía de despliegue, variables y límites del plan gratuito: [docs/deployment-render.md](docs/deployment-render.md).
+- Migraciones: la fuente canónica es `supabase/migrations/` (Supabase CLI). Alembic queda como referencia histórica:
+  [docs/database-migration-strategy.md](docs/database-migration-strategy.md).
+
+**Estado:** preparado y no desplegado. No hay servicio en Render ni base remota conectada, y las migraciones
+no se han aplicado en ningún proyecto.
+
 ## Estado del proyecto
 
 | Pieza | Estado |

@@ -151,6 +151,17 @@ Los endpoints implementados están listados en `docs/fastapi-integration.md`, se
 
 ## 12. Criterios de aceptación
 
+**Criterios de datos reales (política permanente, `CLAUDE.md`):**
+
+- [x] Producción bloquea el acceso sin proveedor real: hoy se cumple (motivo `provider-not-implemented`).
+- [x] El repositorio mock y el login JSON no forman parte del bundle de producción: verificado con `build:verify`.
+- [ ] Ningún flujo de presentación usa fixtures ni respuestas simuladas: pendiente hasta conectar las pantallas a la API.
+- [ ] `seed.sql` no se ejecuta en presentación, staging ni producción: procedimiento a comprobar en el proyecto real.
+- [ ] Autenticación real con Supabase Auth en todas las pantallas de acceso.
+- [ ] Persistencia real comprobada para cada acción que el portal presenta como completada.
+- [ ] Información no disponible mostrada explícitamente cuando falte una integración (en especial Logixtic).
+- [ ] Flujos completos de extremo a extremo probados contra infraestructura real.
+
 Antes de habilitar usuarios reales, todos los criterios siguientes deben cumplirse:
 
 - [ ] Proveedor de identidad implementado en el frontend, con cierre de sesión y renovación de tokens.
@@ -223,7 +234,7 @@ Configuración de producción (obligatoria para `npm run build`):
 
 | Variable | Valor | Notas |
 |---|---|---|
-| `VITE_AUTH_PROVIDER` | `oidc` | Único valor reconocido hoy. El proveedor aún no está implementado. |
+| `VITE_AUTH_PROVIDER` | `supabase` | Único valor reconocido. Requiere configuración pública de Supabase; el acceso permanece bloqueado hasta conectar las pantallas. |
 | `VITE_API_BASE_URL` | URL `https://` de FastAPI | Obligatoria. |
 
 Las variables `VITE_*` son públicas en el bundle. **Nunca** poner secretos en ellas.
@@ -301,3 +312,69 @@ Verificación de la fase 07B (integración preparada). Anexo original de `v0.1.0
 ### Commits de esta fase
 
 Rama `feat/supabase-fastapi-foundation`, sin push. Ver `git log` para el detalle. Las pruebas y el estado de Git del momento de la entrega figuran en la sección Anexo A.
+
+## 18. Despliegue y migraciones (fase 08C)
+
+- **Un servicio:** `Dockerfile` en la raíz sirve React y FastAPI desde el mismo origen. Guía: `docs/deployment-render.md`.
+- **Render gratuito:** `render.yaml` define un único Web Service Docker. No hay base de datos ni segundo servicio en Render. Límites: 512 MB, suspensión por inactividad, disco efímero y sin comando pre-deploy.
+- **Migraciones:** la fuente canónica es `supabase/migrations/` con Supabase CLI. Alembic queda como referencia. No ejecutar ambos sobre el mismo esquema. Procedimiento de transición en `docs/database-migration-strategy.md`.
+- **Estado:** nada se ha desplegado ni migrado en remoto. Docker y PostgreSQL no se han ejecutado por falta de memoria en esta sesión.
+
+Pasos para Enrique:
+
+1. Crear el proyecto de Supabase de desarrollo y configurar Auth (correo y contraseña; sin registro abierto).
+2. Aplicar `supabase/migrations` en el proyecto de desarrollo, con revisión previa (`supabase db push --dry-run`).
+3. Crear el rol de la API sin `BYPASSRLS` y su cadena de conexión (Session Pooler si Render no tiene IPv6).
+4. Crear el servicio en Render desde `render.yaml` y cargar los secretos en el panel.
+5. Verificar `/health`, la navegación SPA y que `/api/v1/...` inexistente responde JSON.
+
+## 19. Estado de verificación y requisitos para Supabase (fase 09A)
+
+### Pruebas ejecutadas y resultado
+
+| Área | Qué se ejecutó | Resultado |
+|---|---|---|
+| API (unitarias) | `pytest tests/unit` | 29 aprobadas |
+| API (integración, RLS, aislamiento, comentarios, aprovisionamiento) | `pytest` contra PostgreSQL 17 local en una base desechable creada solo con `supabase/migrations/*.sql` y `supabase/seed.sql` | **84 aprobadas en total, 0 omitidas** |
+| API (lint) | `ruff check` y `ruff format --check` | Sin incidencias |
+| Frontend (tipos) | `npm run typecheck` | Sin errores |
+| Frontend (pruebas) | `npx vitest run` | 178 aprobadas (17 archivos), incluidas las pruebas de política de datos reales |
+| Frontend (build) | `npm run build:verify` con valores públicos sintéticos | Correcto; bundle sin motor de Logix, sin fixtures, sin autenticación local |
+| Guardia de producción | Cuatro builds con configuración incorrecta | Fallan con el motivo esperado |
+| Workflow y Render | Análisis de sintaxis YAML | Correcto. **No se han ejecutado en GitHub.** |
+
+**No ejecutado:** construcción de la imagen Docker, comprobaciones HTTP sobre el contenedor, E2E de Playwright,
+y el workflow de GitHub Actions. Docker no se ha arrancado por memoria. La CI tampoco se ha ejecutado porque no hay push.
+
+### Hallazgos de seguridad
+
+- **El repositorio de GitHub es público.** No se ha hecho push de los cuatro commits nuevos, y no se debe hacerlo
+  mientras siga público. Decisión pendiente del responsable.
+- **Credencial de demostración en la rama pública.** `DEMO_PASSWORD` (fixture de presentación) aparece como literal
+  en `apps/web/src/data/fixtures/demo-data.ts` y en pruebas E2E. No se incluye en el bundle de producción, pero
+  queda expuesta en el historial público. Remediación recomendada: sustituir el valor por uno no reutilizable en
+  las pruebas y tratar el actual como comprometido. Reescribir el historial requiere autorización explícita.
+- **Motor de respuestas de Logix en producción:** el asistente se importaba estáticamente en la shell y su motor de
+  reglas (con respuestas predefinidas) estaba en el bundle de producción. Corregido: ahora solo se carga en desarrollo.
+
+### Lista concreta para crear y conectar Supabase
+
+1. Crear un proyecto **de desarrollo** en Supabase (no el de Logixtic). Anotar la URL y la clave publicable.
+2. Activar correo y contraseña en Auth. Desactivar el registro abierto (`enable_signup = false`, ya en `config.toml`).
+3. Aplicar `supabase/migrations/*.sql` con `supabase db push --dry-run` primero y luego `supabase db push`.
+4. Crear el rol de la API sin `BYPASSRLS`, concederle `portal_app` (`GRANT portal_app TO <rol>`) y guardar su
+   cadena de conexión fuera del repositorio. Confirmar si Render necesita el Session Pooler.
+5. Crear el usuario de prueba en Auth (invitación) y aprovisionar su empresa y membresía con
+   `apps/api/scripts/provision_dev.py`, indicando el identificador de ese usuario.
+6. Probar la API con un token real: `/me`, operaciones, eventos y un comentario persistido. Probar que una empresa
+   ajena responde 404.
+7. Solo entonces conectar login, recuperación y guarda de rutas a Supabase Auth en el frontend.
+
+### Requisitos antes del primer despliegue
+
+- Decisión sobre la visibilidad del repositorio y sobre la credencial de demostración.
+- Ejecución verde del workflow `verify` en GitHub (requiere push autorizado).
+- Construcción y prueba de la imagen Docker.
+- Proyecto de Supabase de desarrollo configurado, con la prueba del punto 6 superada.
+- Pantallas de acceso conectadas a Supabase (hoy el modo de producción sigue bloqueado por diseño).
+- Recursos oficiales de marca (logotipo, isotipo y avatar de Logix).

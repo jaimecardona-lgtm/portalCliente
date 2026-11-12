@@ -172,7 +172,7 @@ Las pruebas E2E comprueban que un DO o una cotización de otra empresa no se mue
 
 - `src/config/runtime.ts` define el modo: `local` (solo `vite dev`) y `blocked` (producción). `FEATURES` activa las funciones por entorno.
 - En código de interfaz, la rama de desarrollo usa `import.meta.env.DEV` literal. El compilador elimina de producción los fixtures, el repositorio local, el selector de empresa de QA, el motor de Logix y el cliente de autenticación local.
-- `npm run build` **falla** sin `VITE_AUTH_PROVIDER` (valor `oidc`) y `VITE_API_BASE_URL` (URL https). Aun configurados, el acceso permanece bloqueado porque el proveedor no está implementado.
+- `npm run build` **falla** sin `VITE_AUTH_PROVIDER` (valor `supabase`), sin configuración pública de Supabase o con una clave con privilegios de servicio, y con una `VITE_API_BASE_URL` que no sea https absoluta o `/api/...` del mismo origen. Aun configurados, el acceso permanece bloqueado porque el proveedor no está implementado.
 - `npm run build:verify` construye con valores de verificación y ejecuta `scripts/verify-bundle.mjs`, que falla si el bundle contiene cadenas de fixtures o de acceso local.
 
 ## 10. Carga y rendimiento
@@ -189,3 +189,49 @@ Las pruebas E2E comprueban que un DO o una cotización de otra empresa no se mue
 - La vista previa de documentos no está implementada.
 - La navegación por teclado y el contraste se revisaron por código y con pruebas automatizadas parciales; no hay auditoría axe.
 - Solo se verificó en Chromium.
+
+## 12. Despliegue y migraciones (fase 08C)
+
+- **Un servicio, un proceso.** `Dockerfile` (multi-etapa) compila `apps/web` con Node 22 y ejecuta FastAPI con Python 3.12 slim como usuario no root. FastAPI sirve `index.html`, `assets/` y el fallback SPA (`apps/api/app/web/spa.py`). Las rutas `/api/...` y `/health` nunca reciben HTML.
+- **Mismo origen.** El frontend usa `VITE_API_BASE_URL=/api/v1`. No hay CORS en producción.
+- **Servicios externos.** Supabase Auth (emite y firma los tokens) y Supabase PostgreSQL (datos y RLS). Storage queda para una fase posterior.
+- **Migraciones.** Fuente canónica `supabase/migrations/` con Supabase CLI. Alembic (`apps/api/migrations`) es referencia histórica. Ver `docs/database-migration-strategy.md`.
+- **Despliegue.** `render.yaml` define un Web Service Docker en plan gratuito, sin base de datos ni segundo servicio en Render. Ver `docs/deployment-render.md`.
+- **Pool de base de datos.** Pequeño (`DATABASE_POOL_SIZE=2`, `DATABASE_MAX_OVERFLOW=0`) por el límite de 512 MB.
+
+## 13. Política de datos reales
+
+Regla permanente (ver `CLAUDE.md`): ningún dato ficticio ni respuesta simulada se presenta como información
+real en presentación, staging o producción.
+
+Clasificación de cada fuente de datos:
+
+| Fuente | Dónde existe | Puede presentarse como real |
+|---|---|---|
+| Repositorio mock (`mock-repository.ts`) y fixtures | Solo `vite dev` | No. Es la opción activa **solo en desarrollo** y no forma parte del bundle de producción. |
+| Login JSON local (`apps/web/local/`) | Solo `vite dev` | No. No es autenticación. |
+| Motor de reglas de Logix | Solo desarrollo | No. Debe identificarse como respuesta local de desarrollo. |
+| `supabase/seed.sql` | Bases desechables | No. Prohibido en presentación, staging y producción. |
+| FastAPI + PostgreSQL de Supabase | Cuando estén configurados | Sí, tras verificación de cada flujo. |
+| Logixtic (aplicación principal) | Pendiente de integración | Aún no hay fuente. Se muestra "información no disponible". |
+
+**Estado actual de los pasos del orden de implementación:**
+
+| Paso | Estado |
+|---|---|
+| 1. Estabilizar React + FastAPI | En curso: pruebas unitarias y de frontend pasan; integración con PostgreSQL pendiente de ejecutar. |
+| 2. Validar Docker y el despliegue único | Pendiente: Dockerfile escrito, sin construir. |
+| 3. Proyecto real de desarrollo en Supabase | Pendiente: sin proyecto configurado. |
+| 4. Aplicar `supabase/migrations/` | Pendiente: sin ejecutar. |
+| 5. Supabase Auth y PostgreSQL | Pendiente: módulos preparados; pantallas no conectadas. |
+| 6. Sustituir mock y login JSON | Pendiente. Producción ya bloquea el acceso con datos no reales. |
+| 7. Integrar Logixtic | Pendiente. Sin conexión ni contrato operativo confirmado. |
+| 8. Logix con consultas reales | Pendiente. |
+| 9. Flujos completos de extremo a extremo | Pendiente. |
+
+**Comportamiento cuando falta una integración:** la pantalla muestra un estado explícito de información no
+disponible, con el motivo. No se rellena con datos de ejemplo ni se oculta el problema.
+
+**Trazabilidad:** hoy solo los comentarios se guardan en la base de datos, con autor, empresa y fecha. Decisiones
+de cotización, solicitudes y adjuntos aún no tienen endpoint: mientras no exista persistencia real, no se muestran
+como acciones completadas. Las pruebas automatizadas usan datos sintéticos en entornos aislados.
