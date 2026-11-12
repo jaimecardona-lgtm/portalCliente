@@ -23,6 +23,5 @@ export function toDomainUser(u: Pick<AccountProfile, 'id' | 'tenantId' | 'fullNa
     fullName: u.fullName,
     email: u.email,
     role: u.role === 'client' ? 'Cliente' : 'Consulta',
-    demoPassword: '',
   }
 }

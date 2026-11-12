@@ -2,7 +2,8 @@ import { test, expect, type Page } from '@playwright/test'
 
 /** Credenciales de presentación: en producción NO deben funcionar. */
 const LOCAL_EMAIL = 'ana.torres@textilesandinos.example'
-const LOCAL_PASSWORD = 'Demo-2026'
+// Valor aleatorio por ejecución: nunca una credencial real ni de demostración. Debe ser rechazado en producción.
+const LOCAL_PASSWORD = crypto.randomUUID()
 const FORBIDDEN_TEXT = [/demo/i, /Textiles Andinos/, /Agroexport/, /Cuentas de demostración/, /Rellenar/, /Entorno local/, /sintétic/i, /Modo DEMO/i]
 
 function collectConsoleErrors(page: Page): string[] {
@@ -34,7 +35,7 @@ test('el login no muestra cuentas, contraseñas ni textos de demostración', asy
   for (const pattern of FORBIDDEN_TEXT) {
     expect(body, `texto prohibido: ${pattern}`).not.toMatch(pattern)
   }
-  await expect(page.locator('input[value="Demo-2026"]')).toHaveCount(0)
+  await expect(page.locator('input[value^="Demo"]')).toHaveCount(0)
 })
 
 test('el acceso con credenciales sintéticas no funciona en producción', async ({ page }) => {

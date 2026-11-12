@@ -16,10 +16,9 @@ import type {
 /**
  * DATOS DEMO SINTÉTICOS.
  * Empresas, personas, números y documentos son ficticios. No representan clientes reales.
- * La contraseña DEMO es única y solo sirve para el modo de demostración local.
+ * Sin credenciales: los fixtures no contienen contraseñas. El acceso de desarrollo usa cuentas JSON locales
+ * (no versionadas) y en pruebas se generan valores aleatorios en cada ejecución.
  */
-
-export const DEMO_PASSWORD = 'Demo-2026'
 
 /** Fecha de referencia de los datos sintéticos (coherente con los fixtures). */
 export const DEMO_NOW = LOCAL_REFERENCE_ISO
@@ -56,7 +55,6 @@ export const users: User[] = [
     fullName: 'Ana Lucía Torres',
     email: 'ana.torres@textilesandinos.example',
     role: 'Administrador',
-    demoPassword: DEMO_PASSWORD,
   },
   {
     id: 'us-luis',
@@ -64,7 +62,6 @@ export const users: User[] = [
     fullName: 'Luis Felipe Mora',
     email: 'luis.mora@textilesandinos.example',
     role: 'Operativo',
-    demoPassword: DEMO_PASSWORD,
   },
   {
     id: 'us-carla',
@@ -72,7 +69,6 @@ export const users: User[] = [
     fullName: 'Carla Niño',
     email: 'carla.nino@agroexport-pacifico.example',
     role: 'Administrador',
-    demoPassword: DEMO_PASSWORD,
   },
   {
     id: 'us-diego',
@@ -80,7 +76,6 @@ export const users: User[] = [
     fullName: 'Diego Restrepo',
     email: 'diego.restrepo@agroexport-pacifico.example',
     role: 'Comercial',
-    demoPassword: DEMO_PASSWORD,
   },
 ]
 

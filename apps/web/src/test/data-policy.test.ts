@@ -58,10 +58,9 @@ describe('política de datos reales: importaciones estáticas', () => {
 
 describe('política de datos reales: sin datos de prueba en el código de aplicación', () => {
   it('ningún archivo de aplicación contiene la credencial de demostración', () => {
-    // Valor fijado por prueba: si cambia el fixture, esta prueba debe revisarse junto con la política.
+    // Patrón genérico: ninguna contraseña de demostración con formato "Demo-AAAA" en el código de aplicación.
     const offenders = files
-      .filter((f) => !rel(f).startsWith('data/fixtures/'))
-      .filter((f) => readFileSync(f, 'utf8').includes('Demo-2026'))
+      .filter((f) => /Demo-\d{4}/.test(readFileSync(f, 'utf8')))
       .map(rel)
     expect(offenders).toEqual([])
   })

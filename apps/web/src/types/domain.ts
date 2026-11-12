@@ -44,8 +44,6 @@ export interface User {
   fullName: string
   email: string
   role: 'Administrador' | 'Operativo' | 'Comercial' | 'Consulta' | 'Cliente'
-  /** Solo para modo DEMO. Nunca se usa autenticación real. */
-  demoPassword: string
 }
 
 export interface Address {

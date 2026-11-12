@@ -7,7 +7,8 @@ const DIST = join(process.cwd(), 'dist')
 
 // Cadenas que solo existen en fixtures, autenticación local o interfaz de desarrollo.
 const FORBIDDEN = [
-  'Demo-2026',
+  // Patrón de contraseña de demostración (ya no existe en el código): cualquier aparición es un error.
+  /Demo-\d{4}/,
   'textilesandinos.example',
   'agroexport-pacifico.example',
   'Textiles Andinos',
@@ -59,7 +60,8 @@ const hits = []
 for (const file of files) {
   const text = readFileSync(file, 'utf8')
   for (const needle of FORBIDDEN) {
-    if (text.includes(needle)) hits.push(`${file}: contiene "${needle}"`)
+    const found = needle instanceof RegExp ? needle.test(text) : text.includes(needle)
+    if (found) hits.push(`${file}: contiene "${needle}"`)
   }
 }
 

@@ -76,6 +76,5 @@ export function publicReviewerProfile(cfg) {
     email: cfg.user.email,
     role: cfg.user.role,
     // Campo requerido por el modelo de usuario de presentación local. Vacío: nunca coincide con una contraseña.
-    demoPassword: '',
   }
 }

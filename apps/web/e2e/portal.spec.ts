@@ -24,8 +24,8 @@ test.describe('acceso', () => {
     await page.goto('/login')
     await expect(page.getByRole('heading', { level: 1, name: 'Bienvenido a Logixtic' })).toBeVisible()
     const body = await page.locator('body').innerText()
-    expect(body).not.toMatch(/Demo-2026|textilesandinos.example|agroexport-pacifico.example|Cuentas de demostración|Rellenar|Modo DEMO|Textiles Andinos/)
-    await expect(page.locator('input[value="Demo-2026"]')).toHaveCount(0)
+    expect(body).not.toMatch(/Demo-\d{4}|textilesandinos.example|agroexport-pacifico.example|Cuentas de demostración|Rellenar|Modo DEMO|Textiles Andinos/)
+    await expect(page.locator('input[value^="Demo"]')).toHaveCount(0)
   })
 
   test('valida campos vacíos sin enviar', async ({ page }) => {
