@@ -96,8 +96,9 @@ class Seed:
 
 
 _TABLES = (
-    "attachments, requests, event_comments, operation_events, operation_refs, client_memberships, "
-    "client_accounts, tenant_memberships, profiles, tenants"
+    "client_document_events, client_documents, storage_cleanup_jobs, attachments, requests, event_comments, "
+    "operation_events, operation_refs, client_memberships, client_accounts, tenant_memberships, profiles, "
+    "tenants"
 )
 
 

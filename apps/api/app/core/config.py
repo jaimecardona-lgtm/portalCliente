@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     max_comment_length: int = Field(default=2000, ge=1, le=10000)
     default_page_size: int = Field(default=50, ge=1, le=100)
 
+    # Supabase Storage (bucket privado de documentos). La clave privilegiada solo la usa FastAPI:
+    # nunca se envía al navegador, no es build arg de Docker y no se registra en logs.
+    supabase_secret_key: SecretStr | None = None
+    storage_signed_url_seconds: int = Field(default=300, ge=60, le=600)
+
     # Agente Logix (OpenRouter). Todo desactivado por defecto. Las credenciales solo las usa FastAPI:
     # nunca se envían al frontend, no son build args de Docker y no se registran en logs.
     # Los modelos no tienen valor por defecto: se fijan tras verificar disponibilidad, precio, herramientas,
