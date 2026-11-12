@@ -442,3 +442,73 @@ No se añadió ningún secreto a GitHub Actions.
 4. Ejecutar las pruebas E2E de Playwright, que no están en `verify`.
 5. Retirar el aviso de deprecación de `httpx` en las pruebas de la API.
 6. Tratar la credencial de demostración del historial como comprometida. No reescribir el historial sin autorización explícita.
+
+## 22. Estado del MVP de documentos (sprint final)
+
+Esta sección resume lo verificado al cierre del sprint. Cada cifra procede de una ejecución real. Lo que no aparece
+como "probado contra Supabase" **no se ha ejecutado contra el proyecto real**.
+
+### 22.1 Tabla de estado
+
+| Función | Estado | Cómo se verificó |
+|---|---|---|
+| Inicio de sesión, cierre de sesión y guarda de rutas con Supabase Auth | Terminada | Pruebas web y comprobación de navegador en modo Supabase (11/11) |
+| Identidad y clientes finales desde FastAPI (`/me`, `/client-access`) | Terminada | Pruebas de integración con PostgreSQL |
+| Listado de documentos de cliente final | Terminada | Pruebas de integración (RLS). Pantalla verificada por compilación y revisión estática; sin prueba de interfaz |
+| Subida de documentos generales (sin operación) | Terminada | Pruebas de integración y del cliente HTTP; almacenamiento simulado; sin prueba de interfaz |
+| Subida de documentos de operación | Terminada en backend | Pruebas de integración; sin operaciones reales para usarla en la interfaz |
+| Enlace firmado temporal para abrir o descargar | Terminada | Pruebas de integración y de cliente HTTP; no se guarda la URL |
+| Reemplazo con nueva versión y retirada del objeto anterior | Terminada | Pruebas de integración, incluido el fallo de borrado |
+| Retirada con confirmación | Terminada | Pruebas de integración y del cliente HTTP; la confirmación en pantalla no tiene prueba de interfaz |
+| Limpieza de huérfanos y reintentos (procedimiento administrativo) | Terminada | Pruebas de reconciliación |
+| Bucket privado (aprovisionamiento) | Preparada | Pruebas con transporte simulado; **no ejecutada contra Storage real** |
+| E2E contra Supabase real | Preparada | Se omite sin configuración; **no ejecutada** |
+| Operaciones (DO) reales | **Pendiente** | Sin integración oficial con el SaaS Logixtic |
+| Informes operativos de Logix | **Pendiente** | Requiere DO y fuentes autorizadas |
+| Adjuntos de solicitudes | **Pendiente** | No implementado |
+
+### 22.2 Resultados de verificación (cierre del sprint)
+
+| Suite | Resultado |
+|---|---|
+| API, con PostgreSQL migrado (6 migraciones y seed sintético, solo base de pruebas) | 184 aprobadas, 0 fallidas |
+| API, sin base de datos | 78 aprobadas, 106 omitidas (las de integración) |
+| Ruff (lint y formato) | Correcto |
+| Web: typecheck | Correcto |
+| Web: Vitest | 224 aprobadas, 0 fallidas |
+| Web: build de verificación con revisión del bundle | Correcto: 21 archivos, sin datos de ejemplo ni secretos |
+| Docker: build de imagen | **No ejecutado**: Docker Desktop no estaba en ejecución |
+| GitHub Actions | **No ejecutado**: no hay push |
+| E2E contra Supabase real | **No ejecutado** (se omite sin configuración) |
+
+### 22.3 Variables de entorno
+
+| Variable | Dónde | Secreta | Notas |
+|---|---|---|---|
+| `DATABASE_URL` | API (Render) | Sí | Rol `portal_api`, nunca `postgres`. |
+| `DATABASE_APP_ROLE` | API | No | `portal_app`. |
+| `SUPABASE_URL` | API | No | URL del proyecto. |
+| `SUPABASE_JWKS_URL` o `SUPABASE_JWT_SECRET` | API | Según el caso | Solo una de las dos. |
+| `SUPABASE_SECRET_KEY` | **Solo API** (Render, secreto) | **Sí** | Clave privilegiada de Storage. Sin ella, documentos responden 503. |
+| `STORAGE_SIGNED_URL_SECONDS` | API | No | 300 por defecto. |
+| `VITE_AUTH_PROVIDER` | Build del frontend | No | `supabase`. |
+| `VITE_API_BASE_URL` | Build del frontend | No | `/api/v1` (mismo origen). |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` | Build del frontend | No, pero específicas | Solo la clave publicable. |
+| `OPENROUTER_*`, `LOGIX_*` | API | Sí (la clave) | Desactivados. No activar sin autorización. |
+
+### 22.4 Procedimiento Docker y Render
+
+1. Construir la imagen desde la raíz del repositorio (ver `docs/deployment-render.md`). Los argumentos de build son
+   solo los `VITE_*` públicos. La clave de Storage **no** es argumento de build.
+2. Configurar en Render las variables de la tabla 22.3 como secretas (`sync: false` en `render.yaml`).
+3. Desplegar solo con autorización del responsable.
+
+Estado: el paso 1 no se ha ejecutado en esta fase.
+
+### 22.5 Limitaciones conocidas
+
+- El portal no consume DO oficiales: no existe la integración con el SaaS Logixtic.
+- Logix no genera informes reales ni responde con datos operativos. No está activo.
+- Un usuario con varias empresas debe elegirla con `X-Tenant-Id`; la pantalla de elección aún no existe.
+- Los archivos reales no se han subido a Supabase Storage desde el sprint: toda la verificación de almacenamiento es simulada.
+- Antes de datos reales: registro público desactivado, `portal_api` verificado, migraciones aplicadas con autorización.

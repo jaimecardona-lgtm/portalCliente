@@ -53,6 +53,12 @@ services:
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      # Clave privilegiada de Supabase Storage (documentos). Solo en tiempo de ejecución de la API.
+      # Nunca como build arg ni en el frontend. Sin ella, las rutas de documentos responden 503.
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: STORAGE_SIGNED_URL_SECONDS
+        value: "300"
 
       # --- Build-time (públicos, declarados como ARG en el Dockerfile). Ver docs/deployment-render.md ---
       - key: VITE_AUTH_PROVIDER
