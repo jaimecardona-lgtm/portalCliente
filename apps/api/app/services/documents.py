@@ -122,7 +122,7 @@ def validate_file(data: bytes, declared_mime: str, raw_name: str) -> ValidatedFi
 def build_object_path(
     tenant_id: UUID,
     client_account_id: UUID,
-    operation_id: UUID,
+    operation_id: UUID | None,
     document_id: UUID,
     file_uuid: UUID,
     extension: str,
@@ -133,6 +133,10 @@ def build_object_path(
     """
     if extension not in {ext for _, ext, _ in ALLOWED_TYPES.values()}:
         raise ValueError("Extensión de almacenamiento no permitida.")
+    if operation_id is None:
+        return (
+            f"tenants/{tenant_id}/clients/{client_account_id}/documents/{document_id}/{file_uuid}{extension}"
+        )
     return (
         f"tenants/{tenant_id}/clients/{client_account_id}/operations/{operation_id}"
         f"/documents/{document_id}/{file_uuid}{extension}"
@@ -155,6 +159,20 @@ def _operation_scope(session: Session, operation_id: UUID) -> dict[str, Any]:
     )
     if row is None or row["client_account_id"] is None:
         raise NotFound("La operación no existe.", code="operation_not_found")
+    return dict(row)
+
+
+def _client_scope(session: Session, client_account_id: UUID) -> dict[str, Any]:
+    row = (
+        session.execute(
+            text("SELECT id AS client_account_id, tenant_id FROM client_accounts WHERE id = :id"),
+            {"id": client_account_id},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        raise NotFound("El cliente no existe.", code="client_not_found")
     return dict(row)
 
 
@@ -204,7 +222,8 @@ def _visible_document(session: Session, document_id: UUID) -> dict[str, Any]:
 def _summary(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": str(row["id"]),
-        "operation_id": str(row["operation_id"]),
+        "operation_id": str(row["operation_id"]) if row.get("operation_id") else None,
+        "client_account_id": str(row["client_account_id"]) if row.get("client_account_id") else None,
         "file_name": row["file_name"],
         "mime_type": row["mime_type"],
         "size_bytes": int(row["size_bytes"]),
@@ -287,7 +306,8 @@ def list_documents(deps: DocumentDeps, operation_id: UUID) -> list[dict[str, Any
         deps.session.execute(
             text(
                 """
-            SELECT id, operation_id, file_name, mime_type, size_bytes, sha256, version, status, updated_at
+            SELECT id, operation_id, client_account_id, file_name, mime_type, size_bytes, sha256, version,
+                   status, updated_at
             FROM client_documents WHERE operation_id = :op AND status = 'available'
             ORDER BY file_name, id
             """
@@ -303,8 +323,27 @@ def list_documents(deps: DocumentDeps, operation_id: UUID) -> list[dict[str, Any
 def upload_document(
     deps: DocumentDeps, operation_id: UUID, data: bytes, declared_mime: str, raw_name: str
 ) -> dict[str, Any]:
+    scope = _operation_scope(deps.session, operation_id)
+    return _store_new_document(deps, scope, operation_id, data, declared_mime, raw_name)
+
+
+def upload_client_document(
+    deps: DocumentDeps, client_account_id: UUID, data: bytes, declared_mime: str, raw_name: str
+) -> dict[str, Any]:
+    """Documento general del cliente final: sin operación de Logixtic asociada (no se fabrica ninguna)."""
+    scope = _client_scope(deps.session, client_account_id)
+    return _store_new_document(deps, scope, None, data, declared_mime, raw_name)
+
+
+def _store_new_document(
+    deps: DocumentDeps,
+    scope: dict[str, Any],
+    operation_id: UUID | None,
+    data: bytes,
+    declared_mime: str,
+    raw_name: str,
+) -> dict[str, Any]:
     session, ctx, storage = deps.session, deps.ctx, deps.storage
-    scope = _operation_scope(session, operation_id)
     _require_admin(session, ctx, scope["client_account_id"])
     file = validate_file(data, declared_mime, raw_name)
 
@@ -328,8 +367,7 @@ def upload_document(
                 text(
                     """
                     INSERT INTO client_documents (id, tenant_id, client_account_id, operation_id, file_name,
-                        mime_type,
-                        size_bytes, sha256, storage_path, version, status, uploaded_by)
+                        mime_type, size_bytes, sha256, storage_path, version, status, uploaded_by)
                     VALUES (:id, :tenant, :client, :op, :name, :mime, :size, :sha, :path, 1, 'available', :me)
                     """
                 ),
@@ -360,7 +398,8 @@ def upload_document(
 
     return {
         "id": str(document_id),
-        "operation_id": str(operation_id),
+        "operation_id": str(operation_id) if operation_id else None,
+        "client_account_id": str(scope["client_account_id"]),
         "file_name": file.file_name,
         "mime_type": file.mime_type,
         "size_bytes": file.size_bytes,
@@ -369,6 +408,56 @@ def upload_document(
         "status": "available",
         "updated_at": None,
     }
+
+
+def list_client_documents(deps: DocumentDeps, client_account_id: UUID) -> list[dict[str, Any]]:
+    _client_scope(deps.session, client_account_id)  # 404 si el cliente no es visible para la persona
+    rows = (
+        deps.session.execute(
+            text(
+                """
+            SELECT id, operation_id, client_account_id, file_name, mime_type, size_bytes, sha256, version,
+                   status, updated_at
+            FROM client_documents WHERE client_account_id = :c AND status = 'available'
+            ORDER BY file_name, id
+            """
+            ),
+            {"c": client_account_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [_summary(dict(r)) for r in rows]
+
+
+def list_client_access(deps: DocumentDeps) -> list[dict[str, Any]]:
+    """Clientes finales de la empresa activa a los que la persona pertenece, con su rol (solo lectura)."""
+    rows = (
+        deps.session.execute(
+            text(
+                """
+            SELECT a.id AS client_account_id, a.legal_name, c.role
+            FROM client_memberships c
+            JOIN client_accounts a ON a.id = c.client_account_id
+            JOIN tenant_memberships t ON t.user_id = c.user_id AND t.tenant_id = c.tenant_id
+            WHERE c.user_id = :u AND c.tenant_id = :t AND c.active AND t.active
+            ORDER BY a.legal_name, a.id
+            """
+            ),
+            {"u": deps.ctx.user_id, "t": deps.ctx.tenant_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [
+        {
+            "client_account_id": str(r["client_account_id"]),
+            "legal_name": r["legal_name"],
+            "role": r["role"],
+            "can_manage": r["role"] == "client_admin",
+        }
+        for r in rows
+    ]
 
 
 def signed_download_link(deps: DocumentDeps, document_id: UUID) -> dict[str, Any]:
@@ -462,7 +551,7 @@ def replace_document(
     cleanup = _best_effort_delete(storage, deps.session_factory, deps.settings, ctx, old_path, "replaced")
     return {
         "id": str(document_id),
-        "operation_id": str(doc["operation_id"]),
+        "operation_id": str(doc["operation_id"]) if doc["operation_id"] else None,
         "file_name": file.file_name,
         "mime_type": file.mime_type,
         "size_bytes": file.size_bytes,

@@ -1,6 +1,7 @@
 """Rutas de documentos de operación. Todas exigen sesión y empresa resuelta en el servidor.
 
-Subida y reemplazo: cuerpo binario crudo con `Content-Type` = tipo MIME y cabecera `X-File-Name`.
+Subida y reemplazo: cuerpo binario crudo con `Content-Type` = tipo MIME y cabecera `X-File-Name`
+(nombre codificado con percent-encoding, p. ej. encodeURIComponent en el navegador).
 No se acepta multipart: evita una dependencia adicional y el nombre se valida en un solo punto.
 El navegador nunca elige bucket ni ruta: la ruta la genera FastAPI con UUID.
 """
@@ -8,6 +9,7 @@ El navegador nunca elige bucket ni ruta: la ruta la genera FastAPI con UUID.
 from __future__ import annotations
 
 from typing import Annotated, Any
+from urllib.parse import unquote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -96,6 +98,9 @@ async def upload_operation_document(
 ) -> dict[str, Any]:
     if not x_file_name:
         raise AppError("Falta la cabecera X-File-Name.", code="invalid_file_name", status_code=422)
+    x_file_name = unquote(
+        x_file_name
+    )  # el navegador envía encodeURIComponent(nombre): cabeceras solo Latin-1
     mime = (content_type or "").split(";")[0].strip().lower()
     data = await _read_body(request)
     return svc.upload_document(_deps(request, session, ctx), operation_id, data, mime, x_file_name)
@@ -119,6 +124,9 @@ async def replace_document_file(
 ) -> dict[str, Any]:
     if not x_file_name:
         raise AppError("Falta la cabecera X-File-Name.", code="invalid_file_name", status_code=422)
+    x_file_name = unquote(
+        x_file_name
+    )  # el navegador envía encodeURIComponent(nombre): cabeceras solo Latin-1
     mime = (content_type or "").split(";")[0].strip().lower()
     data = await _read_body(request)
     return svc.replace_document(_deps(request, session, ctx), document_id, data, mime, x_file_name)
@@ -127,3 +135,47 @@ async def replace_document_file(
 @router.delete("/documents/{document_id}", tags=["documentos"], responses=DOC_WRITE)
 def remove_document(document_id: UUID, request: Request, ctx: ContextDep, session: DbDep) -> dict[str, Any]:
     return svc.remove_document(_deps(request, session, ctx), document_id)
+
+
+# ---------------------------------------------------------------------------
+# Documentos generales del cliente final (sin operación asociada)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/client-access", tags=["documentos"], responses=DOC_READ)
+def client_access(request: Request, ctx: ContextDep, session: DbDep) -> dict[str, Any]:
+    """Clientes finales de la empresa activa a los que la persona pertenece, con su rol."""
+    return {"items": svc.list_client_access(_deps(request, session, ctx))}
+
+
+@router.get("/client-accounts/{client_account_id}/documents", tags=["documentos"], responses=DOC_READ)
+def list_client_documents(
+    client_account_id: UUID, request: Request, ctx: ContextDep, session: DbDep
+) -> dict[str, Any]:
+    return {"items": svc.list_client_documents(_deps(request, session, ctx), client_account_id)}
+
+
+@router.post(
+    "/client-accounts/{client_account_id}/documents",
+    status_code=201,
+    tags=["documentos"],
+    responses=DOC_WRITE,
+)
+async def upload_client_document(
+    client_account_id: UUID,
+    request: Request,
+    ctx: ContextDep,
+    session: DbDep,
+    content_type: Annotated[str | None, Header()] = None,
+    x_file_name: Annotated[str | None, Header(alias="X-File-Name")] = None,
+) -> dict[str, Any]:
+    if not x_file_name:
+        raise AppError("Falta la cabecera X-File-Name.", code="invalid_file_name", status_code=422)
+    x_file_name = unquote(
+        x_file_name
+    )  # el navegador envía encodeURIComponent(nombre): cabeceras solo Latin-1
+    mime = (content_type or "").split(";")[0].strip().lower()
+    data = await _read_body(request)
+    return svc.upload_client_document(
+        _deps(request, session, ctx), client_account_id, data, mime, x_file_name
+    )
