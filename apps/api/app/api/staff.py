@@ -60,6 +60,13 @@ def staff_tenants(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
     return {"items": items}
 
 
+@router.get("/observed-tenants", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_observed_tenants(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+    """Catálogo de empresas observadas en Logixtic (solo lectura, sin operaciones)."""
+    _require(ctx, "tenants.read")
+    return {"items": svc.observed_tenants(session)}
+
+
 @router.post("/context", tags=["personal interno"], responses=_STAFF_RESPONSES)
 def select_context(body: ContextIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
     _require(ctx, "tenants.read")

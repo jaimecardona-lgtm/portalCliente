@@ -212,3 +212,19 @@ def audit(
             "result": result,
         },
     )
+
+
+def observed_tenants(session: Session) -> list[dict[str, Any]]:
+    """Catálogo de empresas observadas en Logixtic. Sin identificadores externos."""
+    rows = session.execute(text("SELECT * FROM portal_observed_tenants()")).mappings().all()
+    return [
+        {
+            "label": r["observed_label"],
+            "slug": r["observed_slug"],
+            "source_system": r["source_system"],
+            "verification_status": r["verification_status"],
+            "has_official_id": r["has_official_id"],
+            "integration_status": r["integration_status"],
+        }
+        for r in rows
+    ]
