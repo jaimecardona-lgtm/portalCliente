@@ -11,7 +11,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
-import { staffErrorMessage } from '@/services/api/staff-api'
+import { staffErrorMessage, tenantCategory } from '@/services/api/staff-api'
+import { StaffRecordsPanel } from '@/features/support/staff-records-panel'
 import { PortalApiError } from '@/services/api/http-client'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 
@@ -69,7 +70,7 @@ export function StaffPanelPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-        <SectionHeading title="Panel de soporte" description="Acceso interno por rol. Solo empresas verificadas y asignadas." />
+        <SectionHeading title="Panel de soporte" description="Acceso interno por rol. Solo empresas asignadas a su rol." />
 
         {api === null && (
           <Card className="p-6">
@@ -122,8 +123,8 @@ export function StaffPanelPage() {
               <p role="alert" className="rounded-lg bg-danger-50 px-3 py-2.5 text-sm text-danger-700">{message}</p>
             )}
 
-            <section aria-label="Empresas verificadas" className="flex flex-col gap-3">
-              <h2 className="text-base font-semibold text-ink">Empresas verificadas asignadas</h2>
+            <section aria-label="Empresas asignadas" className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold text-ink">Empresas asignadas</h2>
               {tenants.isPending && <Skeleton className="h-24 w-full" />}
               {tenants.isError && (
                 <Card>
@@ -133,26 +134,34 @@ export function StaffPanelPage() {
               {tenants.isSuccess && tenants.data.length === 0 && (
                 <Card>
                   <EmptyState
-                    title="Sin empresas verificadas asignadas"
-                    description="No hay empresas verificadas asignadas a su rol. Las empresas sin verificación no se muestran."
+                    title="Sin empresas asignadas"
+                    description="No hay empresas asignadas a su rol. Las empresas sin asignación no se muestran."
                   />
                 </Card>
               )}
               {tenants.isSuccess && tenants.data.length > 0 && (
                 <ul className="grid gap-3 sm:grid-cols-2">
-                  {tenants.data.map((t) => (
+                  {tenants.data.map((t) => {
+                    const category = tenantCategory(t)
+                    return (
                     <li key={t.id}>
                       <Card className="flex flex-col gap-3 p-4">
                         <div>
                           <p className="font-semibold text-ink">{t.legalName}</p>
-                          <p className="text-xs text-ink-muted">Identificador oficial: {t.externalTenantId ?? 'no disponible'}</p>
+                          <p className="text-xs text-ink-soft">
+                            {category.icon} {category.label}
+                          </p>
+                          <p className="text-xs text-ink-muted">
+                            Identificador oficial: {t.externalTenantId ?? 'no disponible (pendiente de integración)'}
+                          </p>
                         </div>
                         <p className="text-xs text-ink-muted">
                           {active?.id === t.id ? 'Contexto de trabajo activo' : 'Cambie de empresa desde el selector de la barra superior.'}
                         </p>
                       </Card>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </section>
@@ -164,6 +173,14 @@ export function StaffPanelPage() {
                   description="Hasta que elija una empresa verificada, este panel no consulta operaciones ni datos de empresa."
                 />
               </Card>
+            )}
+
+            {active && api !== null && (
+              <StaffRecordsPanel
+                api={api}
+                tenantId={active.id}
+                canWrite={me.data.permissions.includes('records.write')}
+              />
             )}
 
             {active && (
@@ -178,8 +195,8 @@ export function StaffPanelPage() {
                 {operations.isSuccess && operations.data.length === 0 && (
                   <Card>
                     <EmptyState
-                      title="Sin operaciones sincronizadas"
-                      description="No hay operaciones sincronizadas para esta empresa. La integración con Logixtic todavía no está disponible."
+                      title="Esta empresa todavía no tiene operaciones registradas"
+                      description="Las operaciones llegan desde Logixtic cuando la integración esté disponible. Puede registrar solicitudes y clientes desde el portal."
                     />
                   </Card>
                 )}

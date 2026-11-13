@@ -17,7 +17,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, Check, ChevronDown, X } from 'lucide-react'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
-import { staffErrorMessage, type ObservedTenant, type StaffTenant } from '@/services/api/staff-api'
+import { staffErrorMessage, tenantCategory, type ObservedTenant, type StaffTenant } from '@/services/api/staff-api'
 import { PasswordRejectedError, reauthenticateWithPassword } from '@/services/auth/reauth'
 
 /* Partes de desarrollo: con import.meta.env.DEV falso no se cargan y no entran en el bundle. */
@@ -299,11 +299,13 @@ export function StaffTenantSwitcher() {
               {tenants.isSuccess && !DevVerified && (
                 <section aria-labelledby="verified-title" className="flex flex-col gap-1">
                   <h3 id="verified-title" className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                    Empresas verificadas
+                    Empresas asignadas
                   </h3>
-                  {workTenants.length === 0 && <p className="px-1 text-sm text-ink-muted">Sin empresas verificadas asignadas a su rol.</p>}
+                  {workTenants.length === 0 && <p className="px-1 text-sm text-ink-muted">Sin empresas asignadas a su rol.</p>}
                   <ul className="flex flex-col">
-                    {workTenants.map((t) => (
+                    {workTenants.map((t) => {
+                      const category = tenantCategory(t)
+                      return (
                       <li key={t.id}>
                         <button
                           type="button"
@@ -314,12 +316,16 @@ export function StaffTenantSwitcher() {
                         >
                           <span className="min-w-0">
                             <span className="block truncate font-medium text-ink">{t.legalName}</span>
-                            <span className="block truncate text-xs text-ink-muted">Identificador oficial: {t.externalTenantId}</span>
+                            <span className="block truncate text-xs text-ink-muted">
+                              {category.icon} {category.label}
+                              {t.externalTenantId ? ` · Identificador oficial: ${t.externalTenantId}` : ''}
+                            </span>
                           </span>
                           {active?.id === t.id && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
                         </button>
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                 </section>
               )}

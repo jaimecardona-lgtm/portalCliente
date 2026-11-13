@@ -16,12 +16,62 @@ export interface StaffMe {
   permissions: string[]
 }
 
+export type TenantIntegrationStatus = 'pending_integration' | 'verified'
+
 export interface StaffTenant {
   id: string
   slug: string
   legalName: string
   externalTenantId: string | null
+  /** Derivado en la base de datos: 'verified' solo con verificación oficial; si no, pendiente. */
+  integrationStatus: TenantIntegrationStatus
+  isDemo: boolean
+  discoveryObservedLabel: string | null
 }
+
+/**
+ * Categoría que se muestra en el selector. Siempre texto e icono, nunca solo color.
+ * La empresa de ejemplo solo existe en entornos locales (is_demo); la interfaz de producción no la usa.
+ */
+export function tenantCategory(t: Pick<StaffTenant, 'isDemo' | 'integrationStatus'>): {
+  label: string
+  icon: string
+  tone: 'ok' | 'pending' | 'sample'
+} {
+  if (t.isDemo) return { label: 'Empresa de ejemplo', icon: '◆', tone: 'sample' }
+  if (t.integrationStatus === 'verified') return { label: 'Empresa vinculada con Logixtic', icon: '✓', tone: 'ok' }
+  return { label: 'Registrada, pendiente de integración', icon: '◷', tone: 'pending' }
+}
+
+export interface StaffClientAccount {
+  id: string
+  tenantId: string
+  legalName: string
+  taxId: string | null
+  status: string
+  origin: string
+  createdAt: string
+}
+
+export interface StaffRequest {
+  id: string
+  tenantId: string
+  number: string
+  requestType: string
+  subject: string
+  description: string
+  status: string
+  origin: string
+  createdAt: string
+}
+
+export const REQUEST_TYPES = [
+  { value: 'consulta', label: 'Consulta' },
+  { value: 'modificacion_datos', label: 'Modificación de datos' },
+  { value: 'documentacion', label: 'Documentación' },
+  { value: 'cotizacion', label: 'Cotización' },
+  { value: 'otro', label: 'Otro' },
+] as const
 
 export interface StaffOperation {
   id: string
@@ -54,6 +104,14 @@ export interface StaffApi {
   selectContext(tenantId: string, challengeId: string, reauthToken: string): Promise<StaffTenant>
   exitContext(): Promise<void>
   operations(tenantId: string): Promise<StaffOperation[]>
+  clientAccounts(tenantId: string): Promise<StaffClientAccount[]>
+  /** Cliente final creado desde el portal (procedencia portal_manual). Requiere permiso de registros. */
+  createClientAccount(tenantId: string, input: { legalName: string; taxId?: string }): Promise<StaffClientAccount>
+  requests(tenantId: string): Promise<StaffRequest[]>
+  createRequest(
+    tenantId: string,
+    input: { requestType: string; subject: string; description: string },
+  ): Promise<StaffRequest>
   /** Eventos visibles para el cliente de una operación de la empresa seleccionada. */
   operationEvents(tenantId: string, operationId: string): Promise<unknown[]>
 }
@@ -88,6 +146,37 @@ export function toStaffTenant(raw: unknown): StaffTenant {
     slug: requireString(r.slug, 'slug'),
     legalName: requireString(r.legal_name, 'legal_name'),
     externalTenantId: typeof r.external_tenant_id === 'string' ? r.external_tenant_id : null,
+    integrationStatus: r.integration_status === 'verified' ? 'verified' : 'pending_integration',
+    isDemo: r.is_demo === true,
+    discoveryObservedLabel: typeof r.discovery_observed_label === 'string' ? r.discovery_observed_label : null,
+  }
+}
+
+export function toClientAccount(raw: unknown): StaffClientAccount {
+  const r = raw as Record<string, unknown>
+  return {
+    id: requireString(r.id, 'id'),
+    tenantId: requireString(r.tenant_id, 'tenant_id'),
+    legalName: requireString(r.legal_name, 'legal_name'),
+    taxId: typeof r.tax_id === 'string' ? r.tax_id : null,
+    status: requireString(r.status, 'status'),
+    origin: requireString(r.origin, 'origin'),
+    createdAt: requireString(r.created_at, 'created_at'),
+  }
+}
+
+export function toStaffRequest(raw: unknown): StaffRequest {
+  const r = raw as Record<string, unknown>
+  return {
+    id: requireString(r.id, 'id'),
+    tenantId: requireString(r.tenant_id, 'tenant_id'),
+    number: requireString(r.number, 'number'),
+    requestType: requireString(r.request_type, 'request_type'),
+    subject: requireString(r.subject, 'subject'),
+    description: requireString(r.description, 'description'),
+    status: requireString(r.status, 'status'),
+    origin: requireString(r.origin, 'origin'),
+    createdAt: requireString(r.created_at, 'created_at'),
   }
 }
 
@@ -179,6 +268,38 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
       assertUuid(tenantId)
       const data = (await requester.send('GET', `/staff/tenants/${tenantId}/operations`)) as { items?: unknown[] } | null
       return (data?.items ?? []).map(toStaffOperation)
+    },
+    async clientAccounts(tenantId) {
+      assertUuid(tenantId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/client-accounts`)) as { items?: unknown[] } | null
+      return (data?.items ?? []).map(toClientAccount)
+    },
+    async createClientAccount(tenantId, input) {
+      assertUuid(tenantId)
+      const body: Record<string, string> = { legal_name: input.legalName }
+      if (input.taxId) body.tax_id = input.taxId
+      const data = (await requester.send('POST', `/staff/tenants/${tenantId}/client-accounts`, {
+        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+      })) as { item?: unknown } | null
+      return toClientAccount(data?.item)
+    },
+    async requests(tenantId) {
+      assertUuid(tenantId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/requests`)) as { items?: unknown[] } | null
+      return (data?.items ?? []).map(toStaffRequest)
+    },
+    async createRequest(tenantId, input) {
+      assertUuid(tenantId)
+      const data = (await requester.send('POST', `/staff/tenants/${tenantId}/requests`, {
+        body: JSON.stringify({
+          request_type: input.requestType,
+          subject: input.subject,
+          description: input.description,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      })) as { item?: unknown } | null
+      return toStaffRequest(data?.item)
     },
     async operationEvents(tenantId, operationId) {
       assertUuid(tenantId)
