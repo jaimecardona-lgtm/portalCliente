@@ -160,7 +160,7 @@ export function StaffTenantSwitcher() {
                   disabled={!reasonValid || change.isPending}
                   className="h-9 rounded-lg bg-blue px-3 text-sm font-medium text-white hover:bg-navy disabled:opacity-40"
                 >
-                  Cambiar empresa
+                  Confirmar cambio
                 </button>
               </div>
             </form>

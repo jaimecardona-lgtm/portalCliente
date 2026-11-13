@@ -23,6 +23,7 @@ import { cn, daysUntil } from '@/lib/format'
 import { NAV_GROUPS, STAFF_NAV_GROUPS, STAFF_ROLE_LABELS, SECTION_LABELS, type NavGroup, type NavItem } from './nav'
 import { StaffTenantSwitcher } from '@/features/support/staff-tenant-switcher'
 import { StaffSectionPage } from '@/features/support/staff-module-notice'
+import { LogixWidget } from '@/features/assistant/logix/logix-widget'
 import { useActiveStaffTenant } from '@/services/auth/staff-context'
 
 /** Grupos de navegación según las funciones disponibles en el entorno. */
@@ -94,6 +95,8 @@ export function AppShell() {
   }
 
   const groups = staffMode ? VISIBLE_STAFF_NAV_GROUPS : VISIBLE_NAV_GROUPS
+  // Empresa para Logix: la de la sesión del cliente o la de trabajo del personal (nunca ambas).
+  const logixTenantId = staffMode ? (activeStaffTenant?.id ?? null) : (session?.tenantId ?? null)
   // Personal interno: las pantallas de detalle, cuenta, perfil y documentos no se montan (consultarían datos de cliente).
   const staffSection = staffMode ? staffSectionFor(location.pathname) : null
 
@@ -145,24 +148,11 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Lanzador Logix: en modo Supabase muestra "Próximamente" (sin respuestas); el panel solo existe en presentación local. */}
-      {LogixAssistantDev && (
-        <Suspense fallback={null}>
-          <LogixAssistantDev />
-        </Suspense>
-      )}
+      {/* Logix: asistente real. Se reinicia (key) al cambiar la empresa activa: historial y contexto no se mezclan. */}
+      {SUPABASE_ACCESS_ENABLED && <LogixWidget key={logixTenantId ?? "none"} tenantId={logixTenantId} />}
     </div>
   )
 }
-
-/**
- * Asistente Logix: solo en desarrollo. Su motor de reglas contiene respuestas predefinidas y NO puede
- * llegar a presentación, staging ni producción (política de datos reales, CLAUDE.md).
- * `import.meta.env.DEV` se sustituye por false en producción: el import dinámico y el módulo desaparecen del bundle.
- */
-const LogixAssistantDev = import.meta.env.DEV
-  ? lazy(() => import('@/features/assistant/logix-assistant').then((m) => ({ default: m.LogixAssistant })))
-  : null
 
 /** Estado de la cuenta cuando no hay sesión utilizable (modo Supabase). Nunca muestra datos de ejemplo. */
 function AccountStatus({ issue }: { issue: AccountIssue | null }) {

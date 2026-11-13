@@ -11,6 +11,7 @@ import { createContext } from 'react'
 import { createHttpPortalRepository, type HttpPortalRepository } from '@/services/api/http-portal-repository'
 import { createDocumentsApi, type DocumentsApi } from '@/services/api/documents-api'
 import { createStaffApi, type StaffApi } from '@/services/api/staff-api'
+import { createLogixApi, type LogixApi } from '@/features/assistant/logix/logix-api'
 import { createBrowserAuth } from './supabase-client'
 import { createSupabaseSessionService, type SupabaseSessionService } from './supabase-session'
 
@@ -23,6 +24,8 @@ export interface SupabasePortal {
   documents: DocumentsApi
   /** Personal interno: rol, tenants asignados y verificados, y contexto de trabajo. */
   staff: StaffApi
+  /** Logix: preguntas al asistente con el token del usuario y la empresa activa. */
+  logix: LogixApi
 }
 
 let portalPromise: Promise<SupabasePortal | null> | null = null
@@ -47,7 +50,11 @@ async function createPortal(): Promise<SupabasePortal | null> {
       baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
       getToken: () => auth.accessToken(),
     })
-    return { auth, repo, documents, staff }
+    const logix = createLogixApi({
+      baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
+      getToken: () => auth.accessToken(),
+    })
+    return { auth, repo, documents, staff, logix }
   } catch {
     // Configuración insegura o URL de API no válida: sin portal, sin acceso.
     return null
