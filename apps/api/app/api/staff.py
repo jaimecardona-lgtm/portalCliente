@@ -103,7 +103,29 @@ def staff_tenant_operations(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> d
         session.commit()
         raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
     svc.fix_selected_tenant(session, tenant_id)
-    items = svc.operations_of_selected_tenant(session)
+    items = svc.operations_of_selected_tenant(session, tenant_id)
+    svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"items": items}
+
+
+@router.get(
+    "/tenants/{tenant_id}/operations/{operation_id}/events",
+    tags=["personal interno"],
+    responses=_STAFF_RESPONSES,
+)
+def staff_operation_events(
+    tenant_id: UUID, operation_id: UUID, ctx: StaffDep, session: DbDep
+) -> dict[str, Any]:
+    _require(ctx, "operations.read")
+    if not svc.tenant_visible(session, tenant_id):
+        svc.audit(
+            session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
+        )
+        session.commit()
+        raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
+    svc.fix_selected_tenant(session, tenant_id)
+    items = svc.events_of_selected_operation(session, tenant_id, operation_id)
     svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
     session.commit()
     return {"items": items}
