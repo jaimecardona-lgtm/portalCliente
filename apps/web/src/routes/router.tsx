@@ -22,6 +22,7 @@ import { readStoredSession } from '@/features/auth/session-storage'
 import { FEATURES, LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
 import { loadSupabasePortal } from '@/services/auth/supabase-runtime'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
+import { StaffPanelPage } from '@/features/support/staff-panel-page'
 import { parseOperationSearch, toSearchParams } from '@/features/operations/filters'
 import { NotFoundPage } from './not-found'
 
@@ -78,6 +79,22 @@ const resetRoute = createRoute({
 })
 const termsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/terminos', component: TermsPage })
 const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/privacidad', component: PrivacyPage })
+
+/**
+ * Panel de soporte del personal interno. No usa el marco de cliente: el personal puede no tener empresa propia.
+ * La guarda exige una sesión de Supabase; el servidor decide si la persona tiene un rol interno activo.
+ */
+const supportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/soporte',
+  beforeLoad: async ({ location }) => {
+    const portal = await loadSupabasePortal()
+    if (!SUPABASE_ACCESS_ENABLED || !portal || !(await portal.auth.accessToken())) {
+      throw redirect({ to: '/login', search: { redirect: location.pathname } })
+    }
+  },
+  component: StaffPanelPage,
+})
 
 const appRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -141,6 +158,7 @@ const marketplaceRoute = createRoute({ getParentRoute: () => appRoute, path: '/m
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  supportRoute,
   registerRoute,
   forgotRoute,
   resetRoute,
