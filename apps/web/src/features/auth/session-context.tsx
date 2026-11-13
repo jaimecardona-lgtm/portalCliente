@@ -19,6 +19,7 @@ import type { CurrentAccount } from '@/services/api/mappers'
 import { accountIssueFor, type AccountIssue } from '@/services/auth/account-issues'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { resetStaffStatus, staffStatusFor, type StaffStatus } from '@/services/auth/staff-status'
+import type { StaffMe } from '@/services/api/staff-api'
 import type { ID, Session, Tenant, User } from '@/types/domain'
 import { readStoredSession, writeStoredSession } from './session-storage'
 
@@ -29,6 +30,8 @@ interface SessionContextValue {
   tenant: Tenant | null
   /** Cuenta que devuelve el servidor (solo modo Supabase). */
   account: CurrentAccount | null
+  /** Personal interno con rol activo (solo modo Supabase). Es independiente de la empresa de `session`. */
+  staff: StaffMe | null
   /** Motivo por el que la cuenta no puede usarse (solo modo Supabase). */
   accountIssue: AccountIssue | null
   isResolving: boolean
@@ -96,6 +99,7 @@ function LocalSessionProvider({ children, firstUserOf }: { children: ReactNode; 
       user: identityQuery.data?.user ?? null,
       tenant: identityQuery.data?.tenant ?? null,
       account: null,
+      staff: null,
       accountIssue: null,
       isResolving: session !== null && identityQuery.isPending,
       switchTenant,
@@ -210,6 +214,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       user: null,
       tenant: null,
       account,
+      staff: staffStatus?.kind === 'staff' ? staffStatus.me : null,
       accountIssue,
       isResolving: resolving,
       switchTenant,
@@ -220,7 +225,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshAccount,
     }),
-    [session, account, accountIssue, portal, resolving, switchTenant, signOut, refreshAccount],
+    [session, account, staffStatus, accountIssue, portal, resolving, switchTenant, signOut, refreshAccount],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

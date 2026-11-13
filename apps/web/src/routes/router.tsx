@@ -82,11 +82,11 @@ const termsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/termin
 const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/privacidad', component: PrivacyPage })
 
 /**
- * Panel de soporte del personal interno. No usa el marco de cliente: el personal puede no tener empresa propia.
- * La guarda exige una sesión de Supabase; el servidor decide si la persona tiene un rol interno activo.
+ * Panel de soporte del personal interno. Vive bajo el layout `app` (mismo shell y navegación); el personal puede
+ * no tener empresa propia. El servidor decide si la persona tiene un rol interno activo.
  */
 const supportRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appRoute,
   path: '/soporte',
   beforeLoad: async ({ location }) => {
     const portal = await loadSupabasePortal()
@@ -169,7 +169,6 @@ const marketplaceRoute = createRoute({ getParentRoute: () => appRoute, path: '/m
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
-  supportRoute,
   registerRoute,
   forgotRoute,
   resetRoute,
@@ -177,6 +176,7 @@ const routeTree = rootRoute.addChildren([
   privacyRoute,
   appRoute.addChildren([
     dashboardRoute,
+    supportRoute,
     operationsRoute,
     operationDetailRoute,
     accountRoute,

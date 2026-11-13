@@ -20,7 +20,8 @@ import { accountIssueMessage, roleLabel, type AccountIssue } from '@/services/au
 import { Card, ErrorState } from '@/components/ui/primitives'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { cn, daysUntil } from '@/lib/format'
-import { NAV_GROUPS, SECTION_LABELS, type NavItem } from './nav'
+import { NAV_GROUPS, STAFF_NAV_GROUPS, STAFF_ROLE_LABELS, SECTION_LABELS, type NavGroup, type NavItem } from './nav'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 
 /** Grupos de navegación según las funciones disponibles en el entorno. */
 /** Selector de empresa de QA: solo en desarrollo y solo con presentación local (datos sintéticos). */
@@ -58,7 +59,7 @@ function PageFallback() {
 }
 
 export function AppShell() {
-  const { session, user, tenant, account, accountIssue, isResolving } = useSession()
+  const { session, user, tenant, account, accountIssue, isResolving, staff } = useSession()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed())
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -66,12 +67,19 @@ export function AppShell() {
   useEffect(() => writeCollapsed(collapsed), [collapsed])
   useEffect(() => setDrawerOpen(false), [location.pathname])
 
+  // Personal interno: mismo layout, sin empresa en la sesión. Sus vistas de empresa no cargan datos (ver abajo).
+  const staffMode = session === null && staff !== null
+
   // La guarda de acceso vive en beforeLoad (router.tsx). Si no hay sesión, no se monta contenido.
   // En modo Supabase, la sesión depende de la cuenta del servidor: sin ella se muestra su estado, nunca datos de ejemplo.
-  if (!session) {
+  if (!session && !staffMode) {
     if (!SUPABASE_ACCESS_ENABLED) return null
     return <AccountStatus issue={accountIssue} />
   }
+
+  const groups = staffMode ? STAFF_NAV_GROUPS : VISIBLE_NAV_GROUPS
+  // Solo /soporte es del personal. Las demás rutas de empresa no montan sus pantallas: no hay contexto de cliente.
+  const showStaffNotice = staffMode && location.pathname !== '/soporte'
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
@@ -83,7 +91,7 @@ export function AppShell() {
           collapsed ? 'w-[76px]' : 'w-[260px]',
         )}
       >
-        <SidebarContent collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        <SidebarContent groups={groups} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* Drawer móvil */}
@@ -96,7 +104,7 @@ export function AppShell() {
             onClick={() => setDrawerOpen(false)}
           />
           <aside className="relative flex h-full w-[280px] max-w-[85vw] animate-slide-up flex-col bg-midnight text-white shadow-pop">
-            <SidebarContent collapsed={false} onClose={() => setDrawerOpen(false)} />
+            <SidebarContent groups={groups} collapsed={false} onClose={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}
@@ -104,15 +112,18 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           onOpenMenu={() => setDrawerOpen(true)}
-          companyName={tenant?.shortName ?? account?.tenant.legalName ?? (isResolving ? 'Cargando…' : '—')}
-          userName={user?.fullName ?? account?.fullName ?? (isResolving ? 'Cargando…' : '—')}
-          userRole={user?.role ?? (account ? roleLabel(account.role) : '')}
-          userEmail={user?.email ?? ''}
+          staffMode={staffMode}
+          companyName={
+            staffMode ? 'Personal interno' : (tenant?.shortName ?? account?.tenant.legalName ?? (isResolving ? 'Cargando…' : '—'))
+          }
+          userName={staffMode ? staff.fullName : (user?.fullName ?? account?.fullName ?? (isResolving ? 'Cargando…' : '—'))}
+          userRole={staffMode ? (STAFF_ROLE_LABELS[staff.staffRole] ?? 'Usuario interno') : (user?.role ?? (account ? roleLabel(account.role) : ''))}
+          userEmail={staffMode ? '' : (user?.email ?? '')}
         />
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
           <div className="mx-auto w-full max-w-[1400px]">
             <Suspense fallback={<PageFallback />}>
-              <Outlet />
+              {showStaffNotice ? <StaffModuleNotice /> : <Outlet />}
             </Suspense>
           </div>
         </main>
@@ -165,10 +176,12 @@ function AccountStatus({ issue }: { issue: AccountIssue | null }) {
 }
 
 function SidebarContent({
+  groups,
   collapsed,
   onToggle,
   onClose,
 }: {
+  groups: NavGroup[]
   collapsed: boolean
   onToggle?: () => void
   onClose?: () => void
@@ -186,7 +199,7 @@ function SidebarContent({
       </div>
 
       <nav aria-label="Navegación principal" className="flex-1 overflow-y-auto px-3 py-5">
-        {VISIBLE_NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.label} className="mb-6">
             {!collapsed && <p className="mb-2 px-3 text-[11px] font-semibold tracking-[0.14em] text-white/40 uppercase">{group.label}</p>}
             <ul className="flex flex-col gap-0.5">
@@ -259,12 +272,14 @@ function SidebarLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
 
 function Topbar({
   onOpenMenu,
+  staffMode,
   companyName,
   userName,
   userRole,
   userEmail,
 }: {
   onOpenMenu: () => void
+  staffMode: boolean
   companyName: string
   userName: string
   userRole: string
@@ -287,14 +302,21 @@ function Topbar({
         </div>
 
         <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
-          <GlobalSearch />
+          {/* Búsqueda y alertas consultan operaciones de una empresa: el personal no tiene una sin seleccionar. */}
+          {!staffMode && <GlobalSearch />}
           {import.meta.env.DEV && LOCAL_ACCESS_ENABLED && LocalTenantSwitcher && (
             <Suspense fallback={null}>
               <LocalTenantSwitcher />
             </Suspense>
           )}
-          <AlertsBadge />
-          <ProfileMenu companyName={companyName} userName={userName} userRole={userRole} userEmail={userEmail} />
+          {!staffMode && <AlertsBadge />}
+          <ProfileMenu
+            companyName={companyName}
+            userName={userName}
+            userRole={userRole}
+            userEmail={userEmail}
+            staffMode={staffMode}
+          />
         </div>
       </div>
     </header>
@@ -465,11 +487,13 @@ function ProfileMenu({
   userName,
   userRole,
   userEmail,
+  staffMode,
 }: {
   companyName: string
   userName: string
   userRole: string
   userEmail: string
+  staffMode: boolean
 }) {
   const endSession = useEndSession()
   const [open, setOpen] = useState(false)
@@ -515,14 +539,16 @@ function ProfileMenu({
             >
               Mi perfil
             </Link>
-            <Link
-              to="/cuenta"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface-muted"
-            >
-              Información de la empresa
-            </Link>
+            {!staffMode && (
+              <Link
+                to="/cuenta"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="block rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface-muted"
+              >
+                Información de la empresa
+              </Link>
+            )}
             <button
               type="button"
               role="menuitem"

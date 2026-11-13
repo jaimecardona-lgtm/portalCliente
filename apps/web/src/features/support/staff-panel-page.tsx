@@ -8,10 +8,8 @@
  */
 import { useContext, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { LogOut, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
-import { Logo } from '@/components/brand/logo'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { staffErrorMessage, type StaffTenant } from '@/services/api/staff-api'
 import { PortalApiError } from '@/services/api/http-client'
@@ -29,7 +27,6 @@ export function StaffPanelPage() {
   const portal = useContext(SupabasePortalContext)
   const api = portal?.staff ?? null
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const [active, setActive] = useState<StaffTenant | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -50,9 +47,10 @@ export function StaffPanelPage() {
   const select = useMutation({
     mutationFn: (tenant: StaffTenant) => api!.selectContext(tenant.id).then(() => tenant),
     onSuccess: (tenant) => {
+      // Las operaciones de la empresa anterior no deben verse con la nueva: se descartan antes de cargar las de esta.
+      queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
       setActive(tenant)
       setMessage(null)
-      void queryClient.invalidateQueries({ queryKey: ['supabase', 'staff-operations'] })
     },
     onError: (error) => setMessage(staffErrorMessage(error)),
   })
@@ -76,24 +74,10 @@ export function StaffPanelPage() {
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
   }
 
-  const signOut = async () => {
-    queryClient.clear()
-    await portal?.auth.signOut()
-    void navigate({ to: '/login' })
-  }
-
   const denied = me.isError && me.error instanceof PortalApiError && me.error.code === 'no_staff_role'
 
   return (
-    <main className="min-h-dvh bg-canvas px-4 py-6 sm:px-8">
-      <header className="mx-auto mb-6 flex max-w-5xl items-center justify-between gap-4">
-        <Logo />
-        <Button variant="ghost" size="sm" onClick={() => void signOut()}>
-          <LogOut className="size-4" aria-hidden /> Cerrar sesión
-        </Button>
-      </header>
-
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         <SectionHeading title="Panel de soporte" description="Acceso interno por rol. Solo empresas verificadas y asignadas." />
 
         {api === null && (
@@ -188,6 +172,15 @@ export function StaffPanelPage() {
               )}
             </section>
 
+            {!active && (
+              <Card>
+                <EmptyState
+                  title="Selecciona una empresa autorizada para consultar sus operaciones"
+                  description="Hasta que elija una empresa verificada, este panel no consulta operaciones ni datos de empresa."
+                />
+              </Card>
+            )}
+
             {active && (
               <section aria-label="Operaciones de la empresa" className="flex flex-col gap-3">
                 <h2 className="text-base font-semibold text-ink">Operaciones</h2>
@@ -235,7 +228,6 @@ export function StaffPanelPage() {
             )}
           </>
         )}
-      </div>
-    </main>
+    </div>
   )
 }

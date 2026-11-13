@@ -6,6 +6,7 @@ import {
   MessageSquarePlus,
   Building2,
   Store,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -58,4 +59,34 @@ export const SECTION_LABELS: Record<string, string> = {
   privacidad: 'Política de privacidad',
   marketplace: 'Marketplace',
   nueva: 'Nueva solicitud',
+  soporte: 'Panel de soporte',
+}
+
+/**
+ * Navegación del personal interno. Mismo layout que el cliente; el panel de soporte es la entrada.
+ * Las vistas de empresa quedan visibles pero no cargan datos hasta que haya un contexto autorizado: la pantalla
+ * explica el estado en lugar de mostrar datos de ejemplo o ceros.
+ */
+export const STAFF_NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Soporte',
+    items: [{ to: '/soporte', label: 'Panel de soporte', icon: ShieldCheck }],
+  },
+  {
+    label: 'Empresa',
+    items: [
+      { to: '/operaciones', label: 'Operaciones', icon: Package },
+      { to: '/documentos', label: 'Documentos', icon: FolderArchive },
+      { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
+      { to: '/solicitudes', label: 'Solicitudes', icon: MessageSquarePlus },
+    ],
+  },
+]
+
+/** Nombre visible de los roles internos. Un rol desconocido no se muestra tal cual. */
+export const STAFF_ROLE_LABELS: Record<string, string> = {
+  platform_admin: 'Administrador de plataforma',
+  qa: 'QA',
+  developer: 'Desarrollo',
+  support: 'Soporte',
 }
