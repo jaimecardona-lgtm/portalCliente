@@ -47,8 +47,31 @@ Vigente desde la fase de datos reales. Prevalece sobre cualquier instrucción an
 - **Prohibido** desplegar un sistema con autenticación simulada o con sesiones JSON locales.
 - Si falta una integración (por ejemplo, Logixtic), la interfaz debe indicar que la información **no está disponible**. No se rellena con datos de ejemplo.
 - Los datos sintéticos solo pueden usarse en pruebas automatizadas y en entornos aislados y desechables, nunca expuestos como información real del portal.
+- Excepción única: la modalidad **QA interna autorizada** (sección siguiente). Fuera de ella, las prohibiciones de esta política se aplican sin excepción.
 - Se mantienen el aislamiento por tenant, la validación de permisos en el servidor y la trazabilidad de cada acción.
 - Orden de implementación: (1) estabilizar React + FastAPI; (2) validar Docker y el despliegue único; (3) crear el proyecto real de desarrollo en Supabase; (4) aplicar `supabase/migrations/`; (5) conectar Supabase Auth y PostgreSQL; (6) sustituir el repositorio mock y el login JSON por servicios reales; (7) integrar la aplicación principal de Logixtic; (8) conectar Logix a consultas reales respetando el tenant autenticado; (9) probar los flujos completos de extremo a extremo.
+
+## Modalidad QA interna autorizada (aprobada por el responsable del proyecto)
+
+Aprobada por el responsable de este entorno de desarrollo. Es la única excepción a la política anterior y se limita
+a la revisión interna autenticada. Cambiar sus límites exige una nueva aprobación explícita.
+
+1. **Producción empresarial:** prohibido presentar operaciones sintéticas como operaciones reales. Sin excepciones.
+2. **QA interno autorizado:** se permiten nombres de empresas del catálogo Logixtic como referencia de escenarios de
+   integración, siempre que los datos operativos (operaciones, eventos, solicitudes, clientes) sean sintéticos,
+   estén marcados como tales y no puedan confundirse con registros sincronizados desde Logixtic.
+3. **Acceso restringido:** Supabase Auth para identidad, permisos de personal en FastAPI y RLS en PostgreSQL. Los datos
+   QA solo se muestran con una configuración explícita del backend y del entorno, deshabilitada por defecto.
+4. **Prohibido el acceso de usuarios externos** (clientes, registros públicos) a los datos QA.
+5. **Prohibida la sincronización** de estos registros hacia el SaaS original de Logixtic, y desde él hacia estos registros.
+6. **Señalización permanente:** toda pantalla que muestre operaciones sintéticas muestra «ENTORNO QA · DATOS DE PRUEBA».
+7. **Sin verificación oficial falsa:** no se escriben `verified_at` ni `external_tenant_id` para datos QA. El catálogo
+   observado se relaciona por identificadores internos, sin declarar identidad verificada en el SaaS.
+8. **Autorización por UUID interno** de `tenants`, nunca por slug ni por etiqueta observada.
+9. **Sin `client_admin`** para personal QA, RLS activa, y ninguna conexión con `postgres` o `service_role` en la API.
+10. **Auditoría** de cada cambio de empresa y de cada acceso, como en producción.
+11. **Separación:** la modalidad QA nunca se despliega contra una base con usuarios empresariales reales o integraciones
+    productivas. Antes de cada despliegue se comprueba esa condición.
 
 ## Entornos y acceso (fase 03)
 
