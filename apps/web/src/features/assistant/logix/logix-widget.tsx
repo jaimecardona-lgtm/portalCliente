@@ -295,12 +295,12 @@ export function LogixWidget({ tenantId }: { tenantId: string | null }) {
         type="button"
         ref={launcherRef}
         className="aw-launcher focus-ring"
+        aria-label={T.open}
         aria-expanded={open}
         aria-controls="aw-panel"
         onClick={toggleOpen}
       >
-        <img src={AVATAR} alt="" width={28} height={28} />
-        <span>{T.open}</span>
+        <img src={AVATAR} alt="" width={96} height={96} />
       </button>
     </div>
   )
