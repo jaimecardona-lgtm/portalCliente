@@ -6,7 +6,8 @@ Uso (en su terminal, no en un chat):
 
 - La contraseña se pide con entrada oculta (no aparece en pantalla ni en el historial).
 - La URL se construye en memoria y se escribe en apps/api/.env de forma atómica.
-- La conexión anterior (administrador) se conserva como OWNER_DATABASE_URL, solo para aprovisionamiento.
+- La conexión anterior (administrador) NO se conserva: se elimina de .env. Si necesita
+  aprovisionar, introduzca la conexión de propietario solo para esa tarea, en la sesión.
 - No imprime ninguna credencial. Al terminar, ejecute scripts\\check_db_role.py.
 """
 
@@ -38,23 +39,18 @@ def main() -> int:
         f"@{POOLER_HOST}:{POOLER_PORT}/postgres?sslmode=require"
     )
     lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
-    kept: list[str] = []
-    previous_owner: str | None = None
-    for line in lines:
-        if line.startswith("DATABASE_URL="):
-            previous_owner = line.split("=", 1)[1]
-            continue
-        if line.startswith("OWNER_DATABASE_URL="):
-            continue
-        kept.append(line)
-    if previous_owner:
-        kept.append(f"OWNER_DATABASE_URL={previous_owner}")
+    # Se eliminan ambas claves: la conexión administrativa no debe quedar en .env.
+    kept: list[str] = [
+        line
+        for line in lines
+        if not line.startswith(("DATABASE_URL=", "OWNER_DATABASE_URL="))
+    ]
     kept.append(f"DATABASE_URL={new_url}")
 
     temporary = ENV_FILE.parent / ".env.new"
     temporary.write_text("\n".join(kept) + "\n", encoding="utf-8")
     os.replace(temporary, ENV_FILE)
-    print("DATABASE_URL configurada con portal_api. La conexión del propietario quedó en OWNER_DATABASE_URL.")
+    print("DATABASE_URL configurada con portal_api. No se conservó ninguna conexión administrativa en .env.")
     print("Siguiente paso: .\\.venv\\Scripts\\python.exe scripts\\check_db_role.py")
     return 0
 

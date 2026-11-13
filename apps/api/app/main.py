@@ -73,8 +73,15 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Authorization", "Content-Type", "X-Tenant-Id", "X-Request-ID"],
+        # Métodos y cabeceras de las rutas efectivas (ver app/api). Sin comodines.
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Tenant-Id",
+            "X-File-Name",
+            "X-Request-ID",
+        ],
     )
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
