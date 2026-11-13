@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createStaffApi, QA_BANNER, tenantCategory, toStaffTenant } from './staff-api'
+import { createStaffApi, QA_BANNER, tenantCategory, toStaffTenant, toStaffTenantProfile } from './staff-api'
 
 const BASE = 'https://api.prueba.test/api/v1'
 const TENANT = '3f9c1a2e-0000-4000-8000-0000000000e1'
@@ -34,6 +34,38 @@ describe('categoría de empresa en el selector', () => {
   })
 })
 
+describe('perfil administrativo de empresa', () => {
+  it('conserva ausencias como null y no inventa datos de contacto', () => {
+    const profile = toStaffTenantProfile({
+      id: TENANT,
+      slug: 'capacity-01',
+      legal_name: 'Capacity Tenant 01',
+      tax_id: null,
+      country: 'CO',
+      city: null,
+      segment: 'QA_SYNTHETIC_ONLY',
+      account_manager: null,
+      status: 'active',
+      created_at: '2026-11-13T12:00:00Z',
+      updated_at: '2026-11-13T13:00:00Z',
+      external_tenant_id: null,
+      verified_at: null,
+      verified_by: null,
+      integration_status: 'pending_integration',
+      is_demo: false,
+      discovery_source_system: null,
+      discovery_observed_label: null,
+      provisioned_authorized_by: null,
+      provisioned_at: null,
+      qa_synthetic: true,
+    })
+    expect(profile.taxId).toBeNull()
+    expect(profile.city).toBeNull()
+    expect(profile.externalTenantId).toBeNull()
+    expect(profile.qaSynthetic).toBe(true)
+  })
+})
+
 describe('registros creados desde el portal', () => {
   it('crea una solicitud con cuerpo en snake_case y solo los campos permitidos', async () => {
     const f = fake({
@@ -44,9 +76,12 @@ describe('registros creados desde el portal', () => {
         request_type: 'consulta',
         subject: 'Consulta de prueba',
         description: 'Descripción sintética suficientemente larga.',
+        operation_id: null,
         status: 'recibida',
+        created_by: RECORD,
         origin: 'portal_manual',
         created_at: '2026-11-13T12:00:00Z',
+        updated_at: '2026-11-13T12:00:00Z',
       },
     })
     const api = createStaffApi({ baseUrl: BASE, getToken: async () => 't', fetchImpl: f.fetchImpl })
@@ -54,6 +89,7 @@ describe('registros creados desde el portal', () => {
       requestType: 'consulta',
       subject: 'Consulta de prueba',
       description: 'Descripción sintética suficientemente larga.',
+      operationId: null,
     })
     expect(item.origin).toBe('portal_manual')
     expect(item.number).toBe('SOL-261113-0001')
@@ -62,6 +98,7 @@ describe('registros creados desde el portal', () => {
       request_type: 'consulta',
       subject: 'Consulta de prueba',
       description: 'Descripción sintética suficientemente larga.',
+      operation_id: null,
     })
   })
 

@@ -11,7 +11,7 @@
  * Decisión no evidente: en modo Supabase, `user` y `tenant` quedan null porque la API v1 no devuelve el modelo
  * de dominio completo. Las pantallas usan `account` para lo que el servidor sí expone.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FEATURES, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
 import { useOptionalRepository } from '@/services/repositories'
@@ -19,7 +19,7 @@ import type { CurrentAccount } from '@/services/api/mappers'
 import { accountIssueFor, type AccountIssue } from '@/services/auth/account-issues'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { resetStaffStatus, staffStatusFor, type StaffStatus } from '@/services/auth/staff-status'
-import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
+import { clearPersistedStaffTenant, setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 import type { StaffMe } from '@/services/api/staff-api'
 import type { ID, Session, Tenant, User } from '@/types/domain'
 import { readStoredSession, writeStoredSession } from './session-storage'
@@ -168,11 +168,22 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   })
 
   // Cambios de sesión de Supabase (inicio, cierre en otra pestaña, caducidad): se vuelve a decidir el tipo de cuenta.
+  /*
+   * Solo un cierre de sesión, un cambio de usuario o la pérdida de sesión borran la empresa de trabajo. Las
+   * renovaciones del mismo usuario (TOKEN_REFRESHED, INITIAL_SESSION al volver a la pestaña) no la tocan.
+   */
+  const lastUserId = useRef<string | null>(null)
   useEffect(() => {
     if (!portal) return undefined
-    return portal.auth.onSessionChange((hasSession) => {
-      resetStaffStatus()
-      setActiveStaffTenant(null)
+    return portal.auth.onSessionChange(({ hasSession, event, userId }) => {
+      const ended = !hasSession || event === 'SIGNED_OUT'
+      const switchedUser = lastUserId.current !== null && userId !== lastUserId.current
+      lastUserId.current = hasSession ? userId : null
+      if (ended || switchedUser) {
+        resetStaffStatus()
+        setActiveStaffTenant(null)
+        clearPersistedStaffTenant()
+      }
       setSignedOut(!hasSession)
       void queryClient.invalidateQueries({ queryKey: STAFF_STATUS_KEY })
       void queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY })

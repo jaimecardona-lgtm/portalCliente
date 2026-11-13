@@ -1,31 +1,31 @@
 /**
- * Selector global de empresa para personal interno (barra superior).
+ * Selector global de empresa para personal interno (barra superior): «Empresas de Logixtic».
  *
- * Responsabilidad: mostrar las empresas de Logixtic y fijar el contexto de trabajo cuando corresponde.
- * - «Empresas observadas en Logixtic»: catálogo de nombres y códigos del selector del SaaS. Muestra su estado de
- *   vinculación. No cambia el contexto de trabajo y no tiene operaciones: no hay vinculación oficial.
- * - Empresas de trabajo: solo las que devuelve el servidor para el rol. Se separan en desarrollo (partes cargadas
- *   solo con import.meta.env.DEV desde src/dev). En producción aparecen como empresas verificadas.
+ * Fuente única: GET /staff/tenants (public.tenants, filtrado por el servidor con RLS y permisos QA). El catálogo
+ * logixtic_tenant_discovery NO se muestra aquí; sigue existiendo para conciliación e integración futura.
  * Reglas:
- * - Las listas vienen de la API. Ningún dato de ejemplo se escribe en este archivo.
- * - El cambio de empresa exige confirmar la contraseña de la cuenta (reautenticación con Supabase Auth).
- *   El servidor valida la reautenticación reciente, el desafío de un solo uso, rol, alcance y estado.
- * - Al cambiar se borra la caché de la empresa anterior.
+ * - Solo se listan los nombres y slugs que devuelve la API. Ningún catálogo alternativo en React.
+ * - El cambio de empresa exige confirmar la contraseña (Supabase Auth) y el servidor valida challenge, rol y alcance.
+ * - Al cambiar se borra la caché de la empresa anterior. Un error al cargar no borra la empresa activa.
+ * - El indicador DEMO viene de src/dev (solo desarrollo): la copia de la interfaz no contiene esa palabra.
  */
-import { lazy, Suspense, useContext, useMemo, useRef, useState, useEffect } from 'react'
+import { lazy, Suspense, useContext, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, Check, ChevronDown, X } from 'lucide-react'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
-import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
-import { staffErrorMessage, tenantCategory, type ObservedTenant, type StaffTenant } from '@/services/api/staff-api'
+import {
+  clearPersistedStaffTenant,
+  persistStaffTenant,
+  readPersistedStaffTenantId,
+  setActiveStaffTenant,
+  useActiveStaffTenant,
+} from '@/services/auth/staff-context'
+import { staffErrorMessage, type StaffTenant } from '@/services/api/staff-api'
 import { PasswordRejectedError, reauthenticateWithPassword } from '@/services/auth/reauth'
 
-/* Partes de desarrollo: con import.meta.env.DEV falso no se cargan y no entran en el bundle. */
+/* Indicador de datos de demostración: solo se carga en desarrollo (con import.meta.env.DEV falso no entra en el bundle). */
 const DevParts = import.meta.env.DEV
   ? lazy(() => import('@/dev/staff-tenant-parts').then((m) => ({ default: m.StaffDemoParts })))
-  : null
-const DevVerified = import.meta.env.DEV
-  ? lazy(() => import('@/dev/staff-verified-list').then((m) => ({ default: m.StaffVerifiedTenants })))
   : null
 
 export function StaffTenantSwitcher() {
@@ -36,7 +36,6 @@ export function StaffTenantSwitcher() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<StaffTenant | null>(null)
-  const [catalogDetail, setCatalogDetail] = useState<ObservedTenant | null>(null)
   const [password, setPassword] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -49,26 +48,30 @@ export function StaffTenantSwitcher() {
     queryFn: () => api!.tenants(),
   })
 
-  const observed = useQuery({
-    queryKey: ['supabase', 'staff-observed-tenants'],
+  /* Identidad de la sesión (para ligar el UUID persistido al usuario). Misma clave que /soporte. */
+  const me = useQuery({
+    queryKey: ['supabase', 'staff-me'],
     enabled: api !== null,
     retry: false,
-    queryFn: () => api!.observedTenants(),
+    queryFn: () => api!.me(),
   })
 
-  const term = query.trim().toLowerCase()
-  const matches = (label: string, code: string | null) =>
-    !term || label.toLowerCase().includes(term) || (code ?? '').toLowerCase().includes(term)
+  /*
+   * Restauración tras recargar: el UUID guardado (sessionStorage, ligado al usuario) solo se usa si el servidor
+   * sigue listando esa empresa para la sesión. Un error al cargar no borra nada.
+   */
+  useEffect(() => {
+    if (active !== null || !me.data || !tenants.isSuccess) return
+    const id = readPersistedStaffTenantId(me.data.userId)
+    if (!id) return
+    const found = (tenants.data ?? []).find((t) => t.id === id)
+    if (found) setActiveStaffTenant(found)
+    else persistStaffTenant(me.data.userId, null)
+  }, [active, me.data, tenants.isSuccess, tenants.data])
 
-  const workTenants = useMemo(
-    () => (tenants.data ?? []).filter((t) => matches(t.legalName, t.externalTenantId)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenants.data, term],
-  )
-  const observedList = useMemo(
-    () => (observed.data ?? []).filter((o) => matches(o.label, o.slug)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [observed.data, term],
+  const term = query.trim().toLowerCase()
+  const visible = (tenants.data ?? []).filter(
+    (t) => !term || t.legalName.toLowerCase().includes(term) || t.slug.toLowerCase().includes(term),
   )
 
   /** Limpia lo que pertenece a la empresa anterior antes de mostrar la nueva. */
@@ -77,6 +80,8 @@ export function StaffTenantSwitcher() {
     queryClient.removeQueries({ queryKey: ['tenant'] })
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-requests'] })
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-client-accounts'] })
+    queryClient.removeQueries({ queryKey: ['supabase', 'staff-client-documents'] })
+    queryClient.removeQueries({ queryKey: ['supabase', 'staff-tenant-profile'] })
   }
 
   /*
@@ -98,6 +103,7 @@ export function StaffTenantSwitcher() {
       await api!.selectContext(tenant.id, challenge.challengeId, reauthToken)
       clearTenantCache()
       setActiveStaffTenant(tenant)
+      if (me.data) persistStaffTenant(me.data.userId, tenant.id)
       setPending(null)
       setOpen(false)
     } catch (error) {
@@ -117,6 +123,7 @@ export function StaffTenantSwitcher() {
     onSuccess: () => {
       clearTenantCache()
       setActiveStaffTenant(null)
+      clearPersistedStaffTenant()
       setMessage(null)
     },
     onError: (error) => setMessage(staffErrorMessage(error)),
@@ -159,7 +166,7 @@ export function StaffTenantSwitcher() {
       >
         <Building2 className="size-4 shrink-0" aria-hidden />
         <span className="truncate font-medium">{active ? active.legalName : 'Seleccione una empresa'}</span>
-        {active && DevParts && (
+        {active?.qaSynthetic && DevParts && (
           <Suspense fallback={null}>
             <DevParts part="badge" />
           </Suspense>
@@ -171,7 +178,7 @@ export function StaffTenantSwitcher() {
         <div
           role="dialog"
           aria-label="Empresas de Logixtic"
-          className="absolute right-0 z-50 mt-2 max-h-[min(560px,80vh)] w-[min(360px,calc(100vw-2rem))] animate-slide-up overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
+          className="absolute right-0 z-50 mt-2 flex max-h-[min(560px,80vh)] w-[min(360px,calc(100vw-2rem))] animate-slide-up flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <p className="text-sm font-semibold text-ink">Empresas de Logixtic</p>
@@ -195,11 +202,6 @@ export function StaffTenantSwitcher() {
               <p className="text-sm text-ink">
                 Destino: <span className="font-semibold">{pending.legalName}</span>
               </p>
-              {DevParts && (
-                <Suspense fallback={null}>
-                  <DevParts part="notice" />
-                </Suspense>
-              )}
               <label htmlFor="staff-password" className="text-xs font-semibold text-ink-soft">
                 Contraseña de tu cuenta
               </label>
@@ -236,7 +238,7 @@ export function StaffTenantSwitcher() {
               </div>
             </form>
           ) : (
-            <div className="flex flex-col gap-3 overflow-y-auto p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
               <label htmlFor="staff-tenant-search" className="sr-only">Buscar empresa</label>
               <input
                 id="staff-tenant-search"
@@ -247,93 +249,39 @@ export function StaffTenantSwitcher() {
                 className="h-10 rounded-lg border border-line bg-canvas px-3 text-sm focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/15"
               />
 
-              <section aria-labelledby="observed-title" className="flex flex-col gap-1">
-                <h3 id="observed-title" className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                  Empresas observadas en Logixtic
-                </h3>
-                {observed.isPending && <p className="px-1 text-sm text-ink-muted">Cargando catálogo…</p>}
-                {observed.isError && <p className="px-1 text-sm text-danger-700">{staffErrorMessage(observed.error)}</p>}
-                {observed.isSuccess && observedList.length === 0 && (
-                  <p className="px-1 text-sm text-ink-muted">Sin empresas observadas.</p>
-                )}
-                <ul className="flex flex-col">
-                  {observedList.map((o) => (
-                    <li key={o.label}>
+              {tenants.isPending && <p className="px-1 text-sm text-ink-muted">Cargando empresas…</p>}
+              {tenants.isError && <p className="px-1 text-sm text-danger-700">{staffErrorMessage(tenants.error)}</p>}
+              {tenants.isSuccess && visible.length === 0 && (
+                <p className="px-1 text-sm text-ink-muted">Sin empresas asignadas a su rol.</p>
+              )}
+
+              {tenants.isSuccess && (
+                <ul className="flex flex-col" aria-label="Empresas disponibles">
+                  {visible.map((t) => (
+                    <li key={t.id}>
                       <button
                         type="button"
-                        onClick={() => setCatalogDetail(o)}
+                        role="option"
+                        aria-selected={active?.id === t.id}
+                        onClick={() => pick(t)}
                         className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
                       >
                         <span className="min-w-0">
-                          <span className="block truncate font-medium text-ink">{o.label}</span>
-                          <span className="block truncate font-mono text-xs text-ink-muted">{o.slug ?? 'sin código'}</span>
+                          <span className="flex items-center gap-2">
+                            <span className="truncate font-medium text-ink">{t.legalName}</span>
+                            {t.qaSynthetic && DevParts && (
+                              <Suspense fallback={null}>
+                                <DevParts part="badge" />
+                              </Suspense>
+                            )}
+                          </span>
+                          <span className="block truncate font-mono text-xs text-ink-muted">{t.slug}</span>
                         </span>
-                        <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
-                          No vinculada
-                        </span>
+                        {active?.id === t.id && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
                       </button>
                     </li>
                   ))}
                 </ul>
-                {catalogDetail && (
-                  <div className="mx-1 rounded-lg border border-line bg-canvas p-3 text-xs text-ink-soft">
-                    <p className="font-semibold text-ink">{catalogDetail.label}</p>
-                    <p>Código observado: {catalogDetail.slug ?? 'no disponible'}</p>
-                    <p>Estado de integración: no vinculada a Logixtic. Sin identificador oficial.</p>
-                    <p>No hay operaciones disponibles hasta vincular la empresa y autorizar su consulta.</p>
-                  </div>
-                )}
-              </section>
-
-              {tenants.isPending && <p className="px-1 text-sm text-ink-muted">Cargando empresas…</p>}
-              {tenants.isError && <p className="px-1 text-sm text-danger-700">{staffErrorMessage(tenants.error)}</p>}
-
-              {tenants.isSuccess && DevParts && (
-                <Suspense fallback={null}>
-                  <DevParts part="section" tenants={workTenants} activeId={active?.id ?? null} onPick={pick} />
-                </Suspense>
-              )}
-              {tenants.isSuccess && DevVerified && (
-                <Suspense fallback={null}>
-                  <DevVerified tenants={workTenants} activeId={active?.id ?? null} onPick={pick} />
-                </Suspense>
-              )}
-              {tenants.isSuccess && !DevVerified && (
-                <section aria-labelledby="verified-title" className="flex flex-col gap-1">
-                  <h3 id="verified-title" className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-                    Empresas asignadas
-                  </h3>
-                  {workTenants.length === 0 && <p className="px-1 text-sm text-ink-muted">Sin empresas asignadas a su rol.</p>}
-                  <ul className="flex flex-col">
-                    {workTenants.map((t) => {
-                      const category = tenantCategory(t)
-                      return (
-                      <li key={t.id}>
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={active?.id === t.id}
-                          onClick={() => pick(t)}
-                          className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium text-ink">{t.legalName}</span>
-                            <span className="block truncate text-xs text-ink-muted">
-                              {category.officialIcon} {category.officialLabel}
-                            </span>
-                            {category.qaLabel && (
-                              <span className="block truncate text-xs font-medium text-ink-soft">
-                                ◇ {category.qaLabel}
-                              </span>
-                            )}
-                          </span>
-                          {active?.id === t.id && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
-                        </button>
-                      </li>
-                      )
-                    })}
-                  </ul>
-                </section>
               )}
             </div>
           )}

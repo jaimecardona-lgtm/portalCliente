@@ -71,9 +71,12 @@ export interface StaffRequest {
   requestType: string
   subject: string
   description: string
+  operationId: string | null
   status: string
+  createdBy: string
   origin: string
   createdAt: string
+  updatedAt: string
 }
 
 export const REQUEST_TYPES = [
@@ -121,10 +124,13 @@ export interface StaffApi {
   requests(tenantId: string): Promise<StaffRequest[]>
   createRequest(
     tenantId: string,
-    input: { requestType: string; subject: string; description: string },
+    input: { requestType: string; subject: string; description: string; operationId?: string | null },
   ): Promise<StaffRequest>
   /** Eventos visibles para el cliente de una operación de la empresa seleccionada. */
   operationEvents(tenantId: string, operationId: string): Promise<unknown[]>
+  /** Datos generales de la empresa autorizada (public.tenants). Campos ausentes llegan como null. */
+  tenantProfile(tenantId: string): Promise<StaffTenantProfile>
+
 }
 
 export interface StaffApiOptions {
@@ -185,9 +191,69 @@ export function toStaffRequest(raw: unknown): StaffRequest {
     requestType: requireString(r.request_type, 'request_type'),
     subject: requireString(r.subject, 'subject'),
     description: requireString(r.description, 'description'),
+    operationId: optionalUuid(r.operation_id, 'operation_id'),
     status: requireString(r.status, 'status'),
+    createdBy: requireString(r.created_by, 'created_by'),
     origin: requireString(r.origin, 'origin'),
     createdAt: requireString(r.created_at, 'created_at'),
+    updatedAt: requireString(r.updated_at, 'updated_at'),
+  }
+}
+
+export interface StaffTenantProfile {
+  id: string
+  slug: string
+  legalName: string
+  taxId: string | null
+  country: string | null
+  city: string | null
+  segment: string | null
+  accountManager: string | null
+  status: string
+  createdAt: string | null
+  updatedAt: string | null
+  externalTenantId: string | null
+  verifiedAt: string | null
+  verifiedBy: string | null
+  integrationStatus: string
+  isDemo: boolean
+  discoverySourceSystem: string | null
+  discoveryObservedLabel: string | null
+  provisionedAuthorizedBy: string | null
+  provisionedAt: string | null
+  qaSynthetic: boolean
+}
+
+const optionalText = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null)
+const optionalUuid = (v: unknown, field: string): string | null => {
+  if (v === null || v === undefined) return null
+  return requireString(v, field)
+}
+
+export function toStaffTenantProfile(raw: unknown): StaffTenantProfile {
+  const r = raw as Record<string, unknown>
+  return {
+    id: requireString(r.id, 'id'),
+    slug: requireString(r.slug, 'slug'),
+    legalName: requireString(r.legal_name, 'legal_name'),
+    taxId: optionalText(r.tax_id),
+    country: optionalText(r.country),
+    city: optionalText(r.city),
+    segment: optionalText(r.segment),
+    accountManager: optionalText(r.account_manager),
+    status: requireString(r.status, 'status'),
+    createdAt: optionalText(r.created_at),
+    updatedAt: optionalText(r.updated_at),
+    externalTenantId: optionalText(r.external_tenant_id),
+    verifiedAt: optionalText(r.verified_at),
+    verifiedBy: optionalText(r.verified_by),
+    integrationStatus: requireString(r.integration_status, 'integration_status'),
+    isDemo: r.is_demo === true,
+    discoverySourceSystem: optionalText(r.discovery_source_system),
+    discoveryObservedLabel: optionalText(r.discovery_observed_label),
+    provisionedAuthorizedBy: optionalText(r.provisioned_authorized_by),
+    provisionedAt: optionalText(r.provisioned_at),
+    qaSynthetic: r.qa_synthetic === true,
   }
 }
 
@@ -307,10 +373,16 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
           request_type: input.requestType,
           subject: input.subject,
           description: input.description,
+          operation_id: input.operationId ?? null,
         }),
         headers: { 'Content-Type': 'application/json' },
       })) as { item?: unknown } | null
       return toStaffRequest(data?.item)
+    },
+    async tenantProfile(tenantId) {
+      assertUuid(tenantId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/profile`)) as { item?: unknown } | null
+      return toStaffTenantProfile(data?.item)
     },
     async operationEvents(tenantId, operationId) {
       assertUuid(tenantId)

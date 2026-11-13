@@ -8,7 +8,10 @@
  * Decisión no evidente: los valores vacíos siempre se ordenan al final, sin importar la dirección.
  */
 import type { Operation, OperationStatus } from '@/types/domain'
-import { OPERATION_STATUSES } from './status'
+import { OPERATION_STATUSES, STATUS_META } from './status'
+
+/** La URL acepta cualquier estado con presentación (incluidos los heredados); la UI ofrece OPERATION_STATUSES. */
+const ACCEPTED_STATUS_PARAMS = Object.keys(STATUS_META).filter((s) => s !== 'Estado no reconocido')
 
 export type SortKey = 'doNumber' | 'status' | 'etd' | 'eta' | 'origin' | 'destination' | 'updatedAt'
 export type SortDir = 'asc' | 'desc'
@@ -53,7 +56,7 @@ export function parseOperationSearch(raw: Record<string, unknown>): OperationFil
     ? statusesRaw
         .split(',')
         .map((s) => s.trim())
-        .filter((s): s is OperationStatus => (OPERATION_STATUSES as string[]).includes(s))
+        .filter((s): s is OperationStatus => (ACCEPTED_STATUS_PARAMS as string[]).includes(s))
     : []
   const sort = SORT_KEYS.includes(str(raw.sort) as SortKey) ? (str(raw.sort) as SortKey) : DEFAULT_FILTERS.sort
   const dir: SortDir = str(raw.dir) === 'asc' ? 'asc' : 'desc'

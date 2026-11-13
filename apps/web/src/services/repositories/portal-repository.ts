@@ -102,5 +102,6 @@ export interface NewRequestInput {
   description: string
   operationId: ID | null
   attachmentIds: ID[]
-  createdBy: ID
+  /** Autor cliente. null para personal interno: la API registra la procedencia administrativa, no un cliente. */
+  createdBy: ID | null
 }

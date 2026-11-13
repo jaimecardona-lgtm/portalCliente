@@ -17,12 +17,17 @@ describe('toOperationFromDto', () => {
       transport: 'Marítimo FCL', eta: '2026-11-25', booking: null, owner: null, pendingClientResponse: true, kind: null })
   })
 
-  it('un estado desconocido es un error de contrato, no un estado inventado', () => {
-    expect(() => toOperationFromDto({ id: ID, do_number: 'DO-X-1', last_known_status: 'Estado inventado' }, TENANT)).toThrow()
+  it('un estado desconocido se muestra como «Estado no reconocido» con su valor original: no inventa estado ni descarta la fila', () => {
+    const op = toOperationFromDto({ id: ID, do_number: 'DO-X-1', last_known_status: 'Estado inventado' }, TENANT)
+    expect(op).not.toBeNull()
+    expect(op?.status).toBe('Estado no reconocido')
+    expect(op?.statusRaw).toBe('Estado inventado')
   })
 
-  it('una operación sin estado no se muestra', () => {
-    expect(toOperationFromDto({ id: ID, do_number: 'DO-X-1', last_known_status: null }, TENANT)).toBeNull()
+  it('una operación sin estado se conserva como «Estado no reconocido», sin estado inventado', () => {
+    const op = toOperationFromDto({ id: ID, do_number: 'DO-X-1', last_known_status: null }, TENANT)
+    expect(op?.status).toBe('Estado no reconocido')
+    expect(op?.statusRaw).toBeNull()
   })
 
   it('pending_client_response ausente queda como null, no como false', () => {

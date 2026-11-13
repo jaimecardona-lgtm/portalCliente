@@ -38,8 +38,10 @@ function expectInvalid(fn: () => unknown, field?: string): void {
 }
 
 describe('estados de operación', () => {
-  it('la lista de estados conocidos coincide con la de la interfaz', () => {
-    expect([...KNOWN_OPERATION_STATUSES]).toEqual([...OPERATION_STATUSES])
+  it('los cinco estados reales están en el dominio y en la lista de filtros de la interfaz', () => {
+    const real = ['Abierto', 'En tránsito', 'Finalizado', 'En proceso de facturación', 'Cerrado / Liquidado']
+    expect([...OPERATION_STATUSES]).toEqual(real)
+    for (const s of real) expect(KNOWN_OPERATION_STATUSES).toContain(s)
   })
 })
 
@@ -82,10 +84,9 @@ describe('toOperationSummary', () => {
     })
   })
 
-  it('no acepta un estado que el dominio no conoce', () => {
-    expectInvalid(
-      () => toOperationSummary({ id: OP, do_number: 'DO-1', last_known_status: 'Inventado' }, TENANT),
-      'last_known_status',
+  it('un estado que el dominio no conoce se muestra como «Estado no reconocido», sin lanzar', () => {
+    expect(toOperationSummary({ id: OP, do_number: 'DO-1', last_known_status: 'Inventado' }, TENANT).lastKnownStatus).toBe(
+      'Estado no reconocido',
     )
   })
 })

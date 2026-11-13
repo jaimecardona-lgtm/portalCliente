@@ -100,6 +100,19 @@ def qa_user(owner_engine: Engine, qa_tenants) -> UUID:
 
 
 @pytest.fixture
+def platform_admin_qa(owner_engine: Engine, qa_tenants) -> UUID:
+    user = uuid4()
+    with owner_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO profiles (id, email, full_name) VALUES (:u, :e, 'Administración QA de prueba')"),
+            {"u": user, "e": f"admin-qa-{user}@interno.test"},
+        )
+        grant_staff(conn, user, "platform_admin", AUTH, None)
+        grant_qa_synthetic_scope(conn, user, AUTH)
+    return user
+
+
+@pytest.fixture
 def client_qa_on(test_settings: Settings, owner_engine: Engine, seed: Seed) -> TestClient:
     settings = test_settings.model_copy(update={"qa_synthetic_enabled": True})
     app: FastAPI = create_app(settings, database_engine=owner_engine)
@@ -178,6 +191,82 @@ def test_each_company_shows_only_its_own_operations_and_events(
         f"/api/v1/staff/tenants/{qa_tenants.b}/operations/{op_id}/events", headers=_h(qa_user)
     ).json()["items"]
     assert cross == []
+
+
+def test_platform_admin_creates_and_recovers_auditable_request_only_in_selected_qa_tenant(
+    client_qa_on, owner_engine, platform_admin_qa, qa_tenants, qa_flag
+) -> None:
+    with owner_engine.begin() as conn:
+        set_qa_synthetic_environment(conn, True, AUTH)
+
+    assert switch_context(client_qa_on, platform_admin_qa, qa_tenants.a).status_code == 200
+    operations = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/operations", headers=_h(platform_admin_qa)
+    ).json()["items"]
+    operation_id = operations[0]["id"]
+    created = client_qa_on.post(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/requests",
+        json={
+            "request_type": "consulta",
+            "subject": "PRUEBA QA de persistencia",
+            "description": "Solicitud de prueba QA para comprobar persistencia y aislamiento entre empresas.",
+            "operation_id": operation_id,
+        },
+        headers=_h(platform_admin_qa),
+    )
+    assert created.status_code == 201
+    item = created.json()["item"]
+    assert item["created_by"] == str(platform_admin_qa)
+    assert item["operation_id"] == operation_id
+    assert item["origin"] == "portal_manual" and item["status"] == "recibida"
+
+    cross_write = client_qa_on.post(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/requests",
+        json={
+            "request_type": "otro",
+            "subject": "Intento cruzado de prueba",
+            "description": "No debe escribirse sin seleccionar primero la segunda empresa QA.",
+        },
+        headers=_h(platform_admin_qa),
+    )
+    assert cross_write.status_code == 403
+    assert cross_write.json()["error"]["code"] == "tenant_context_mismatch"
+
+    first_list = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/requests", headers=_h(platform_admin_qa)
+    )
+    assert first_list.status_code == 200
+    assert [row["id"] for row in first_list.json()["items"]] == [item["id"]]
+
+    assert switch_context(client_qa_on, platform_admin_qa, qa_tenants.b).status_code == 200
+    second_list = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/requests", headers=_h(platform_admin_qa)
+    )
+    assert second_list.status_code == 200 and second_list.json()["items"] == []
+
+    assert switch_context(client_qa_on, platform_admin_qa, qa_tenants.a).status_code == 200
+    recovered = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/requests", headers=_h(platform_admin_qa)
+    ).json()["items"]
+    assert [row["id"] for row in recovered] == [item["id"]]
+
+
+def test_qa_role_cannot_create_administrative_qa_request(
+    client_qa_on, owner_engine, qa_user, qa_tenants, qa_flag
+) -> None:
+    with owner_engine.begin() as conn:
+        set_qa_synthetic_environment(conn, True, AUTH)
+    assert switch_context(client_qa_on, qa_user, qa_tenants.a).status_code == 200
+    denied = client_qa_on.post(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/requests",
+        json={
+            "request_type": "otro",
+            "subject": "Intento QA sin permiso",
+            "description": "Este rol QA no debe poder crear una solicitud administrativa.",
+        },
+        headers=_h(qa_user),
+    )
+    assert denied.status_code == 403 and denied.json()["error"]["code"] == "permission_denied"
 
 
 def test_switching_companies_is_audited(client_qa_on, owner_engine, qa_user, qa_tenants, qa_flag) -> None:

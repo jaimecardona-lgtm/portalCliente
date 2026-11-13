@@ -37,9 +37,37 @@ services:
         value: "30"
       - key: SUPABASE_JWT_AUDIENCE
         value: authenticated
+      # La modalidad QA requiere autorización en Render y la bandera equivalente en PostgreSQL.
+      # Se mantiene fuera del repositorio para que un servicio nuevo no la active por defecto.
+      - key: QA_SYNTHETIC_ENABLED
+        sync: false
       # Mismo origen: no hace falta CORS. Lista JSON vacía.
       - key: CORS_ALLOWED_ORIGINS
         value: "[]"
+
+      # --- Logix / OpenRouter ---
+      # Ambas banderas deben ser true para permitir procesamiento externo. Sin autorización, Logix conserva
+      # únicamente las consultas deterministas a PostgreSQL.
+      - key: LOGIX_AI_ENABLED
+        value: "false"
+      - key: LOGIX_EXTERNAL_PROCESSING_AUTHORIZED
+        value: "false"
+      - key: LOGIX_RAG_ENABLED
+        value: "false"
+      - key: OPENROUTER_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        sync: false
+      - key: LOGIX_MAX_INPUT_TOKENS
+        value: "4000"
+      - key: LOGIX_MAX_OUTPUT_TOKENS
+        value: "800"
+      - key: LOGIX_TIMEOUT_SECONDS
+        value: "20"
+      - key: LOGIX_MAX_REQUESTS_PER_USER_PER_HOUR
+        value: "30"
 
       # --- Secretos y datos de conexión: se introducen en el panel de Render ---
       # Conexión del rol de servicio de la API (sin BYPASSRLS). Ver docs/supabase-preparation.md.

@@ -7,22 +7,32 @@
  * Contrato: no recibe parámetros; todas las consultas incluyen tenantId de la sesión.
  * Errores: si la consulta de empresa falla se muestra ErrorState con reintento.
  */
-import { type ReactNode } from 'react'
+import { useContext, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, MapPin, Lock, ArrowRight, Mail, Phone } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { Card, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
+import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
+import { QA_BANNER, staffErrorMessage, type StaffApi } from '@/services/api/staff-api'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
 
 export function AccountPage() {
-  const repo = useRepository()
-  const { session } = useSession()
+  const portal = useContext(SupabasePortalContext)
+  const { session, staff } = useSession()
   const tenantId = session?.tenantId ?? ''
+  // Personal interno: datos generales por /staff/tenants/{id}/profile. Nunca /client-access ni repo de cliente.
+  const isStaff = staff !== null
+  const activeStaff = useActiveStaffTenant()
 
-  const tenant = useQuery({ queryKey: tenantKey(tenantId, 'tenant'), queryFn: () => repo.getTenant(tenantId), enabled: Boolean(tenantId) })
-  const addresses = useQuery({ queryKey: tenantKey(tenantId, 'addresses'), queryFn: () => repo.listAddresses(tenantId), enabled: Boolean(tenantId) })
-  const contacts = useQuery({ queryKey: tenantKey(tenantId, 'contacts'), queryFn: () => repo.listContacts(tenantId), enabled: Boolean(tenantId) })
+  const repo = useRepository()
+  const tenant = useQuery({ queryKey: tenantKey(tenantId, 'tenant'), queryFn: () => repo.getTenant(tenantId), enabled: Boolean(tenantId) && !isStaff })
+  const addresses = useQuery({ queryKey: tenantKey(tenantId, 'addresses'), queryFn: () => repo.listAddresses(tenantId), enabled: Boolean(tenantId) && !isStaff })
+  const contacts = useQuery({ queryKey: tenantKey(tenantId, 'contacts'), queryFn: () => repo.listContacts(tenantId), enabled: Boolean(tenantId) && !isStaff })
+
+  if (isStaff && portal) return <StaffAccountView staffApi={portal.staff} tenantId={activeStaff?.id ?? ''} />
 
   if (tenant.isError) return <Card><ErrorState message="No se pudo cargar la información de la cuenta." onRetry={() => void tenant.refetch()} /></Card>
 
@@ -141,5 +151,85 @@ function ContactCard({
         </ul>
       )}
     </Card>
+  )
+}
+
+/** Vista de cuenta para personal interno: datos generales reales de public.tenants (solo lectura). */
+function StaffAccountView({ staffApi, tenantId }: { staffApi: StaffApi; tenantId: string }) {
+  const profile = useQuery({
+    queryKey: ['supabase', 'staff-tenant-profile', tenantId],
+    enabled: tenantId !== '',
+    retry: false,
+    queryFn: () => staffApi.tenantProfile(tenantId),
+  })
+
+  if (tenantId === '') {
+    return <StaffModuleNotice noun="datos de cuenta" hasContext={false} />
+  }
+  if (profile.isError) {
+    return <Card><ErrorState message={staffErrorMessage(profile.error)} onRetry={() => void profile.refetch()} /></Card>
+  }
+  if (profile.isPending || !profile.data) return <Skeleton className="h-64 w-full" />
+
+  const p = profile.data
+  const fields: Array<{ label: string; value: string | boolean | null; mono?: boolean }> = [
+    { label: 'Identificador interno', value: p.id, mono: true },
+    { label: 'Código de empresa', value: p.slug, mono: true },
+    { label: 'Razón social', value: p.legalName },
+    { label: 'NIT / identificación fiscal', value: p.taxId },
+    { label: 'País', value: p.country },
+    { label: 'Ciudad', value: p.city },
+    { label: 'Segmento', value: p.segment },
+    { label: 'Ejecutivo asignado', value: p.accountManager },
+    { label: 'Estado en el portal', value: p.status === 'active' ? 'Activa' : 'Suspendida' },
+    { label: 'Estado de integración', value: p.integrationStatus === 'verified' ? 'Verificada' : 'Pendiente de integración' },
+    { label: 'Identificador externo', value: p.externalTenantId, mono: true },
+    { label: 'Verificada el', value: p.verifiedAt },
+    { label: 'Verificada por', value: p.verifiedBy, mono: true },
+    { label: 'Fuente de descubrimiento', value: p.discoverySourceSystem },
+    { label: 'Nombre observado', value: p.discoveryObservedLabel },
+    { label: 'Alta autorizada por', value: p.provisionedAuthorizedBy },
+    { label: 'Alta administrativa', value: p.provisionedAt },
+    { label: 'Indicador heredado de presentación', value: p.isDemo ? 'Sí' : 'No' },
+    { label: 'Creada el', value: p.createdAt },
+    { label: 'Actualizada el', value: p.updatedAt },
+  ]
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.16em] text-blue uppercase">Empresa</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Información de cuenta</h1>
+          <p className="mt-1 text-sm text-ink-muted">Datos generales registrados de la empresa. Solo lectura.</p>
+        </div>
+      </header>
+
+      {p.qaSynthetic && (
+        <p className="rounded-[var(--radius-card)] border border-warning-200 bg-warning-50 px-4 py-2 text-xs font-semibold text-ink">
+          {QA_BANNER}
+        </p>
+      )}
+
+      <Card className="p-5 sm:p-6">
+        <SectionHeading title="Datos generales" description="Campos tal como están registrados en el portal." />
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          {fields.map((field) => (
+            <div key={field.label} className="min-w-0">
+              <dt className="text-xs text-ink-muted">{field.label}</dt>
+              <dd className={field.value === null ? 'text-sm font-medium text-ink-muted italic' : `break-words font-medium text-ink ${field.mono ? 'font-mono text-[13px]' : ''}`}>
+                {field.value === null ? 'No registrado' : String(field.value)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+
+      <Card className="p-5 sm:p-6">
+        <SectionHeading title="Direcciones y contactos" description="Disponibilidad de información relacionada." />
+        <p className="mt-4 text-sm text-ink-muted">
+          No hay registros de direcciones ni contactos asociados disponibles en el esquema actual. Esto no es un error de carga.
+        </p>
+      </Card>
+    </div>
   )
 }

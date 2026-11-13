@@ -189,7 +189,7 @@ def test_qa_sees_pending_tenant_in_selector_and_opens_empty_tower(client, owner_
     assert ops.status_code == 200 and ops.json()["items"] == []
 
 
-def test_qa_creates_client_and_request_and_they_persist(client, owner_engine, seed) -> None:
+def test_qa_creates_client_but_cannot_create_requests_outside_synthetic_qa(client, owner_engine, seed) -> None:
     p = _new_pending(owner_engine)
     qa = _new_staff(owner_engine)
     _assign(owner_engine, qa, p)
@@ -212,20 +212,16 @@ def test_qa_creates_client_and_request_and_they_persist(client, owner_engine, se
         },
         headers=_h(qa),
     )
-    assert request.status_code == 201
-    item = request.json()["item"]
-    assert item["origin"] == "portal_manual" and item["status"] == "recibida"
-
-    listed = client.get(f"/api/v1/staff/tenants/{p.tenant_id}/requests", headers=_h(qa)).json()["items"]
-    assert [r["number"] for r in listed] == [item["number"]]
+    assert request.status_code == 403
+    assert request.json()["error"]["code"] == "permission_denied"
     assert _count(owner_engine, "SELECT count(*) FROM client_accounts WHERE tenant_id = :t", t=p.tenant_id) == 1
-    assert _count(owner_engine, "SELECT count(*) FROM requests WHERE tenant_id = :t", t=p.tenant_id) == 1
+    assert _count(owner_engine, "SELECT count(*) FROM requests WHERE tenant_id = :t", t=p.tenant_id) == 0
 
 
 # ---------------------------------------------------------------------------
 # 7 a 9. Segunda empresa aislada; externo sin acceso
 # ---------------------------------------------------------------------------
-def test_second_company_shares_nothing_with_the_first(client, owner_engine, seed) -> None:
+def test_second_pending_company_shares_nothing_with_the_first(client, owner_engine, seed) -> None:
     first = _new_pending(owner_engine)
     second = _new_pending(owner_engine)
     qa = _new_staff(owner_engine)
@@ -233,12 +229,12 @@ def test_second_company_shares_nothing_with_the_first(client, owner_engine, seed
     _assign(owner_engine, qa, second)
 
     assert switch_context(client, qa, first.tenant_id).status_code == 200
-    created = client.post(
+    denied = client.post(
         f"/api/v1/staff/tenants/{first.tenant_id}/requests",
         json={"request_type": "otro", "subject": "Solicitud de la primera", "description": "Solo para la primera empresa."},
         headers=_h(qa),
     )
-    assert created.status_code == 201
+    assert denied.status_code == 403
 
     assert switch_context(client, qa, second.tenant_id).status_code == 200
     assert client.get(f"/api/v1/staff/tenants/{second.tenant_id}/requests", headers=_h(qa)).json()["items"] == []

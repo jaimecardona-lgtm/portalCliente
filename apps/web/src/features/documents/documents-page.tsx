@@ -8,7 +8,7 @@
  * Restricciones: la vista previa del archivo y la carga real no están implementadas; los botones aparecen
  * solo cuando la función está activa (FEATURES) y los textos lo indican.
  */
-import { useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, Eye, History, UploadCloud, FolderOpen, ChevronDown, FileCheck2 } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
@@ -19,7 +19,11 @@ import { Badge, Button, Card, EmptyState, ErrorState, Skeleton, type Tone, input
 import { cn, daysUntil, formatDate } from '@/lib/format'
 import type { DocumentRecord, DocumentStatus } from '@/types/domain'
 import { referenceNow } from '@/lib/clock'
-import { FEATURES } from '@/config/runtime'
+import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
+
+const DevDemoBanner = import.meta.env.DEV
+  ? lazy(() => import('@/dev/demo-data-banner').then((m) => ({ default: m.DemoDataBanner })))
+  : null
 
 type Tab = 'all' | DocumentStatus
 const TABS: Array<{ id: Tab; label: string }> = [
@@ -79,6 +83,9 @@ export function DocumentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {LOCAL_ACCESS_ENABLED && DevDemoBanner && (
+        <Suspense fallback={null}><DevDemoBanner /></Suspense>
+      )}
       <header>
         <p className="text-xs font-semibold tracking-[0.16em] text-blue uppercase">Cumplimiento</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Gestión documental</h1>

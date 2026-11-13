@@ -59,11 +59,41 @@ def test_do_number_answer_cites_the_record_and_missing_do_is_explicit() -> None:
     assert missing.sources == ()
 
 
+def test_qa_do_number_is_recognized_complete() -> None:
+    ops = [_op("QA-DO-CAPACITY-01-001", "Abierto")]
+    found = logix.answer_private("¿Cuál es el estado del DO QA-DO-CAPACITY-01-001?", ops)
+    assert "QA-DO-CAPACITY-01-001: estado Abierto" in found.text
+    assert found.sources == ("QA-DO-CAPACITY-01-001",)
+
+
 def test_summary_counts_only_persisted_operations() -> None:
-    ops = [_op("DO-26-0001", "Creado"), _op("DO-26-0002", "Entregado"), _op("DO-26-0003", None, synced=False)]
+    ops = [
+        _op("DO-26-0001", "Abierto"),
+        _op("DO-26-0002", "Cerrado / Liquidado"),
+        _op("DO-26-0003", None, synced=False),
+    ]
     answer = logix.answer_private("¿Cuántas operaciones tengo?", ops)
-    assert "sincronizadas de la empresa activa: 3" in answer.text
-    assert "Sin cerrar ni entregar: 2" in answer.text
+    assert "registradas de la empresa activa: 3" in answer.text
+    assert "Activas: 1" in answer.text
+
+
+def test_capacity_distribution_answers_total_active_transit_and_open_list() -> None:
+    ops = [
+        *[_op(f"QA-DO-OPEN-{i}", "Abierto") for i in range(4)],
+        *[_op(f"QA-DO-TRANSIT-{i}", "En tránsito") for i in range(4)],
+        *[_op(f"QA-DO-FINAL-{i}", "Finalizado") for i in range(4)],
+        *[_op(f"QA-DO-BILL-{i}", "En proceso de facturación") for i in range(4)],
+        *[_op(f"QA-DO-CLOSED-{i}", "Cerrado / Liquidado") for i in range(4)],
+    ]
+    total = logix.answer_private("¿Cuántas operaciones tiene?", ops)
+    active = logix.answer_private("¿Cuántas están activas?", ops)
+    transit = logix.answer_private("¿Cuántas están en tránsito?", ops)
+    opened = logix.answer_private("Muéstrame las operaciones abiertas", ops)
+    assert "registradas de la empresa activa: 20" in total.text
+    assert "Operaciones activas de la empresa activa: 8" in active.text
+    assert "Operaciones en tránsito de la empresa activa: 4" in transit.text
+    assert "Operaciones abiertas (4)" in opened.text
+    assert len(opened.sources) == 4
 
 
 def test_general_questions_do_not_call_the_provider_when_disabled() -> None:

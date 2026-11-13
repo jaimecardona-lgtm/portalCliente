@@ -12,6 +12,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RefreshCw, Replace, Trash2, UploadCloud } from 'lucide-react'
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
+import { useSession } from '@/features/auth/session-context'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import {
   checkFileBeforeUpload,
   documentErrorMessage,
@@ -39,6 +42,7 @@ export function formatBytes(bytes: number): string {
 
 export function ClientDocumentsPage() {
   const portal = useContext(SupabasePortalContext)
+  const { staff } = useSession()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
@@ -47,7 +51,13 @@ export function ClientDocumentsPage() {
   const uploadInput = useRef<HTMLInputElement>(null)
   const replaceInputs = useRef<Map<string, HTMLInputElement>>(new Map())
 
-  const api = portal?.documents ?? null
+  /*
+   * Personal interno no tiene membresía de cliente final: `client-access` le responde 403. Con sesión de personal
+   * no se consulta ese endpoint y la vista muestra la disponibilidad real (sin declarar documentos).
+   */
+  const isStaff = staff !== null
+  const activeStaff = useActiveStaffTenant()
+  const api = isStaff ? null : (portal?.documents ?? null)
 
   const access = useQuery({
     queryKey: ['supabase', 'client-access'],
@@ -149,13 +159,15 @@ export function ClientDocumentsPage() {
         description="Documentos de su cliente final. Los documentos ligados a operaciones aparecerán cuando la integración con Logixtic esté disponible."
       />
 
-      {api === null && (
+      {api === null && !isStaff && (
         <Card className="p-6">
           <p role="status" className="text-sm text-ink-soft">
             El acceso a documentos no está disponible en este momento. Contacte a su ejecutivo de cuenta.
           </p>
         </Card>
       )}
+
+      {isStaff && <Card><StaffModuleNotice noun="documentos" hasContext={Boolean(activeStaff)} /></Card>}
 
       {api !== null && access.isPending && <Skeleton className="h-40 w-full" />}
 

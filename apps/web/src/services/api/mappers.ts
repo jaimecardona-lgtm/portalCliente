@@ -11,9 +11,14 @@
  */
 import type { EventComment, EventType, Operation, OperationEvent, OperationStatus, TransportType, Visibility } from '@/types/domain'
 import { PortalApiError } from './http-client'
+import { normalizeOperationStatus } from './operation-status'
 
 /** Estados de operación conocidos. Debe coincidir con OPERATION_STATUSES (ver mappers.test.ts). */
 export const KNOWN_OPERATION_STATUSES: readonly OperationStatus[] = [
+  'Abierto',
+  'Finalizado',
+  'En proceso de facturación',
+  'Cerrado / Liquidado',
   'Creado',
   'En tránsito',
   'En puerto',
@@ -139,7 +144,7 @@ export function toOperationSummary(payload: unknown, tenantId: string): Operatio
     tenantId,
     doNumber: requireString(src, 'do_number'),
     reference: optionalString(src, 'reference'),
-    lastKnownStatus: optionalOneOf(src.last_known_status, KNOWN_OPERATION_STATUSES, 'last_known_status'),
+    lastKnownStatus: normalizeOperationStatus(src.last_known_status).status,
     lastSyncedAt: optionalString(src, 'last_synced_at'),
   }
 }
@@ -207,13 +212,13 @@ const KNOWN_TRANSPORT: readonly TransportType[] = ['Marítimo FCL', 'Marítimo L
 
 /**
  * Operación del dominio a partir de la respuesta de la API (cliente o personal).
- * Devuelve null si el estado no es uno de los conocidos: no se muestra una operación con estado inventado.
- * Los campos sin información llegan como null y se muestran como «No informado» en la interfaz.
+ * Un estado que el dominio no conoce NO interrumpe la lista completa: esa fila se descarta (null) y el resto
+ * sigue cargando. No se sustituye por un estado inventado. Los campos sin información llegan como null.
  */
 export function toOperationFromDto(payload: unknown, tenantId: string): Operation | null {
   const src = requireObject(payload, 'operation')
-  const status = optionalOneOf(src.last_known_status, KNOWN_OPERATION_STATUSES, 'last_known_status')
-  if (status === null) return null
+  // Mapping centralizado (operation-status.ts). Sin estado o no reconocido: la fila se conserva y se marca.
+  const { status, statusRaw } = normalizeOperationStatus(src.last_known_status)
   const transport = optionalOneOf(src.transport_type, KNOWN_TRANSPORT, 'transport_type')
   const synced = optionalString(src, 'last_synced_at')
   const pending = typeof src.pending_client_response === 'boolean' ? src.pending_client_response : null
@@ -223,6 +228,7 @@ export function toOperationFromDto(payload: unknown, tenantId: string): Operatio
     doNumber: requireString(src, 'do_number'),
     reference: optionalString(src, 'reference'),
     status,
+    statusRaw,
     kind: null,
     transport,
     owner: optionalString(src, 'responsible_name'),

@@ -25,6 +25,7 @@ import { OperationStatusBadge } from '@/components/ui/status-badge'
 import { cn, daysUntil, formatDate, formatRelative } from '@/lib/format'
 import { STATUS_META } from '@/features/operations/status'
 import type { Operation, OperationEvent, DocumentRecord, Quote } from '@/types/domain'
+import { ACTIVE_STATUSES } from '@/features/operations/aggregates'
 import { referenceNow } from '@/lib/clock'
 import { isVisibleToClient } from '@/features/operations/thread-utils'
 
@@ -63,8 +64,11 @@ export function DashboardPage() {
 
   const loading = !staffView && (ops.isPending || docs.isPending || quotes.isPending)
   const operations = ops.data ?? []
-  const active = operations.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado')
-  const pending = operations.filter((o) => o.pendingClientResponse)
+  // En operación = Abierto + En tránsito (regla de negocio, no inferida de otros estados).
+  const active = operations.filter((o) => ACTIVE_STATUSES.includes(o.status))
+  // «Requieren respuesta» viene del campo persistido pending_client_response (NULL = sin información).
+  const responseKnown = operations.some((o) => o.pendingClientResponse !== null)
+  const pending = operations.filter((o) => o.pendingClientResponse === true)
   const pendingQuotes = (quotes.data ?? []).filter((q) => q.status === 'Pendiente' && daysUntil(q.validUntil, now) >= 0)
   const expiredDocs = (docs.data ?? []).filter((d) => d.status === 'vencido')
   const soonDocs = (docs.data ?? []).filter((d) => d.status === 'por_vencer')
@@ -92,8 +96,8 @@ export function DashboardPage() {
 
       {/* Indicadores */}
       <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <KpiCard to="/operaciones" search={{ status: 'En tránsito,En puerto,En aduana' }} label="Operaciones activas" value={staffView ? NO_VALUE : loading ? null : active.length} hint="En tránsito, puerto o aduana" icon={Package} tone="blue" />
-        <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={staffView ? NO_VALUE : loading ? null : pending.length} hint="Operaciones con acción requerida" icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
+        <KpiCard to="/operaciones" search={{ status: 'Abierto,En tránsito' }} label="Operaciones activas" value={staffView ? NO_VALUE : loading ? null : active.length} hint={staffView || loading ? 'Abiertas y en tránsito' : `De ${operations.length} registradas`} icon={Package} tone="blue" />
+        <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={staffView || !responseKnown ? NO_VALUE : loading ? null : pending.length} hint={responseKnown ? 'Operaciones con acción requerida' : 'Sin información de respuesta en la base'} icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
         <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={staffView || quotesUnavailable ? NO_VALUE : loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
         <KpiCard to="/documentos" label="Documentos vencidos" value={staffView || docsUnavailable ? NO_VALUE : loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
       </section>

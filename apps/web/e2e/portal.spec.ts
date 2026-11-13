@@ -129,6 +129,14 @@ test.describe('detalle DO y conversaciones por evento', () => {
 })
 
 test.describe('cotizaciones', () => {
+  test('documentos y cotizaciones identifican los ejemplos locales', async ({ page }) => {
+    await loginAs(page)
+    await page.goto('/documentos')
+    await expect(page.getByText('DEMO · Datos de ejemplo.')).toBeVisible()
+    await page.goto('/cotizaciones')
+    await expect(page.getByText('DEMO · Datos de ejemplo.')).toBeVisible()
+  })
+
   test('una cotización vencida no ofrece decisión', async ({ page }) => {
     await loginAs(page)
     await page.goto('/cotizaciones/qt-1002')

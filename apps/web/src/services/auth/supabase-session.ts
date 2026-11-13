@@ -27,10 +27,17 @@ export interface SupabaseAuthLike {
       error: { message: string } | null
     }>
     updateUser(attributes: { password: string }): Promise<{ error: { message: string } | null }>
-    onAuthStateChange(callback: (event: string, session: { access_token: string } | null) => void): {
+    onAuthStateChange(callback: (event: string, session: { access_token: string; user?: { id: string } | null } | null) => void): {
       data: { subscription: { unsubscribe(): void } }
     }
   }
+}
+
+/** Cambio de sesión de Supabase. `event` distingue un cierre real (SIGNED_OUT) de una simple renovación. */
+export interface SessionChange {
+  hasSession: boolean
+  event: string
+  userId: string | null
 }
 
 export type AuthOutcome = { status: 'ok' } | { status: 'invalid' } | { status: 'unavailable' }
@@ -47,7 +54,7 @@ export interface SupabaseSessionService {
   /** Cambia la contraseña de la sesión creada por el enlace de recuperación. */
   updatePassword(password: string): Promise<AuthOutcome>
   /** Suscribe a cambios de sesión (inicio, renovación, cierre). Devuelve la función para cancelar. */
-  onSessionChange(callback: (hasSession: boolean) => void): () => void
+  onSessionChange(callback: (change: SessionChange) => void): () => void
 }
 
 function isInvalidCredentials(error: { status?: number; message: string }): boolean {
@@ -112,7 +119,9 @@ export function createSupabaseSessionService(client: SupabaseAuthLike): Supabase
     },
 
     onSessionChange(callback) {
-      const { data } = client.auth.onAuthStateChange((_event, session) => callback(session !== null))
+      const { data } = client.auth.onAuthStateChange((event, session) =>
+        callback({ hasSession: session !== null, event, userId: session?.user?.id ?? null }),
+      )
       return () => data.subscription.unsubscribe()
     },
   }

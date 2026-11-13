@@ -20,6 +20,7 @@ import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useToast } from '@/components/ui/toast'
 import { FEATURES } from '@/config/runtime'
+import { QA_BANNER } from '@/services/api/staff-api'
 import { Badge, Button, Card, EmptyState, ErrorState, Field, inputClass, Skeleton, type Tone } from '@/components/ui/primitives'
 import { formatDateTime, cn } from '@/lib/format'
 import type { RequestStatus, RequestType } from '@/types/domain'
@@ -127,7 +128,8 @@ export function RequestsListPage() {
 
 export function NewRequestPage() {
   const repo = useRepository()
-  const { session, user } = useSession()
+  const { session, user, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
   const tenantId = session?.tenantId ?? ''
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -173,7 +175,7 @@ export function NewRequestPage() {
 
   const onSubmit = async (values: RequestFormValues) => {
     setSubmitError(null)
-    if (!user) return
+    if (!tenantId) return
     try {
       const created = await repo.createRequest(tenantId, {
         type: values.type,
@@ -182,17 +184,18 @@ export function NewRequestPage() {
         operationId: values.operationId ? values.operationId : null,
         // Los archivos seleccionados aún no se suben en este entorno.
         attachmentIds: [],
-        createdBy: user.id,
+        createdBy: user?.id ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: tenantKey(tenantId, 'requests') })
-      toast({ title: 'Solicitud registrada', description: `${created.number} · registrada en el entorno local.` })
+      toast({ title: 'Solicitud registrada', description: `${created.number} · guardada correctamente.` })
       void navigate({ to: '/solicitudes' })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'No se pudo enviar la solicitud.')
     }
   }
 
-  if (!FEATURES.requestSubmission) return <RequestUnavailable />
+  const administrativeQa = staff?.permissions.includes('requests.create_qa') === true && activeStaff?.qaSynthetic === true
+  if (!FEATURES.requestSubmission && !administrativeQa) return <RequestUnavailable />
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -206,6 +209,12 @@ export function NewRequestPage() {
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">¿En qué podemos ayudarle?</h1>
         <p className="mt-1 text-sm text-ink-muted">Los campos marcados con * son obligatorios.</p>
       </header>
+
+      {administrativeQa && (
+        <p className="rounded-[var(--radius-card)] border border-warning-200 bg-warning-50 px-4 py-2 text-xs font-semibold text-ink">
+          {QA_BANNER} · La autoría quedará registrada con su cuenta administrativa.
+        </p>
+      )}
 
       <Card className="p-5 sm:p-7">
         <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">

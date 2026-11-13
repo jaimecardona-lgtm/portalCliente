@@ -75,8 +75,17 @@ def chat(
     tenant_name: str | None = None
     staff_ctx = resolve_staff(session, claims.subject)
     if staff_ctx is not None:
-        # Personal interno: solo un tenant visible por alcance, fijado en la transacción y auditado.
-        if requested is not None and staff_svc.tenant_visible(session, requested):
+        # Personal interno: la empresa debe ser visible y coincidir con el contexto reautenticado.
+        if requested is not None:
+            visible = staff_svc.tenant_visible(
+                session, requested, allow_qa=bool(settings.qa_synthetic_enabled)
+            )
+            active = staff_svc.previous_context_tenant(session)
+            if not visible or active != requested:
+                raise AccessDenied(
+                    "Seleccione y confirme esta empresa antes de consultar Logix.",
+                    code="tenant_context_mismatch",
+                )
             staff_svc.fix_selected_tenant(session, requested)
             tenant_id = requested
             tenant = portal_repo.get_tenant(session, requested)
@@ -107,6 +116,7 @@ def chat(
     operations = portal_repo.list_operations(session, tenant_id, limit=500, offset=0)
     operations = [op for op in operations if op.tenant_id == tenant_id]
     answer = logix_svc.answer_private(question, operations)
+    session.commit()
     return _payload(answer, tenant_name)
 
 

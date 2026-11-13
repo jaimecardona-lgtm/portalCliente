@@ -114,16 +114,15 @@ Un servicio gratuito **no es operación de producción**. Antes de usuarios real
 ## 7. Frontend en producción: estado actual
 
 El build de producción **exige** `VITE_AUTH_PROVIDER=supabase` con `VITE_SUPABASE_URL` y
-`VITE_SUPABASE_PUBLISHABLE_KEY` válidas, y `VITE_API_BASE_URL` (`/api/v1`). Aun así, las pantallas de acceso
-**todavía no están conectadas** a Supabase Auth, así que el runtime bloquea el acceso (motivo
-`provider-not-implemented`). En consecuencia, el servicio desplegado mostraría
-la pantalla de acceso bloqueado. Esto es intencional: no se presenta como portal operativo.
+`VITE_SUPABASE_PUBLISHABLE_KEY` válidas, y `VITE_API_BASE_URL=/api/v1`. Login, cierre de sesión, renovación,
+recuperación de cuenta, guarda de rutas y repositorio HTTP ya están conectados a Supabase Auth.
 
-Pasos para habilitar el acceso real (fase siguiente):
+Antes de desplegar se mantienen como comprobaciones obligatorias:
 
-1. Conectar login, recuperación, cierre de sesión y guarda de rutas al servicio de Supabase (ver `supabase-preparation.md`, sección 7b).
-2. Añadir el proveedor a `IMPLEMENTED_AUTH_PROVIDERS` en `src/config/runtime.ts`.
-3. Verificar con `npm run build:verify` y el E2E de producción.
+1. Aplicar y verificar las migraciones pendientes mediante el historial de Supabase CLI.
+2. Configurar únicamente una modalidad válida de verificación JWT en Render.
+3. Ejecutar `npm run build:verify`, las pruebas y un E2E autenticado contra el entorno autorizado.
+4. Mantener `QA_SYNTHETIC_ENABLED=false` y `LOGIX_AI_ENABLED=false` salvo autorización explícita del entorno.
 
 ## 8. Paso a un plan de pago sin reestructurar
 

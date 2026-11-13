@@ -41,14 +41,14 @@ const NOT_STAFF = async () => {
 }
 
 function setup(options: { repoAccount: () => Promise<CurrentAccount>; staffMe?: () => Promise<unknown> }) {
-  let onChange: ((hasSession: boolean) => void) | undefined
+  let onChange: ((change: { hasSession: boolean; event: string; userId: string | null }) => void) | undefined
   const auth = {
     signOut: vi.fn(async () => undefined),
     signIn: vi.fn(async () => ({ status: 'ok' as const })),
     accessToken: vi.fn(async () => 'token-sintetico'),
     requestPasswordReset: vi.fn(async () => ({ status: 'ok' as const })),
     updatePassword: vi.fn(async () => ({ status: 'ok' as const })),
-    onSessionChange: vi.fn((cb: (hasSession: boolean) => void) => {
+    onSessionChange: vi.fn((cb: (change: { hasSession: boolean; event: string; userId: string | null }) => void) => {
       onChange = cb
       return () => undefined
     }),
@@ -66,7 +66,13 @@ function setup(options: { repoAccount: () => Promise<CurrentAccount>; staffMe?: 
       </SupabasePortalContext.Provider>
     </QueryClientProvider>,
   )
-  return { auth, repo, staff, notifySession: (has: boolean) => onChange?.(has) }
+  return {
+    auth,
+    repo,
+    staff,
+    notifySession: (has: boolean, event = has ? 'SIGNED_IN' : 'SIGNED_OUT', userId: string | null = has ? 'u-test' : null) =>
+      onChange?.({ hasSession: has, event, userId }),
+  }
 }
 
 describe('SupabaseSessionProvider', () => {

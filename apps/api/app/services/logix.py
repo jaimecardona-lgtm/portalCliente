@@ -31,8 +31,10 @@ _PRIVATE_TERMS = re.compile(
     r"cu[aá]ntas?|\bDO-|tenant|empresa)",
     re.IGNORECASE,
 )
-_DO_NUMBER = re.compile(r"\bDO-[A-Za-z0-9][A-Za-z0-9-]{1,19}\b", re.IGNORECASE)
-_CLOSED = frozenset({"Cerrado", "Entregado"})
+_DO_NUMBER = re.compile(r"\b(?:QA-)?DO-[A-Za-z0-9][A-Za-z0-9-]{1,35}\b", re.IGNORECASE)
+_ACTIVE = frozenset({"abierto", "en tránsito"})
+_IN_TRANSIT = "en tránsito"
+_OPEN = "abierto"
 
 GENERAL_SYSTEM_PROMPT = (
     "Eres Logix, asistente del Portal Cliente de Logixtic. Responde en español, de forma breve, sobre "
@@ -108,11 +110,44 @@ def answer_private(question: str, operations: list[OperationRef]) -> LogixAnswer
             kind="deterministic",
             sources=(do_number,),
         )
-    active = [o for o in operations if (o.last_known_status or "") not in _CLOSED]
+    normalized = question.casefold()
+
+    def status_of(operation: OperationRef) -> str:
+        return (operation.last_known_status or "").strip().casefold()
+
+    active = [o for o in operations if status_of(o) in _ACTIVE]
+    in_transit = [o for o in operations if status_of(o) == _IN_TRANSIT]
+    opened = [o for o in operations if status_of(o) == _OPEN]
+
+    list_words = ("muestra", "muéstr", "lista", "cuáles")
+    if "abiert" in normalized and any(word in normalized for word in list_words):
+        if not opened:
+            return LogixAnswer(
+                text="No hay operaciones abiertas en la empresa activa.",
+                kind="deterministic",
+            )
+        numbers = ", ".join(o.do_number for o in opened)
+        return LogixAnswer(
+            text=f"Operaciones abiertas ({len(opened)}): {numbers}.",
+            kind="deterministic",
+            sources=tuple(o.do_number for o in opened),
+        )
+    if "tránsito" in normalized or "movimiento" in normalized:
+        return LogixAnswer(
+            text=f"Operaciones en tránsito de la empresa activa: {len(in_transit)}.",
+            kind="deterministic",
+            sources=tuple(o.do_number for o in in_transit[:10]),
+        )
+    if "activ" in normalized:
+        return LogixAnswer(
+            text=f"Operaciones activas de la empresa activa: {len(active)}.",
+            kind="deterministic",
+            sources=tuple(o.do_number for o in active[:10]),
+        )
     return LogixAnswer(
         text=(
-            f"Operaciones sincronizadas de la empresa activa: {len(operations)}. "
-            f"Sin cerrar ni entregar: {len(active)}."
+            f"Operaciones registradas de la empresa activa: {len(operations)}. "
+            f"Activas: {len(active)}. En tránsito: {len(in_transit)}."
         ),
         kind="deterministic",
         sources=tuple(o.do_number for o in operations[:5]),

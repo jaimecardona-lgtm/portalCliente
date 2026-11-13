@@ -198,6 +198,27 @@ def _selected_tenant(
     svc.fix_selected_tenant(session, tenant_id)
 
 
+def _active_selected_tenant(
+    session: Session, ctx: StaffContext, tenant_id: UUID, permission: str, request: Request
+) -> None:
+    """Además del alcance, exige el último contexto confirmado por reautenticación."""
+    _selected_tenant(session, ctx, tenant_id, permission, request)
+    if svc.previous_context_tenant(session) != tenant_id:
+        svc.audit(
+            session,
+            ctx,
+            "context_denied",
+            tenant_id=None,
+            result="denied",
+            reason="active_context_mismatch",
+        )
+        session.commit()
+        raise AccessDenied(
+            "Seleccione y confirme esta empresa antes de crear la solicitud.",
+            code="tenant_context_mismatch",
+        )
+
+
 class ClientAccountIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     legal_name: str = Field(min_length=2, max_length=200)
@@ -209,6 +230,19 @@ class RequestIn(BaseModel):
     request_type: Literal["consulta", "modificacion_datos", "documentacion", "cotizacion", "otro"]
     subject: str = Field(min_length=5, max_length=120)
     description: str = Field(min_length=20, max_length=2000)
+    operation_id: UUID | None = None
+
+
+@router.get("/tenants/{tenant_id}/profile", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_tenant_profile(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+    """Datos generales de la empresa autorizada. Empresa no visible y empresa inexistente responden igual (403)."""
+    _selected_tenant(session, ctx, tenant_id, "tenants.read", request)
+    profile = svc.tenant_profile(session, tenant_id)
+    if profile is None:
+        raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
+    svc.audit(session, ctx, "account_read", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"item": profile}
 
 
 @router.get("/tenants/{tenant_id}/client-accounts", tags=["personal interno"], responses=_STAFF_RESPONSES)
@@ -254,9 +288,10 @@ def staff_list_requests(tenant_id: UUID, ctx: StaffDep, session: DbDep, request:
 def staff_create_request(
     tenant_id: UUID, body: RequestIn, ctx: StaffDep, session: DbDep, request: Request
 ) -> dict[str, Any]:
-    _selected_tenant(session, ctx, tenant_id, "records.write", request)
+    # Permiso dedicado: solo platform_admin con alcance QA sintético puede superar además la política RLS.
+    _active_selected_tenant(session, ctx, tenant_id, "requests.create_qa", request)
     item = svc.create_request(
-        session, ctx, tenant_id, body.request_type, body.subject, body.description
+        session, ctx, tenant_id, body.request_type, body.subject, body.description, body.operation_id
     )
     svc.audit(session, ctx, "record_create", tenant_id=tenant_id, result="allowed")
     session.commit()

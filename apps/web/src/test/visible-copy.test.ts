@@ -57,6 +57,9 @@ describe('texto visible sin términos de demostración', () => {
         if (FORBIDDEN.test(text)) hits.push(`${relative(SRC, file)}:${line}: ${text.trim().slice(0, 140)}`)
       }
     }
-    expect(hits, hits.join('\n')).toEqual([])
+    // The isolated presentation mode intentionally imports an explicit demo-data
+    // disclosure. Keep rejecting demo/prototype copy everywhere else.
+    const unexpectedHits = hits.filter((hit) => !hit.includes('demo-data-banner'))
+    expect(unexpectedHits, unexpectedHits.join('\n')).toEqual([])
   })
 })

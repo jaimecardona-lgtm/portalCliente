@@ -7,7 +7,7 @@
  * del tenant. En desarrollo la decisión se registra en el repositorio local y no genera transacción comercial.
  * Errores: si el repositorio rechaza la decisión (estado o vigencia), se muestra el motivo.
  */
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, CalendarClock, Check, FileText, Info, SearchX, X } from 'lucide-react'
@@ -20,7 +20,7 @@ import { Badge, Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton, 
 import { cn, formatDate, formatMoney, formatNumber, daysUntil } from '@/lib/format'
 import type { Quote, QuoteStatus } from '@/types/domain'
 import { referenceNow } from '@/lib/clock'
-import { FEATURES } from '@/config/runtime'
+import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
 import { canDecideQuote, effectiveQuoteStatus, quoteSubtotal } from './quote-rules'
 
 const QUOTE_TONE: Record<QuoteStatus, Tone> = {
@@ -30,17 +30,28 @@ const QUOTE_TONE: Record<QuoteStatus, Tone> = {
   Vencida: 'warning',
 }
 
+const DevDemoBanner = import.meta.env.DEV
+  ? lazy(() => import('@/dev/demo-data-banner').then((m) => ({ default: m.DemoDataBanner })))
+  : null
+
 export function QuotesListPage() {
   const repo = useRepository()
   const { session, staff } = useSession()
   const activeStaff = useActiveStaffTenant()
-  const staffView = session === null && staff !== null
+  const staffView = staff !== null
   const tenantId = session?.tenantId ?? ''
   const now = useMemo(() => referenceNow(), [])
-  const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) })
+  const quotes = useQuery({
+    queryKey: tenantKey(tenantId, 'quotes'),
+    queryFn: () => repo.listQuotes(tenantId),
+    enabled: Boolean(tenantId) && !staffView,
+  })
 
   return (
     <div className="flex flex-col gap-6">
+      {LOCAL_ACCESS_ENABLED && DevDemoBanner && (
+        <Suspense fallback={null}><DevDemoBanner /></Suspense>
+      )}
       <header>
         <p className="text-xs font-semibold tracking-[0.16em] text-blue uppercase">Comercial</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Cotizaciones</h1>
@@ -49,11 +60,11 @@ export function QuotesListPage() {
 
       {quotes.isError && <Card><ErrorState message="No se pudieron cargar las cotizaciones." onRetry={() => void quotes.refetch()} /></Card>}
 
-      {quotes.isPending && (staffView ? (
-        <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>
-      ) : (
+      {staffView && <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>}
+
+      {quotes.isPending && !staffView && (
         <div className="grid gap-4 md:grid-cols-2" aria-busy="true"><Skeleton className="h-36" /><Skeleton className="h-36" /></div>
-      ))}
+      )}
 
       {quotes.data && quotes.data.length === 0 && (
         <Card><EmptyState icon={<FileText className="size-6" />} title="Sin cotizaciones" description="Cuando Logixtic emita una cotización para su empresa, aparecerá aquí." /></Card>
@@ -98,7 +109,8 @@ export function QuotesListPage() {
 
 export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
   const repo = useRepository()
-  const { session } = useSession()
+  const { session, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
   const tenantId = session?.tenantId ?? ''
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -110,8 +122,10 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
   const quote = useQuery({
     queryKey: tenantKey(tenantId, 'quote', quoteId),
     queryFn: () => repo.getQuote(tenantId, quoteId),
-    enabled: Boolean(tenantId),
+    enabled: Boolean(tenantId) && staff === null,
   })
+
+  if (staff) return <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>
 
   if (quote.isPending) {
     return <div className="flex flex-col gap-4" aria-busy="true"><Skeleton className="h-10 w-48" /><Skeleton className="h-64" /></div>
@@ -148,6 +162,9 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
+      {LOCAL_ACCESS_ENABLED && DevDemoBanner && (
+        <Suspense fallback={null}><DevDemoBanner /></Suspense>
+      )}
       <nav aria-label="Volver">
         <Link to="/cotizaciones" className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-blue">
           <ArrowLeft className="size-4" aria-hidden /> Cotizaciones

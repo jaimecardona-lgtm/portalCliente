@@ -46,6 +46,7 @@ import {
 } from './mappers'
 import type { CommentDto, EventDto, OperationDto } from './api-types'
 import type { StaffApi } from './staff-api'
+import { REQUEST_TYPE_TO_DB, requestFromStaff, requestsFromStaff } from './request-mapping'
 
 // Re-exportado para que quien consuma el repositorio remoto tenga los modelos de la capa API a mano.
 export type { CurrentAccount, OperationSummary } from './mappers'
@@ -276,10 +277,22 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
     async decideQuote(): Promise<Quote> {
       throw notAvailable('decideQuote')
     },
-    async listRequests(): Promise<Request[]> {
+    // Solicitudes: personal interno mediante /staff/tenants/{id}/requests (RLS y permiso en el servidor).
+    // La consulta de cliente final todavía no existe en la API: se declara como no disponible, sin datos.
+    async listRequests(tenantId): Promise<Request[]> {
+      if (isStaffTenant(tenantId)) return requestsFromStaff(await staffApi!.requests(tenantId))
       throw notAvailable('listRequests')
     },
-    async createRequest(): Promise<Request> {
+    async createRequest(tenantId, input): Promise<Request> {
+      if (isStaffTenant(tenantId)) {
+        const created = await staffApi!.createRequest(tenantId, {
+          requestType: REQUEST_TYPE_TO_DB[input.type],
+          subject: input.subject,
+          description: input.description,
+          operationId: input.operationId,
+        })
+        return requestFromStaff(created)
+      }
       throw notAvailable('createRequest')
     },
   }

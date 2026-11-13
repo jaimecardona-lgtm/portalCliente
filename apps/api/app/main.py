@@ -82,6 +82,8 @@ def create_app(
             "X-Tenant-Id",
             "X-File-Name",
             "X-Request-ID",
+            # Reautenticación reciente para cambio de empresa (POST /staff/context). Cabecera explícita.
+            "X-Reauth-Token",
         ],
     )
     app.add_middleware(RequestIdMiddleware)

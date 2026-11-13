@@ -8,6 +8,7 @@
  * Restricciones: los datos vienen del repositorio del tenant activo. La tabla usa un contenedor con
  * scroll horizontal; los elementos sr-only de sus celdas deben tener posicionamiento relativo.
  */
+import { operationAggregates } from './aggregates'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -436,16 +437,15 @@ function DateField({ id, label, value, onChange }: { id: string; label: string; 
 
 /** Franja de resumen sobre el total de operaciones (no depende de los filtros). */
 function OperationsSummary({ ops }: { ops: Operation[] | null }) {
-  const list = ops ?? []
-  const active = list.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado').length
-  const inMotion = list.filter((o) => ['En tránsito', 'En puerto', 'En aduana'].includes(o.status)).length
-  const pending = list.filter((o) => o.pendingClientResponse).length
-  const none = ops === null
+  // Mismos agregados que la Torre (features/operations/aggregates.ts). Sin datos cargados se muestra «—», nunca 0.
+  const agg = ops === null ? null : operationAggregates(ops)
+  const none = agg === null
+  const pendingNone = agg === null || !agg.responseKnown
   const items = [
-    { label: 'Activas', value: none ? '—' : active, tone: 'text-blue' },
-    { label: 'En movimiento', value: none ? '—' : inMotion, tone: 'text-navy-700' },
-    { label: 'Requieren su respuesta', value: none ? '—' : pending, tone: pending > 0 ? 'text-danger-700' : 'text-ink' },
-    { label: 'Total registradas', value: none ? '—' : list.length, tone: 'text-ink' },
+    { label: 'Activas', value: none ? '—' : agg.active, tone: 'text-blue' },
+    { label: 'En movimiento', value: none ? '—' : agg.inMotion, tone: 'text-navy-700' },
+    { label: 'Requieren su respuesta', value: pendingNone ? '—' : agg.pending, tone: !pendingNone && agg.pending > 0 ? 'text-danger-700' : 'text-ink' },
+    { label: 'Total registradas', value: none ? '—' : agg.total, tone: 'text-ink' },
   ]
   return (
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumen de operaciones">

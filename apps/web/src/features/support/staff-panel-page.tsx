@@ -14,7 +14,7 @@ import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { QA_BANNER, staffErrorMessage, tenantCategory } from '@/services/api/staff-api'
 import { StaffRecordsPanel } from '@/features/support/staff-records-panel'
 import { PortalApiError } from '@/services/api/http-client'
-import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
+import { clearPersistedStaffTenant, setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 
 const ROLE_LABEL: Record<string, string> = {
   platform_admin: 'Administrador de plataforma',
@@ -63,6 +63,7 @@ export function StaffPanelPage() {
       return
     }
     setActiveStaffTenant(null)
+    clearPersistedStaffTenant()
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
   }
 

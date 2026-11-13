@@ -163,16 +163,18 @@ def create_request(
     request_type: str,
     subject: str,
     description: str,
+    operation_id: UUID | None,
 ) -> dict[str, Any]:
-    """Solicitud creada desde el portal (procedencia portal_manual, estado inicial 'recibida')."""
+    """Solicitud QA administrativa; el actor interno autenticado queda en created_by."""
     row = (
         session.execute(
             text(
                 """
-                INSERT INTO requests (tenant_id, number, request_type, subject, description, status,
-                                      created_by, origin)
-                VALUES (:t, :n, :rt, :s, :d, 'recibida', :u, 'portal_manual')
-                RETURNING id, tenant_id, number, request_type, subject, description, status, origin, created_at
+                INSERT INTO requests (tenant_id, number, request_type, subject, description, operation_id,
+                                      status, created_by, origin)
+                VALUES (:t, :n, :rt, :s, :d, :op, 'recibida', :u, 'portal_manual')
+                RETURNING id, tenant_id, number, request_type, subject, description, operation_id,
+                          status, created_by, origin, created_at, updated_at
                 """
             ),
             {
@@ -181,6 +183,7 @@ def create_request(
                 "rt": request_type,
                 "s": subject.strip(),
                 "d": description.strip(),
+                "op": operation_id,
                 "u": ctx.user_id,
             },
         )
@@ -198,9 +201,12 @@ def _request_out(r: Any) -> dict[str, Any]:
         "request_type": r["request_type"],
         "subject": r["subject"],
         "description": r["description"],
+        "operation_id": str(r["operation_id"]) if r["operation_id"] else None,
         "status": r["status"],
+        "created_by": str(r["created_by"]),
         "origin": r["origin"],
         "created_at": r["created_at"].isoformat(),
+        "updated_at": r["updated_at"].isoformat(),
     }
 
 
@@ -209,8 +215,9 @@ def list_requests(session: Session, tenant_id: UUID) -> list[dict[str, Any]]:
         session.execute(
             text(
                 """
-                SELECT id, tenant_id, number, request_type, subject, description, status, origin, created_at
-                FROM requests WHERE tenant_id = :t ORDER BY created_at, id
+                SELECT id, tenant_id, number, request_type, subject, description, operation_id,
+                       status, created_by, origin, created_at, updated_at
+                FROM requests WHERE tenant_id = :t ORDER BY created_at DESC, id DESC
                 """
             ),
             {"t": tenant_id},
@@ -422,3 +429,48 @@ def confirm_context_change(
     except DBAPIError as exc:
         raise _context_error(exc) from exc
     return UUID(str(value))
+
+
+def tenant_profile(session: Session, tenant_id: UUID) -> dict[str, Any] | None:
+    """Datos generales de la empresa (public.tenants). Solo columnas existentes; la visibilidad la decide RLS."""
+    row = (
+        session.execute(
+            text(
+                """
+            SELECT slug, legal_name, tax_id, country, city, segment, account_manager, status,
+                   created_at, updated_at, external_tenant_id, verified_at, verified_by,
+                   integration_status, is_demo, discovery_source_system, discovery_observed_label,
+                   provisioned_authorized_by, provisioned_at
+            FROM tenants WHERE id = :t
+            """
+            ),
+            {"t": tenant_id},
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        return None
+    return {
+        "id": str(tenant_id),
+        "slug": row["slug"],
+        "legal_name": row["legal_name"],
+        "tax_id": row["tax_id"],
+        "country": row["country"],
+        "city": row["city"],
+        "segment": row["segment"],
+        "account_manager": row["account_manager"],
+        "status": row["status"],
+        "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+        "external_tenant_id": row["external_tenant_id"],
+        "verified_at": row["verified_at"].isoformat() if row["verified_at"] else None,
+        "verified_by": str(row["verified_by"]) if row["verified_by"] else None,
+        "integration_status": row["integration_status"],
+        "is_demo": row["is_demo"],
+        "discovery_source_system": row["discovery_source_system"],
+        "discovery_observed_label": row["discovery_observed_label"],
+        "provisioned_authorized_by": row["provisioned_authorized_by"],
+        "provisioned_at": row["provisioned_at"].isoformat() if row["provisioned_at"] else None,
+        "qa_synthetic": row["segment"] == "QA_SYNTHETIC_ONLY",
+    }

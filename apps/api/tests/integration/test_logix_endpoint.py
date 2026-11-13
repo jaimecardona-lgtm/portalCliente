@@ -16,7 +16,7 @@ from sqlalchemy.engine import Engine
 from app.core.config import Settings
 from app.main import create_app
 from app.services.staff_provisioning import Authorization, grant_scope
-from tests.conftest import Seed, mint_token
+from tests.conftest import Seed, mint_token, switch_context
 
 pytestmark = pytest.mark.integration
 
@@ -129,10 +129,13 @@ def test_staff_with_global_scope_switches_tenants_and_is_audited(client, seed, o
 
     do_b = _do_of(owner_engine, seed.op_b)
     do_a = _do_of(owner_engine, seed.op_a)
+    assert switch_context(client, qa, seed.tenant_a).status_code == 200
     in_a = _ask(client, qa, seed.tenant_a, f"¿Qué estado tiene {do_b}?").json()
     assert "No encontré" in in_a["answer"] and in_a["tenant"] is not None
+    assert switch_context(client, qa, seed.tenant_b).status_code == 200
     in_b = _ask(client, qa, seed.tenant_b, f"¿Qué estado tiene {do_b}?").json()
     assert do_b in in_b["answer"]
+    assert switch_context(client, qa, seed.tenant_a).status_code == 200
     assert _ask(client, qa, seed.tenant_a, f"¿Qué estado tiene {do_a}?").json()["sources"] == [do_a]
 
     with owner_engine.connect() as conn:

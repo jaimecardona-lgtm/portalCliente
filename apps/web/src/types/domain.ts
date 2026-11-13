@@ -9,6 +9,10 @@ export type ID = string
 export type Currency = 'USD' | 'COP' | 'EUR'
 
 export type OperationStatus =
+  | 'Abierto'
+  | 'Finalizado'
+  | 'En proceso de facturación'
+  | 'Cerrado / Liquidado'
   | 'Creado'
   | 'En tránsito'
   | 'En puerto'
@@ -16,6 +20,8 @@ export type OperationStatus =
   | 'Pendiente cliente'
   | 'Entregado'
   | 'Cerrado'
+  /** Valor que la API devuelve y el dominio no conoce. Se muestra explícito; nunca se sustituye por un estado válido. */
+  | 'Estado no reconocido'
 
 export type TransportType = 'Marítimo FCL' | 'Marítimo LCL' | 'Aéreo' | 'Terrestre'
 
@@ -83,6 +89,8 @@ export interface Operation {
   /** null = la información no existe en el portal. Nunca se muestra como dato real. */
   reference: string | null
   status: OperationStatus
+  /** Valor original de la API cuando `status` es «Estado no reconocido». Trazabilidad, no presentación. */
+  statusRaw?: string | null
   kind: OperationKind | null
   transport: TransportType | null
   owner: string | null
@@ -202,7 +210,8 @@ export interface Request {
   createdAt: string
   updatedAt: string
   attachmentIds: ID[]
-  createdBy: ID
+  /** Autor de la solicitud. null cuando la API no lo expone (personal interno), nunca un valor inventado. */
+  createdBy: ID | null
 }
 
 export interface Session {
