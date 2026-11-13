@@ -90,3 +90,28 @@ No debe quedar como credencial de la API.
 **Decisión pendiente del propietario:** registrar el historial de las cinco versiones con `supabase migration repair --status applied`
 (opción A del plan, si acepta la equivalencia estructural) o comparar también el texto de funciones y políticas antes de decidir.
 Ninguna de las dos se ejecuta sin autorización escrita.
+
+## 7. Comparación estructural completa (huella del catálogo, solo lectura)
+
+Se generó la misma huella en la base local migrada con las siete migraciones y en el remoto: tablas y RLS, columnas
+(tipo, nulidad y default), restricciones, índices, políticas (comando, roles, expresiones USING y WITH CHECK), funciones
+(argumentos, SECURITY DEFINER, `search_path` y cuerpo), privilegios de tablas, roles, membresías y matriz de permisos.
+
+Resultado: **idénticas**, salvo estas tres diferencias esperadas:
+
+1. `profiles_auth_user_fk`: existe solo en remoto. La migración la añade de forma condicional y la base local no tiene
+   el esquema `auth`.
+2. El rol `portal_api` existe solo en remoto, con membresía en `portal_app`.
+3. La membresía de `postgres` en `portal_app` aparece en remoto y no en local, por la misma razón que el rol anterior.
+
+Las restricciones `NOT NULL` se excluyeron de la comparación porque PostgreSQL 18 (local) las guarda en `pg_constraint`
+y PostgreSQL 17 (remoto) no. La nulidad de cada columna sí se compara.
+
+Conclusión: la equivalencia estructural de las cinco migraciones pendientes está verificada. Falta solo la decisión
+escrita sobre el registro del historial.
+
+## 8. Configuración de portal_api
+
+`apps/api/scripts/configure_portal_api_url.py` pide la contraseña de `portal_api` con entrada oculta, construye la URL en
+memoria, la escribe en `.env` de forma atómica y conserva la conexión del propietario como `OWNER_DATABASE_URL`.
+Se ejecuta en el terminal del responsable, no en un chat.
