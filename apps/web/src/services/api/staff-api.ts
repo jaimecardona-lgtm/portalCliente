@@ -34,8 +34,19 @@ export interface StaffOperation {
   raw: Record<string, unknown>
 }
 
+/** Empresa observada en el catálogo de Logixtic. Sin identificador oficial ni operaciones. */
+export interface ObservedTenant {
+  label: string
+  slug: string | null
+  sourceSystem: string
+  verificationStatus: string
+  hasOfficialId: boolean
+  integrationStatus: string
+}
+
 export interface StaffApi {
   me(): Promise<StaffMe>
+  observedTenants(): Promise<ObservedTenant[]>
   tenants(): Promise<StaffTenant[]>
   /** Cambio de empresa de trabajo. El motivo de soporte es obligatorio y queda auditado en el servidor. */
   selectContext(tenantId: string, reason: string): Promise<StaffTenant>
@@ -123,6 +134,17 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
   return {
     async me() {
       return toStaffMe(await requester.send('GET', '/staff/me'))
+    },
+    async observedTenants() {
+      const data = (await requester.send('GET', '/staff/observed-tenants')) as { items?: Record<string, unknown>[] } | null
+      return (data?.items ?? []).map((r) => ({
+        label: requireString(r.label, 'label'),
+        slug: typeof r.slug === 'string' ? r.slug : null,
+        sourceSystem: typeof r.source_system === 'string' ? r.source_system : 'logixtic',
+        verificationStatus: typeof r.verification_status === 'string' ? r.verification_status : 'unverified',
+        hasOfficialId: r.has_official_id === true,
+        integrationStatus: typeof r.integration_status === 'string' ? r.integration_status : 'no_vinculada',
+      }))
     },
     async tenants() {
       const data = (await requester.send('GET', '/staff/tenants')) as { items?: unknown[] } | null

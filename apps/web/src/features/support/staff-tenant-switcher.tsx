@@ -1,23 +1,33 @@
 /**
  * Selector global de empresa para personal interno (barra superior).
  *
- * Responsabilidad: buscar entre las empresas que el servidor devuelve como verificadas y habilitadas para el rol,
- * pedir el motivo de soporte y fijar el contexto de trabajo. Muestra siempre la empresa activa.
+ * Responsabilidad: mostrar las empresas de Logixtic y fijar el contexto de trabajo cuando corresponde.
+ * - «Empresas observadas en Logixtic»: catálogo de nombres y códigos del selector del SaaS. Muestra su estado de
+ *   vinculación. No cambia el contexto de trabajo y no tiene operaciones: no hay vinculación oficial.
+ * - Empresas de trabajo: solo las que devuelve el servidor para el rol. Se separan en desarrollo (partes cargadas
+ *   solo con import.meta.env.DEV desde src/dev). En producción aparecen como empresas verificadas.
  * Reglas:
- * - La lista viene de GET /staff/tenants. Sin empresas, lo dice. Ninguna empresa de ejemplo.
- * - El cambio exige motivo; el servidor valida rol, alcance, verificación y estado, y audita el cambio.
- * - Al cambiar se borra la caché de la empresa anterior (consultas de tenant y de operaciones de soporte).
+ * - Las listas vienen de la API. Ningún dato de ejemplo se escribe en este archivo.
+ * - El cambio de contexto exige motivo; el servidor valida rol, alcance y estado, y audita el cambio.
+ * - Al cambiar se borra la caché de la empresa anterior.
  */
-import { useContext, useMemo, useRef, useState, useEffect } from 'react'
+import { lazy, Suspense, useContext, useMemo, useRef, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, Check, ChevronDown, X } from 'lucide-react'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
-import { staffErrorMessage, type StaffTenant } from '@/services/api/staff-api'
-import { cn } from '@/lib/format'
+import { staffErrorMessage, type ObservedTenant, type StaffTenant } from '@/services/api/staff-api'
 
 const REASON_MIN = 3
 const REASON_MAX = 300
+
+/* Partes de desarrollo: con import.meta.env.DEV falso no se cargan y no entran en el bundle. */
+const DevParts = import.meta.env.DEV
+  ? lazy(() => import('@/dev/staff-tenant-parts').then((m) => ({ default: m.StaffDemoParts })))
+  : null
+const DevVerified = import.meta.env.DEV
+  ? lazy(() => import('@/dev/staff-verified-list').then((m) => ({ default: m.StaffVerifiedTenants })))
+  : null
 
 export function StaffTenantSwitcher() {
   const portal = useContext(SupabasePortalContext)
@@ -27,6 +37,7 @@ export function StaffTenantSwitcher() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<StaffTenant | null>(null)
+  const [catalogDetail, setCatalogDetail] = useState<ObservedTenant | null>(null)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -38,12 +49,27 @@ export function StaffTenantSwitcher() {
     queryFn: () => api!.tenants(),
   })
 
-  const list = useMemo(() => {
-    const term = query.trim().toLowerCase()
-    const all = tenants.data ?? []
-    if (!term) return all
-    return all.filter((t) => t.legalName.toLowerCase().includes(term) || (t.externalTenantId ?? '').toLowerCase().includes(term))
-  }, [tenants.data, query])
+  const observed = useQuery({
+    queryKey: ['supabase', 'staff-observed-tenants'],
+    enabled: api !== null,
+    retry: false,
+    queryFn: () => api!.observedTenants(),
+  })
+
+  const term = query.trim().toLowerCase()
+  const matches = (label: string, code: string | null) =>
+    !term || label.toLowerCase().includes(term) || (code ?? '').toLowerCase().includes(term)
+
+  const workTenants = useMemo(
+    () => (tenants.data ?? []).filter((t) => matches(t.legalName, t.externalTenantId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenants.data, term],
+  )
+  const observedList = useMemo(
+    () => (observed.data ?? []).filter((o) => matches(o.label, o.slug)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [observed.data, term],
+  )
 
   /** Limpia lo que pertenece a la empresa anterior antes de mostrar la nueva. */
   const clearTenantCache = () => {
@@ -94,6 +120,11 @@ export function StaffTenantSwitcher() {
   if (api === null) return null
 
   const reasonValid = reason.trim().length >= REASON_MIN && reason.trim().length <= REASON_MAX
+  const pick = (t: StaffTenant) => {
+    setMessage(null)
+    if (active?.id === t.id) setOpen(false)
+    else setPending(t)
+  }
 
   return (
     <div ref={root} className="relative">
@@ -103,24 +134,26 @@ export function StaffTenantSwitcher() {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={active ? `Empresa de trabajo: ${active.legalName}` : 'Seleccionar empresa de trabajo'}
-        className={cn(
-          'flex h-10 max-w-[240px] items-center gap-2 rounded-lg border px-3 text-sm transition-colors duration-200',
-          active ? 'border-blue/40 bg-blue-50 text-navy-700' : 'border-line bg-canvas text-ink-muted hover:bg-surface-muted',
-        )}
+        className="flex h-10 max-w-[260px] items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-sm text-ink-muted transition-colors duration-200 hover:bg-surface-muted aria-expanded:border-blue/40"
       >
         <Building2 className="size-4 shrink-0" aria-hidden />
         <span className="truncate font-medium">{active ? active.legalName : 'Seleccione una empresa'}</span>
+        {active && DevParts && (
+          <Suspense fallback={null}>
+            <DevParts part="badge" />
+          </Suspense>
+        )}
         <ChevronDown className="size-4 shrink-0" aria-hidden />
       </button>
 
       {open && (
         <div
           role="dialog"
-          aria-label="Empresas autorizadas para soporte"
-          className="absolute right-0 z-50 mt-2 w-[min(340px,calc(100vw-2rem))] animate-slide-up overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
+          aria-label="Empresas de Logixtic"
+          className="absolute right-0 z-50 mt-2 max-h-[min(560px,80vh)] w-[min(360px,calc(100vw-2rem))] animate-slide-up overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
         >
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <p className="text-sm font-semibold text-ink">Empresa de trabajo</p>
+            <p className="text-sm font-semibold text-ink">Empresas de Logixtic</p>
             {active && (
               <button type="button" onClick={() => exit.mutate()} disabled={exit.isPending} className="text-xs font-semibold text-blue hover:underline disabled:opacity-50">
                 Salir del contexto
@@ -140,6 +173,11 @@ export function StaffTenantSwitcher() {
               <p className="text-sm text-ink">
                 Cambiar a <span className="font-semibold">{pending.legalName}</span>
               </p>
+              {DevParts && (
+                <Suspense fallback={null}>
+                  <DevParts part="notice" />
+                </Suspense>
+              )}
               <label htmlFor="staff-reason" className="text-xs font-semibold text-ink-soft">
                 Motivo de soporte (obligatorio, queda registrado)
               </label>
@@ -165,55 +203,94 @@ export function StaffTenantSwitcher() {
               </div>
             </form>
           ) : (
-            <div className="flex flex-col gap-3 p-4">
+            <div className="flex flex-col gap-3 overflow-y-auto p-4">
               <label htmlFor="staff-tenant-search" className="sr-only">Buscar empresa</label>
               <input
                 id="staff-tenant-search"
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nombre o identificador oficial"
+                placeholder="Buscar por nombre o código"
                 className="h-10 rounded-lg border border-line bg-canvas px-3 text-sm focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/15"
               />
 
-              {tenants.isPending && <p className="text-sm text-ink-muted">Cargando empresas…</p>}
-              {tenants.isError && <p className="text-sm text-danger-700">{staffErrorMessage(tenants.error)}</p>}
-              {tenants.isSuccess && (tenants.data.length === 0) && (
-                <p className="text-sm text-ink-muted">Sin empresas verificadas asignadas a su rol.</p>
-              )}
-              {tenants.isSuccess && tenants.data.length > 0 && list.length === 0 && (
-                <p className="text-sm text-ink-muted">Ninguna empresa coincide con la búsqueda.</p>
-              )}
+              <section aria-labelledby="observed-title" className="flex flex-col gap-1">
+                <h3 id="observed-title" className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                  Empresas observadas en Logixtic
+                </h3>
+                {observed.isPending && <p className="px-1 text-sm text-ink-muted">Cargando catálogo…</p>}
+                {observed.isError && <p className="px-1 text-sm text-danger-700">{staffErrorMessage(observed.error)}</p>}
+                {observed.isSuccess && observedList.length === 0 && (
+                  <p className="px-1 text-sm text-ink-muted">Sin empresas observadas.</p>
+                )}
+                <ul className="flex flex-col">
+                  {observedList.map((o) => (
+                    <li key={o.label}>
+                      <button
+                        type="button"
+                        onClick={() => setCatalogDetail(o)}
+                        className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-ink">{o.label}</span>
+                          <span className="block truncate font-mono text-xs text-ink-muted">{o.slug ?? 'sin código'}</span>
+                        </span>
+                        <span className="shrink-0 rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-soft">
+                          No vinculada
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {catalogDetail && (
+                  <div className="mx-1 rounded-lg border border-line bg-canvas p-3 text-xs text-ink-soft">
+                    <p className="font-semibold text-ink">{catalogDetail.label}</p>
+                    <p>Código observado: {catalogDetail.slug ?? 'no disponible'}</p>
+                    <p>Estado de integración: no vinculada a Logixtic. Sin identificador oficial.</p>
+                    <p>No hay operaciones disponibles hasta vincular la empresa y autorizar su consulta.</p>
+                  </div>
+                )}
+              </section>
 
-              {list.length > 0 && (
-                <ul role="listbox" aria-label="Empresas" className="max-h-72 overflow-y-auto">
-                  {list.map((t) => {
-                    const isActive = active?.id === t.id
-                    return (
+              {tenants.isPending && <p className="px-1 text-sm text-ink-muted">Cargando empresas…</p>}
+              {tenants.isError && <p className="px-1 text-sm text-danger-700">{staffErrorMessage(tenants.error)}</p>}
+
+              {tenants.isSuccess && DevParts && (
+                <Suspense fallback={null}>
+                  <DevParts part="section" tenants={workTenants} activeId={active?.id ?? null} onPick={pick} />
+                </Suspense>
+              )}
+              {tenants.isSuccess && DevVerified && (
+                <Suspense fallback={null}>
+                  <DevVerified tenants={workTenants} activeId={active?.id ?? null} onPick={pick} />
+                </Suspense>
+              )}
+              {tenants.isSuccess && !DevVerified && (
+                <section aria-labelledby="verified-title" className="flex flex-col gap-1">
+                  <h3 id="verified-title" className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                    Empresas verificadas
+                  </h3>
+                  {workTenants.length === 0 && <p className="px-1 text-sm text-ink-muted">Sin empresas verificadas asignadas a su rol.</p>}
+                  <ul className="flex flex-col">
+                    {workTenants.map((t) => (
                       <li key={t.id}>
                         <button
                           type="button"
                           role="option"
-                          aria-selected={isActive}
-                          onClick={() => {
-                            setMessage(null)
-                            if (isActive) setOpen(false)
-                            else setPending(t)
-                          }}
+                          aria-selected={active?.id === t.id}
+                          onClick={() => pick(t)}
                           className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-muted"
                         >
                           <span className="min-w-0">
                             <span className="block truncate font-medium text-ink">{t.legalName}</span>
-                            <span className="block truncate text-xs text-ink-muted">
-                              Identificador oficial: {t.externalTenantId ?? 'no disponible'}
-                            </span>
+                            <span className="block truncate text-xs text-ink-muted">Identificador oficial: {t.externalTenantId}</span>
                           </span>
-                          {isActive && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
+                          {active?.id === t.id && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
                         </button>
                       </li>
-                    )
-                  })}
-                </ul>
+                    ))}
+                  </ul>
+                </section>
               )}
             </div>
           )}
