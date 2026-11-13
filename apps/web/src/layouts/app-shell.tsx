@@ -21,7 +21,7 @@ import { Card, ErrorState } from '@/components/ui/primitives'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { cn, daysUntil } from '@/lib/format'
 import { NAV_GROUPS, STAFF_NAV_GROUPS, STAFF_ROLE_LABELS, SECTION_LABELS, type NavGroup, type NavItem } from './nav'
-import { StaffTenantSelector } from '@/features/support/staff-tenant-selector'
+import { StaffTenantSwitcher } from '@/features/support/staff-tenant-switcher'
 import { StaffSectionPage } from '@/features/support/staff-module-notice'
 import { useActiveStaffTenant } from '@/services/auth/staff-context'
 
@@ -107,7 +107,7 @@ export function AppShell() {
           collapsed ? 'w-[76px]' : 'w-[260px]',
         )}
       >
-        <SidebarContent groups={groups} staffMode={staffMode} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        <SidebarContent groups={groups} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* Drawer móvil */}
@@ -120,7 +120,7 @@ export function AppShell() {
             onClick={() => setDrawerOpen(false)}
           />
           <aside className="relative flex h-full w-[280px] max-w-[85vw] animate-slide-up flex-col bg-midnight text-white shadow-pop">
-            <SidebarContent groups={groups} staffMode={staffMode} collapsed={false} onClose={() => setDrawerOpen(false)} />
+            <SidebarContent groups={groups} collapsed={false} onClose={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}
@@ -194,13 +194,11 @@ function AccountStatus({ issue }: { issue: AccountIssue | null }) {
 
 function SidebarContent({
   groups,
-  staffMode,
   collapsed,
   onToggle,
   onClose,
 }: {
   groups: NavGroup[]
-  staffMode: boolean
   collapsed: boolean
   onToggle?: () => void
   onClose?: () => void
@@ -232,7 +230,6 @@ function SidebarContent({
         ))}
       </nav>
 
-      {staffMode && <StaffTenantSelector collapsed={collapsed} />}
 
       {!collapsed && tenant && (
         <div className="mx-3 mb-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
@@ -324,7 +321,14 @@ function Topbar({
 
         <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
           {/* Búsqueda y alertas consultan operaciones de una empresa: el personal no tiene una sin seleccionar. */}
-          {staffMode ? <StaffSearchDisabled /> : <GlobalSearch />}
+          {staffMode ? (
+            <>
+              <StaffTenantSwitcher />
+              <StaffSearchDisabled />
+            </>
+          ) : (
+            <GlobalSearch />
+          )}
           {import.meta.env.DEV && LOCAL_ACCESS_ENABLED && LocalTenantSwitcher && (
             <Suspense fallback={null}>
               <LocalTenantSwitcher />

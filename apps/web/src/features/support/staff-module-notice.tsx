@@ -17,7 +17,7 @@ export function StaffModuleNotice({ noun, hasContext }: { noun: string; hasConte
       <EmptyState
         icon={<ShieldCheck className="size-6" aria-hidden />}
         title={`Selecciona una empresa autorizada para consultar sus ${noun}`}
-        description="Elija una empresa verificada en el selector de empresa de trabajo del menú lateral."
+        description="Elija una empresa verificada en el selector de la barra superior."
       />
     )
   }

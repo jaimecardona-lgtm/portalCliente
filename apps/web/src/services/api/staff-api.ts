@@ -35,7 +35,8 @@ export interface StaffOperation {
 export interface StaffApi {
   me(): Promise<StaffMe>
   tenants(): Promise<StaffTenant[]>
-  selectContext(tenantId: string): Promise<StaffTenant>
+  /** Cambio de empresa de trabajo. El motivo de soporte es obligatorio y queda auditado en el servidor. */
+  selectContext(tenantId: string, reason: string): Promise<StaffTenant>
   exitContext(): Promise<void>
   operations(tenantId: string): Promise<StaffOperation[]>
 }
@@ -122,10 +123,10 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
       const data = (await requester.send('GET', '/staff/tenants')) as { items?: unknown[] } | null
       return (data?.items ?? []).map(toStaffTenant)
     },
-    async selectContext(tenantId) {
+    async selectContext(tenantId, reason) {
       assertUuid(tenantId)
       const data = (await requester.send('POST', '/staff/context', {
-        body: JSON.stringify({ tenant_id: tenantId }),
+        body: JSON.stringify({ tenant_id: tenantId, reason: reason.trim() }),
         headers: { 'Content-Type': 'application/json' },
       })) as { tenant?: unknown } | null
       return toStaffTenant(data?.tenant)

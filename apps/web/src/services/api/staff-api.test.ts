@@ -38,21 +38,21 @@ describe('createStaffApi', () => {
     expect(f.calls[0]?.url).toBe(`${BASE}/staff/me`)
   })
 
-  it('selecciona contexto enviando solo el identificador del tenant en el cuerpo', async () => {
+  it('selecciona contexto enviando el identificador del tenant y el motivo', async () => {
     const f = fake(() =>
       json(200, { tenant: { id: TENANT, slug: 'tn-andino', legal_name: 'Empresa', external_tenant_id: 'EXT-1' } }),
     )
     const api = createStaffApi({ baseUrl: BASE, getToken: async () => 't', fetchImpl: f.fetchImpl })
-    const tenant = await api.selectContext(TENANT)
+    const tenant = await api.selectContext(TENANT, 'Soporte de prueba')
     expect(tenant.externalTenantId).toBe('EXT-1')
-    expect(JSON.parse(String(f.calls[0]?.init.body))).toEqual({ tenant_id: TENANT })
+    expect(JSON.parse(String(f.calls[0]?.init.body))).toEqual({ tenant_id: TENANT, reason: 'Soporte de prueba' })
   })
 
   it('un identificador no UUID no genera petición', async () => {
     const f = fake(() => json(200, {}))
     const api = createStaffApi({ baseUrl: BASE, getToken: async () => 't', fetchImpl: f.fetchImpl })
     await expect(api.operations('../../etc')).rejects.toMatchObject({ code: 'not_found' })
-    await expect(api.selectContext('x')).rejects.toMatchObject({ code: 'not_found' })
+    await expect(api.selectContext('x', 'Soporte de prueba')).rejects.toMatchObject({ code: 'not_found' })
     expect(f.calls).toHaveLength(0)
   })
 
@@ -61,7 +61,7 @@ describe('createStaffApi', () => {
       json(403, { error: { code: 'tenant_not_authorized', message: 'x', request_id: 'r1' } }),
     )
     const api = createStaffApi({ baseUrl: BASE, getToken: async () => 't', fetchImpl: f.fetchImpl })
-    await expect(api.selectContext(TENANT)).rejects.toMatchObject({ code: 'tenant_not_authorized', status: 403 })
+    await expect(api.selectContext(TENANT, 'Soporte de prueba')).rejects.toMatchObject({ code: 'tenant_not_authorized', status: 403 })
     const message = staffErrorMessage(new PortalApiError('tenant_not_authorized', 'x', 403))
     expect(message).toMatch(/no tiene acceso/i)
     expect(message).not.toMatch(/existe/i)

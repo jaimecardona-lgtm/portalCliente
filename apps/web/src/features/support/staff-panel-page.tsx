@@ -7,11 +7,11 @@
  * almacenamiento del navegador). Sin datos de ejemplo: si no hay empresas verificadas o operaciones, la pantalla lo dice.
  */
 import { useContext, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
-import { staffErrorMessage, type StaffTenant } from '@/services/api/staff-api'
+import { staffErrorMessage } from '@/services/api/staff-api'
 import { PortalApiError } from '@/services/api/http-client'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 
@@ -44,17 +44,6 @@ export function StaffPanelPage() {
     enabled: me.isSuccess,
     retry: false,
     queryFn: () => api!.tenants(),
-  })
-
-  const select = useMutation({
-    mutationFn: (tenant: StaffTenant) => api!.selectContext(tenant.id).then(() => tenant),
-    onSuccess: (tenant) => {
-      // Las operaciones de la empresa anterior no deben verse con la nueva: se descartan antes de cargar las de esta.
-      queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
-      setActiveStaffTenant(tenant)
-      setMessage(null)
-    },
-    onError: (error) => setMessage(staffErrorMessage(error)),
   })
 
   const operations = useQuery({
@@ -158,15 +147,9 @@ export function StaffPanelPage() {
                           <p className="font-semibold text-ink">{t.legalName}</p>
                           <p className="text-xs text-ink-muted">Identificador oficial: {t.externalTenantId ?? 'no disponible'}</p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant={active?.id === t.id ? 'secondary' : 'primary'}
-                          onClick={() => select.mutate(t)}
-                          loading={select.isPending && select.variables?.id === t.id}
-                          disabled={select.isPending}
-                        >
-                          {active?.id === t.id ? 'Contexto activo' : 'Trabajar con esta empresa'}
-                        </Button>
+                        <p className="text-xs text-ink-muted">
+                          {active?.id === t.id ? 'Contexto de trabajo activo' : 'Cambie de empresa desde el selector de la barra superior.'}
+                        </p>
                       </Card>
                     </li>
                   ))}
