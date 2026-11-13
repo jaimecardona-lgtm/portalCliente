@@ -117,7 +117,7 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
   ).values()].filter((a): a is NonNullable<typeof a> => Boolean(a))
 
   const actionEvents = visibleEvents.filter((e) => e.type === 'action_required')
-  const TransportIcon = TRANSPORT_ICON[op.transport]
+  const TransportIcon = op.transport ? TRANSPORT_ICON[op.transport] : Ship
 
   return (
     <div className="flex flex-col gap-6">
@@ -162,10 +162,10 @@ export function OperationDetailPage({ operationId }: { operationId: string }) {
           <Card className="p-5">
             <SectionHeading title="Datos logísticos" />
             <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-              <DataItem label="Orden de compra" value={op.ordenNumber} mono />
-              <DataItem label="Booking / AWB" value={op.booking} mono />
-              <DataItem label="Responsable" value={op.owner} icon={<UserRound className="size-3.5" aria-hidden />} />
-              <DataItem label="Tipo" value={`${op.kind} · ${op.transport}`} />
+              <DataItem label="Orden de compra" value={op.ordenNumber ?? 'No informado'} mono />
+              <DataItem label="Booking / AWB" value={op.booking ?? 'No informado'} mono />
+              <DataItem label="Responsable" value={op.owner ?? 'No informado'} icon={<UserRound className="size-3.5" aria-hidden />} />
+              <DataItem label="Tipo" value={[op.kind, op.transport].filter(Boolean).join(' · ') || 'No informado'} />
               <DataItem label="Días libres" value={op.freeDays == null ? '—' : `${op.freeDays} días`} />
               <DataItem label="Cierre documental" value={formatDate(op.documentClosingDate)} />
               <DataItem label="Creada" value={formatDate(op.createdAt)} />

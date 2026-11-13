@@ -25,6 +25,11 @@ export function useActiveStaffTenant(): StaffTenant | null {
   return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
+/** Lectura sin hooks (para el repositorio, que no es un componente). */
+export function getActiveStaffTenantId(): string | null {
+  return active?.id ?? null
+}
+
 /** Fija o limpia la empresa de trabajo. La llamada al servidor la hace quien selecciona. */
 export function setActiveStaffTenant(tenant: StaffTenant | null): void {
   active = tenant

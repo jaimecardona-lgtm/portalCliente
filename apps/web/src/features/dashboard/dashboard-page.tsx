@@ -49,7 +49,10 @@ export function DashboardPage() {
     })),
   })
 
-  const error = ops.error ?? docs.error ?? quotes.error
+  // Solo las operaciones bloquean la torre. Documentos y cotizaciones sin contrato se muestran como no disponibles.
+  const error = ops.error
+  const docsUnavailable = docs.isError
+  const quotesUnavailable = quotes.isError
   if (error) {
     return (
       <Card>
@@ -72,14 +75,15 @@ export function DashboardPage() {
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
     .slice(0, 6)
 
-  const firstName = user?.fullName.split(' ')[0] ?? ''
+  // Personal interno con empresa seleccionada: el nombre sale de su perfil de personal, no de una membresía.
+  const firstName = (user?.fullName ?? staff?.fullName ?? '').split(' ')[0] ?? ''
 
   return (
     <div className="flex flex-col gap-6">
       <Hero
         greeting={greeting(now)}
         firstName={staffView ? (staff.fullName.split(' ')[0] ?? '') : firstName}
-        companyName={staffView ? (activeStaff?.legalName ?? 'Personal interno · sin empresa seleccionada') : (tenant?.legalName ?? '')}
+        companyName={staffView ? 'Personal interno · sin empresa seleccionada' : (tenant?.legalName ?? activeStaff?.legalName ?? '')}
         resolving={isResolving}
         activeCount={staffView ? NO_VALUE : active.length}
         pendingCount={staffView ? NO_VALUE : pending.length}
@@ -90,8 +94,8 @@ export function DashboardPage() {
       <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <KpiCard to="/operaciones" search={{ status: 'En tránsito,En puerto,En aduana' }} label="Operaciones activas" value={staffView ? NO_VALUE : loading ? null : active.length} hint="En tránsito, puerto o aduana" icon={Package} tone="blue" />
         <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={staffView ? NO_VALUE : loading ? null : pending.length} hint="Operaciones con acción requerida" icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
-        <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={staffView ? NO_VALUE : loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
-        <KpiCard to="/documentos" label="Documentos vencidos" value={staffView ? NO_VALUE : loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
+        <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={staffView || quotesUnavailable ? NO_VALUE : loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
+        <KpiCard to="/documentos" label="Documentos vencidos" value={staffView || docsUnavailable ? NO_VALUE : loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -125,7 +129,18 @@ export function DashboardPage() {
           ) : loading ? (
             <div className="flex flex-col gap-3" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           ) : (
-            <AlertList pending={pending} expired={expiredDocs} soon={soonDocs} quotes={pendingQuotes} now={now} />
+            <>
+              <AlertList pending={pending} expired={expiredDocs} soon={soonDocs} quotes={pendingQuotes} now={now} />
+              {(docsUnavailable || quotesUnavailable) && (
+                <p className="mt-3 text-xs text-ink-muted">
+                  {docsUnavailable && quotesUnavailable
+                    ? "Documentos y cotizaciones: información no disponible en el portal."
+                    : docsUnavailable
+                      ? "Documentos: información no disponible en el portal."
+                      : "Cotizaciones: información no disponible en el portal."}
+                </p>
+              )}
+            </>
           )}
         </Card>
       </div>
@@ -338,7 +353,7 @@ function AlertList({
 }) {
   const items: Array<{ key: string; tone: 'danger' | 'warning' | 'info'; title: string; text: string; to: string; params?: { operationId: string } }> = []
   pending.forEach((op) =>
-    items.push({ key: `op-${op.id}`, tone: 'danger', title: `${op.doNumber} requiere respuesta`, text: op.reference, to: `/operaciones/${op.id}`, params: { operationId: op.id } }),
+    items.push({ key: `op-${op.id}`, tone: 'danger', title: `${op.doNumber} requiere respuesta`, text: op.reference ?? 'Referencia no informada', to: `/operaciones/${op.id}`, params: { operationId: op.id } }),
   )
   expired.forEach((d) => items.push({ key: `dv-${d.id}`, tone: 'danger', title: `Documento vencido`, text: `${d.name} · venció el ${formatDate(d.expiresAt)}`, to: '/documentos' }))
   soon.forEach((d) => items.push({ key: `ds-${d.id}`, tone: 'warning', title: `Documento por vencer`, text: `${d.name} · vence el ${formatDate(d.expiresAt)}`, to: '/documentos' }))
@@ -388,6 +403,7 @@ function RoutesList({ ops }: { ops: Operation[] }) {
   const routes = useMemo(() => {
     const map = new Map<string, { origin: string; destination: string; count: number; pending: number }>()
     ops.forEach((o) => {
+      if (!o.origin || !o.destination) return
       const key = `${o.origin}|${o.destination}`
       const current = map.get(key) ?? { origin: o.origin, destination: o.destination, count: 0, pending: 0 }
       current.count += 1

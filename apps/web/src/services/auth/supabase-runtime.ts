@@ -12,6 +12,7 @@ import { createHttpPortalRepository, type HttpPortalRepository } from '@/service
 import { createDocumentsApi, type DocumentsApi } from '@/services/api/documents-api'
 import { createStaffApi, type StaffApi } from '@/services/api/staff-api'
 import { createLogixApi, type LogixApi } from '@/features/assistant/logix/logix-api'
+import { getActiveStaffTenantId } from './staff-context'
 import { createBrowserAuth } from './supabase-client'
 import { createSupabaseSessionService, type SupabaseSessionService } from './supabase-session'
 
@@ -38,15 +39,17 @@ async function createPortal(): Promise<SupabasePortal | null> {
     })
     if (!client) return null
     const auth = createSupabaseSessionService(client)
+    const staff = createStaffApi({
+      baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
+      getToken: () => auth.accessToken(),
+    })
     const repo = createHttpPortalRepository({
       baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
       getToken: () => auth.accessToken(),
+      staffTenantId: getActiveStaffTenantId,
+      staffApi: staff,
     })
     const documents = createDocumentsApi({
-      baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
-      getToken: () => auth.accessToken(),
-    })
-    const staff = createStaffApi({
       baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
       getToken: () => auth.accessToken(),
     })

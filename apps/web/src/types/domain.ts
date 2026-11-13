@@ -80,15 +80,16 @@ export interface Operation {
   tenantId: ID
   /** Número DO visible para el cliente (ej. DO-24-0187). */
   doNumber: string
-  reference: string
+  /** null = la información no existe en el portal. Nunca se muestra como dato real. */
+  reference: string | null
   status: OperationStatus
-  kind: OperationKind
-  transport: TransportType
-  owner: string
-  ordenNumber: string
-  booking: string
-  origin: string
-  destination: string
+  kind: OperationKind | null
+  transport: TransportType | null
+  owner: string | null
+  ordenNumber: string | null
+  booking: string | null
+  origin: string | null
+  destination: string | null
   etd: string | null
   eta: string | null
   atd: string | null
@@ -97,8 +98,10 @@ export interface Operation {
   documentClosingDate: string | null
   createdAt: string
   updatedAt: string
-  /** Si es true requiere respuesta del cliente. */
-  pendingClientResponse: boolean
+  /** true = requiere respuesta del cliente; false = no; null = sin información. */
+  pendingClientResponse: boolean | null
+  /** Transportador o naviera. Opcional: solo lo aporta la API ampliada. */
+  carrier?: string | null
 }
 
 export interface OperationEvent {

@@ -9,7 +9,7 @@
  *   No se rellenan con datos de ejemplo.
  * - La API decide tenant, rol y autor. Estos mappers solo leen lo que el servidor devuelve.
  */
-import type { EventComment, EventType, OperationEvent, OperationStatus, Visibility } from '@/types/domain'
+import type { EventComment, EventType, Operation, OperationEvent, OperationStatus, TransportType, Visibility } from '@/types/domain'
 import { PortalApiError } from './http-client'
 
 /** Estados de operación conocidos. Debe coincidir con OPERATION_STATUSES (ver mappers.test.ts). */
@@ -201,4 +201,44 @@ export function toCommentCreateBody(input: { body: string; parentCommentId: stri
 /** Convierte una lista de la API aplicando `map` a cada elemento. Falla si la respuesta no es un arreglo. */
 export function mapList<T>(payload: unknown, map: (item: unknown) => T): T[] {
   return requireArray(payload, 'list').map(map)
+}
+
+const KNOWN_TRANSPORT: readonly TransportType[] = ['Marítimo FCL', 'Marítimo LCL', 'Aéreo', 'Terrestre']
+
+/**
+ * Operación del dominio a partir de la respuesta de la API (cliente o personal).
+ * Devuelve null si el estado no es uno de los conocidos: no se muestra una operación con estado inventado.
+ * Los campos sin información llegan como null y se muestran como «No informado» en la interfaz.
+ */
+export function toOperationFromDto(payload: unknown, tenantId: string): Operation | null {
+  const src = requireObject(payload, 'operation')
+  const status = optionalOneOf(src.last_known_status, KNOWN_OPERATION_STATUSES, 'last_known_status')
+  if (status === null) return null
+  const transport = optionalOneOf(src.transport_type, KNOWN_TRANSPORT, 'transport_type')
+  const synced = optionalString(src, 'last_synced_at')
+  const pending = typeof src.pending_client_response === 'boolean' ? src.pending_client_response : null
+  return {
+    id: requireString(src, 'id'),
+    tenantId,
+    doNumber: requireString(src, 'do_number'),
+    reference: optionalString(src, 'reference'),
+    status,
+    kind: null,
+    transport,
+    owner: optionalString(src, 'responsible_name'),
+    ordenNumber: null,
+    booking: optionalString(src, 'booking_number'),
+    carrier: optionalString(src, 'carrier_name'),
+    origin: optionalString(src, 'origin_name'),
+    destination: optionalString(src, 'destination_name'),
+    etd: optionalString(src, 'etd'),
+    eta: optionalString(src, 'eta'),
+    atd: null,
+    ata: null,
+    freeDays: null,
+    documentClosingDate: null,
+    createdAt: synced ?? '',
+    updatedAt: synced ?? '',
+    pendingClientResponse: pending,
+  }
 }

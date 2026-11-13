@@ -19,7 +19,7 @@ import type { CurrentAccount } from '@/services/api/mappers'
 import { accountIssueFor, type AccountIssue } from '@/services/auth/account-issues'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { resetStaffStatus, staffStatusFor, type StaffStatus } from '@/services/auth/staff-status'
-import { setActiveStaffTenant } from '@/services/auth/staff-context'
+import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 import type { StaffMe } from '@/services/api/staff-api'
 import type { ID, Session, Tenant, User } from '@/types/domain'
 import { readStoredSession, writeStoredSession } from './session-storage'
@@ -183,10 +183,15 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   const accountIssue = resolveAccountIssue(signedOut, staffStatus, accountQuery.error)
   const resolving = portal !== null && !signedOut && (staffStatus === null || (isClient && accountQuery.isPending))
 
-  const session = useMemo<Session | null>(
-    () => (account ? { userId: account.userId, tenantId: account.tenant.id, simulated: false } : null),
-    [account],
-  )
+  // Personal interno: su sesión de trabajo es la empresa seleccionada (nunca una membresía ficticia).
+  const activeStaff = useActiveStaffTenant()
+  const session = useMemo<Session | null>(() => {
+    if (account) return { userId: account.userId, tenantId: account.tenant.id, simulated: false }
+    if (staffStatus?.kind === 'staff' && activeStaff && !signedOut) {
+      return { userId: staffStatus.me.userId, tenantId: activeStaff.id, simulated: false }
+    }
+    return null
+  }, [account, staffStatus, activeStaff, signedOut])
 
   const refreshAccount = useCallback(async () => {
     setSignedOut(false)

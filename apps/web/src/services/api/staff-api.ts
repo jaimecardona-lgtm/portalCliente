@@ -30,6 +30,8 @@ export interface StaffOperation {
   reference: string | null
   lastKnownStatus: string | null
   lastSyncedAt: string | null
+  /** Datos de presentación en bruto (snake_case del servidor). Se mapean en mappers.ts. */
+  raw: Record<string, unknown>
 }
 
 export interface StaffApi {
@@ -39,6 +41,8 @@ export interface StaffApi {
   selectContext(tenantId: string, reason: string): Promise<StaffTenant>
   exitContext(): Promise<void>
   operations(tenantId: string): Promise<StaffOperation[]>
+  /** Eventos visibles para el cliente de una operación de la empresa seleccionada. */
+  operationEvents(tenantId: string, operationId: string): Promise<unknown[]>
 }
 
 export interface StaffApiOptions {
@@ -83,6 +87,7 @@ export function toStaffOperation(raw: unknown): StaffOperation {
     reference: typeof r.reference === 'string' ? r.reference : null,
     lastKnownStatus: typeof r.last_known_status === 'string' ? r.last_known_status : null,
     lastSyncedAt: typeof r.last_synced_at === 'string' ? r.last_synced_at : null,
+    raw: r,
   }
 }
 
@@ -138,6 +143,12 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
       assertUuid(tenantId)
       const data = (await requester.send('GET', `/staff/tenants/${tenantId}/operations`)) as { items?: unknown[] } | null
       return (data?.items ?? []).map(toStaffOperation)
+    },
+    async operationEvents(tenantId, operationId) {
+      assertUuid(tenantId)
+      assertUuid(operationId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/operations/${operationId}/events`)) as { items?: unknown[] } | null
+      return data?.items ?? []
     },
   }
 }

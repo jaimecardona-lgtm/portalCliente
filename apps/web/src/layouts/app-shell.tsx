@@ -39,12 +39,16 @@ const VISIBLE_NAV_GROUPS = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(
 const SIDEBAR_KEY = 'logixtic.portal.sidebar-collapsed'
 
 /** Pantallas de empresa que el personal no monta. Las listas (operaciones, cotizaciones, solicitudes) sí conservan su tabla. */
-function staffSectionFor(pathname: string): { title: string; noun: string; description?: string } | null {
+function staffSectionFor(
+  pathname: string,
+  hasContext: boolean,
+): { title: string; noun: string; description?: string } | null {
   if (pathname === '/documentos') return { title: 'Documentos', noun: 'documentos' }
   if (pathname === '/cuenta') return { title: 'Información de cuenta', noun: 'datos de la empresa' }
   if (pathname === '/perfil') return { title: 'Mi perfil', noun: 'datos de perfil' }
   if (pathname === '/solicitudes/nueva') return { title: 'Nueva solicitud', noun: 'solicitudes' }
-  if (/^\/operaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de operación', noun: 'operaciones' }
+  // Con empresa de trabajo, el detalle de operación carga sus datos desde la API de personal.
+  if (!hasContext && /^\/operaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de operación', noun: 'operaciones' }
   if (/^\/cotizaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de cotización', noun: 'cotizaciones' }
   return null
 }
@@ -85,7 +89,7 @@ export function AppShell() {
   useEffect(() => setDrawerOpen(false), [location.pathname])
 
   // Personal interno: mismo layout, sin empresa en la sesión. Sus vistas de empresa no cargan datos (ver abajo).
-  const staffMode = session === null && staff !== null
+  const staffMode = staff !== null
 
   // La guarda de acceso vive en beforeLoad (router.tsx). Si no hay sesión, no se monta contenido.
   // En modo Supabase, la sesión depende de la cuenta del servidor: sin ella se muestra su estado, nunca datos de ejemplo.
@@ -98,7 +102,7 @@ export function AppShell() {
   // Empresa para Logix: la de la sesión del cliente o la de trabajo del personal (nunca ambas).
   const logixTenantId = staffMode ? (activeStaffTenant?.id ?? null) : (session?.tenantId ?? null)
   // Personal interno: las pantallas de detalle, cuenta, perfil y documentos no se montan (consultarían datos de cliente).
-  const staffSection = staffMode ? staffSectionFor(location.pathname) : null
+  const staffSection = staffMode ? staffSectionFor(location.pathname, session !== null) : null
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">

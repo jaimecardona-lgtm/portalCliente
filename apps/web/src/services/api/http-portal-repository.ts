@@ -39,11 +39,13 @@ import {
   toCurrentAccount,
   toEventComment,
   toOperationEvent,
+  toOperationFromDto,
   toOperationSummary,
   type CurrentAccount,
   type OperationSummary,
 } from './mappers'
 import type { CommentDto, EventDto, OperationDto } from './api-types'
+import type { StaffApi } from './staff-api'
 
 // Re-exportado para que quien consuma el repositorio remoto tenga los modelos de la capa API a mano.
 export type { CurrentAccount, OperationSummary } from './mappers'
@@ -69,6 +71,10 @@ export interface HttpPortalRepositoryOptions extends Omit<ApiClientOptions, 'ten
    * usuario pertenece a varias empresas. El servidor valida que sea una membresía suya.
    */
   selectedTenantId?: string
+  /** Empresa de trabajo del personal interno (memoria de la pestaña). null si no hay ninguna. */
+  staffTenantId?: () => string | null
+  /** Cliente de la API de personal. Solo se usa para la empresa de trabajo seleccionada. */
+  staffApi?: StaffApi
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -95,7 +101,9 @@ function isId(value: string): boolean {
 }
 
 export function createHttpPortalRepository(options: HttpPortalRepositoryOptions): HttpPortalRepository {
-  const { selectedTenantId, ...clientOptions } = options
+  const { selectedTenantId, staffTenantId, staffApi, ...clientOptions } = options
+  // Solo la empresa de trabajo del personal usa la API de personal. Cualquier otra empresa exige membresía.
+  const isStaffTenant = (tenantId: ID): boolean => Boolean(staffApi && staffTenantId && staffTenantId() === tenantId)
   const client: ApiClient = createApiClient({ ...clientOptions, tenantId: selectedTenantId })
 
   let accountPromise: Promise<CurrentAccount> | null = null
@@ -161,11 +169,19 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
     // --- Operaciones -----------------------------------------------------------------------------
     // El modelo Operation del dominio exige tipo, transporte, origen, destino y fechas que la API
     // no expone. Usar listOperationSummaries / getOperationSummary hasta ampliar el contrato.
-    async listOperations(): Promise<Operation[]> {
-      throw notAvailable('listOperations')
+    async listOperations(tenantId): Promise<Operation[]> {
+      if (isStaffTenant(tenantId)) {
+        const rows = await staffApi!.operations(tenantId)
+        return rows.map((row) => toOperationFromDto(row.raw, tenantId)).filter((op): op is Operation => op !== null)
+      }
+      if (!(await isActiveTenant(tenantId))) return []
+      const rows = await client.get<unknown[]>('/operations?limit=500')
+      return mapList(rows, (item) => toOperationFromDto(item, tenantId)).filter((op): op is Operation => op !== null)
     },
-    async getOperation(): Promise<Operation | null> {
-      throw notAvailable('getOperation')
+    async getOperation(tenantId, operationId): Promise<Operation | null> {
+      if (!isId(operationId)) return null
+      const all = await this.listOperations(tenantId)
+      return all.find((op) => op.id === operationId) ?? null
     },
 
     async listOperationSummaries(tenantId, page = {}) {
@@ -192,6 +208,11 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
 
     // --- Eventos ---------------------------------------------------------------------------------
     async listOperationEvents(tenantId, operationId): Promise<OperationEvent[]> {
+      if (isStaffTenant(tenantId)) {
+        if (!isId(operationId)) return []
+        const rows = await staffApi!.operationEvents(tenantId, operationId)
+        return mapList(rows, (item) => toOperationEvent(item, tenantId, operationId))
+      }
       if (!(await isActiveTenant(tenantId)) || !isId(operationId)) return []
       try {
         const rows = await client.get<EventDto[]>(`${operationPath(operationId)}/events`)

@@ -128,9 +128,9 @@ export function sortOperations(ops: Operation[], key: SortKey, dir: SortDir): Op
       case 'eta':
         return op.eta ?? ''
       case 'origin':
-        return op.origin
+        return op.origin ?? ''
       case 'destination':
-        return op.destination
+        return op.destination ?? ''
       case 'updatedAt':
         return op.updatedAt
       case 'doNumber':
