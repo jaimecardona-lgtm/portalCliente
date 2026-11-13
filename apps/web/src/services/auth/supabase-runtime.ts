@@ -10,6 +10,7 @@
 import { createContext } from 'react'
 import { createHttpPortalRepository, type HttpPortalRepository } from '@/services/api/http-portal-repository'
 import { createDocumentsApi, type DocumentsApi } from '@/services/api/documents-api'
+import { createStaffApi, type StaffApi } from '@/services/api/staff-api'
 import { createBrowserAuth } from './supabase-client'
 import { createSupabaseSessionService, type SupabaseSessionService } from './supabase-session'
 
@@ -20,6 +21,8 @@ export interface SupabasePortal {
   repo: HttpPortalRepository
   /** Documentos de cliente final (subida, lectura, enlaces firmados, reemplazo y retirada). */
   documents: DocumentsApi
+  /** Personal interno: rol, tenants asignados y verificados, y contexto de trabajo. */
+  staff: StaffApi
 }
 
 let portalPromise: Promise<SupabasePortal | null> | null = null
@@ -40,7 +43,11 @@ async function createPortal(): Promise<SupabasePortal | null> {
       baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
       getToken: () => auth.accessToken(),
     })
-    return { auth, repo, documents }
+    const staff = createStaffApi({
+      baseUrl: String(import.meta.env.VITE_API_BASE_URL ?? ''),
+      getToken: () => auth.accessToken(),
+    })
+    return { auth, repo, documents, staff }
   } catch {
     // Configuración insegura o URL de API no válida: sin portal, sin acceso.
     return null

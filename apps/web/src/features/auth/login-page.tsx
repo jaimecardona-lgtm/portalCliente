@@ -77,7 +77,9 @@ export function LoginPage() {
       }
       // La sesión existe en Supabase. La cuenta y la empresa las confirma el servidor al leer /me.
       await refreshAccount()
-      void navigate({ to: target })
+      // Personal interno con rol activo: entra al panel de soporte sin empresa previa.
+      const isStaff = await portal.staff.me().then(() => true, () => false)
+      void navigate({ to: isStaff ? '/soporte' : target })
       return
     }
 

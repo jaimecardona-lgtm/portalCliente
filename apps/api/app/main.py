@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.engine import Engine
 
 from app.api.documents import router as documents_router
+from app.api.staff import router as staff_router
 from app.api.v1 import router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
@@ -79,6 +80,7 @@ def create_app(
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(documents_router)
+    app.include_router(staff_router)
 
     # El frontend se registra al final: las rutas de API y /health tienen prioridad sobre el fallback SPA.
     if settings.web_dist_dir:

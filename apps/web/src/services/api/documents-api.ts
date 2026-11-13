@@ -9,7 +9,8 @@
  * - La validación previa del archivo es solo una ayuda de interfaz: el servidor decide.
  * - Ninguna URL firmada se guarda en el almacenamiento del navegador ni en la caché de la aplicación.
  */
-import { PortalApiError, apiRootFor, normalizeBaseUrl } from './http-client'
+import { PortalApiError } from './http-client'
+import { assertUuid, createAuthedRequester, type AuthedMethod } from './authed-request'
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 
@@ -62,8 +63,6 @@ export interface DocumentsApiOptions {
   timeoutMs?: number
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const DEFAULT_TIMEOUT_MS = 60_000
 
 /** Validación previa de ayuda: devuelve el mensaje o null. El servidor siempre tiene la última palabra. */
 export function checkFileBeforeUpload(file: { name: string; size: number; type: string }): string | null {
@@ -160,50 +159,17 @@ export function toClientDocument(raw: unknown): ClientDocument {
 }
 
 export function createDocumentsApi(options: DocumentsApiOptions): DocumentsApi {
-  const root = apiRootFor(normalizeBaseUrl(options.baseUrl))
-  const fetchImpl = options.fetchImpl ?? ((input: RequestInfo | URL, init?: RequestInit) => fetch(input, init))
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-
-  async function send(method: string, path: string, init: { body?: BodyInit; headers?: Record<string, string> } = {}) {
-    const token = await options.getToken()
-    if (!token) throw new PortalApiError('authentication_required', 'Debe iniciar sesión para continuar.', 401)
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
-    let response: Response
-    try {
-      response = await fetchImpl(`${root}${path}`, {
-        method,
-        body: init.body,
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...init.headers },
-        credentials: 'omit',
-        signal: controller.signal,
-      })
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new PortalApiError('timeout', 'La operación tardó demasiado.', 0)
-      }
-      throw new PortalApiError('network_error', 'No hay conexión con el servidor.', 0)
-    } finally {
-      clearTimeout(timer)
-    }
-
-    const payload: unknown = await response.json().catch(() => null)
-    if (!response.ok) {
-      const body = (payload as { error?: { code?: unknown; message?: unknown; request_id?: unknown } } | null)?.error
-      const code = typeof body?.code === 'string' ? body.code : 'http_error'
-      const requestId = typeof body?.request_id === 'string' ? body.request_id : null
-      throw new PortalApiError(code, 'El servidor rechazó la operación.', response.status, requestId)
-    }
-    return payload
-  }
+  const requester = createAuthedRequester({
+    baseUrl: options.baseUrl,
+    getToken: options.getToken,
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+  })
+  const send = (method: AuthedMethod, path: string, init?: { body?: BodyInit; headers?: Record<string, string> }) =>
+    requester.send(method, path, init)
 
   function fileHeaders(file: File): Record<string, string> {
     return { 'Content-Type': file.type, 'X-File-Name': encodeURIComponent(file.name) }
-  }
-
-  function assertUuid(value: string): void {
-    if (!UUID.test(value)) throw new PortalApiError('not_found', 'Identificador no válido.', 404)
   }
 
   return {

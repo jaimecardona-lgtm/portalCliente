@@ -20,10 +20,11 @@ from fastapi import Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.core.errors import AppError, AuthenticationRequired, AuthNotConfigured
+from app.core.errors import AccessDenied, AppError, AuthenticationRequired, AuthNotConfigured
 from app.core.security import TokenClaims
 from app.db.session import activate_request_security
 from app.services.access import RequestContext, resolve_context
+from app.services.staff import StaffContext, resolve_staff
 
 TENANT_HEADER = "X-Tenant-Id"
 
@@ -79,3 +80,14 @@ def get_context(
                 status_code=400,
             ) from exc
     return resolve_context(session, claims, requested)
+
+
+def get_staff(
+    session: Annotated[Session, Depends(get_db)],
+    claims: Annotated[TokenClaims, Depends(get_claims)],
+) -> StaffContext:
+    """Personal interno activo. Un token válido sin registro activo en platform_staff se rechaza."""
+    ctx = resolve_staff(session, claims.subject)
+    if ctx is None:
+        raise AccessDenied("Su usuario no tiene un rol interno autorizado.", code="no_staff_role")
+    return ctx
