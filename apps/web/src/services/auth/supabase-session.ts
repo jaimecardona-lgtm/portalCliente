@@ -20,7 +20,7 @@ export interface SupabaseAuthLike {
     }>
     signOut(): Promise<{ error: { message: string } | null }>
     getSession(): Promise<{
-      data: { session: { access_token: string; expires_at?: number } | null }
+      data: { session: { access_token: string; expires_at?: number; user?: { email?: string | null } } | null }
       error: { message: string } | null
     }>
     resetPasswordForEmail(email: string, options?: { redirectTo?: string }): Promise<{
@@ -40,6 +40,8 @@ export interface SupabaseSessionService {
   signOut(): Promise<void>
   /** Token de acceso vigente para FastAPI, o null si no hay sesión. */
   accessToken(): Promise<string | null>
+  /** Correo de la cuenta de la sesión actual (para la reautenticación con contraseña), o null. */
+  currentEmail(): Promise<string | null>
   /** Siempre responde 'ok' salvo fallo de servicio: no revela si el correo tiene cuenta. */
   requestPasswordReset(email: string, redirectTo: string): Promise<AuthOutcome>
   /** Cambia la contraseña de la sesión creada por el enlace de recuperación. */
@@ -77,6 +79,15 @@ export function createSupabaseSessionService(client: SupabaseAuthLike): Supabase
         const { data, error } = await client.auth.getSession()
         if (error || !data.session) return null
         return data.session.access_token
+      } catch {
+        return null
+      }
+    },
+    async currentEmail() {
+      try {
+        const { data, error } = await client.auth.getSession()
+        if (error || !data.session) return null
+        return data.session.user?.email ?? null
       } catch {
         return null
       }

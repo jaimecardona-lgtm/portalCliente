@@ -48,8 +48,10 @@ export interface StaffApi {
   me(): Promise<StaffMe>
   observedTenants(): Promise<ObservedTenant[]>
   tenants(): Promise<StaffTenant[]>
-  /** Cambio de empresa de trabajo. El motivo de soporte es obligatorio y queda auditado en el servidor. */
-  selectContext(tenantId: string, reason: string): Promise<StaffTenant>
+  /** Desafío para cambiar de empresa. Solo para empresas autorizadas; caduca y se usa una vez. */
+  requestContextChallenge(tenantId: string): Promise<{ challengeId: string; expiresAt: string }>
+  /** Cambio de empresa con la reautenticación reciente (token de Supabase con contraseña). */
+  selectContext(tenantId: string, challengeId: string, reauthToken: string): Promise<StaffTenant>
   exitContext(): Promise<void>
   operations(tenantId: string): Promise<StaffOperation[]>
   /** Eventos visibles para el cliente de una operación de la empresa seleccionada. */
@@ -150,11 +152,23 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
       const data = (await requester.send('GET', '/staff/tenants')) as { items?: unknown[] } | null
       return (data?.items ?? []).map(toStaffTenant)
     },
-    async selectContext(tenantId, reason) {
+    async requestContextChallenge(tenantId) {
       assertUuid(tenantId)
-      const data = (await requester.send('POST', '/staff/context', {
-        body: JSON.stringify({ tenant_id: tenantId, reason: reason.trim() }),
+      const data = (await requester.send('POST', '/staff/context/challenge', {
+        body: JSON.stringify({ tenant_id: tenantId }),
         headers: { 'Content-Type': 'application/json' },
+      })) as { challenge_id?: unknown; expires_at?: unknown } | null
+      return {
+        challengeId: requireString(data?.challenge_id, 'challenge_id'),
+        expiresAt: requireString(data?.expires_at, 'expires_at'),
+      }
+    },
+    async selectContext(tenantId, challengeId, reauthToken) {
+      assertUuid(tenantId)
+      assertUuid(challengeId)
+      const data = (await requester.send('POST', '/staff/context', {
+        body: JSON.stringify({ tenant_id: tenantId, challenge_id: challengeId }),
+        headers: { 'Content-Type': 'application/json', 'X-Reauth-Token': reauthToken },
       })) as { tenant?: unknown } | null
       return toStaffTenant(data?.tenant)
     },

@@ -8,7 +8,8 @@
  *   solo con import.meta.env.DEV desde src/dev). En producción aparecen como empresas verificadas.
  * Reglas:
  * - Las listas vienen de la API. Ningún dato de ejemplo se escribe en este archivo.
- * - El cambio de contexto exige motivo; el servidor valida rol, alcance y estado, y audita el cambio.
+ * - El cambio de empresa exige confirmar la contraseña de la cuenta (reautenticación con Supabase Auth).
+ *   El servidor valida la reautenticación reciente, el desafío de un solo uso, rol, alcance y estado.
  * - Al cambiar se borra la caché de la empresa anterior.
  */
 import { lazy, Suspense, useContext, useMemo, useRef, useState, useEffect } from 'react'
@@ -17,9 +18,7 @@ import { Building2, Check, ChevronDown, X } from 'lucide-react'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 import { staffErrorMessage, type ObservedTenant, type StaffTenant } from '@/services/api/staff-api'
-
-const REASON_MIN = 3
-const REASON_MAX = 300
+import { PasswordRejectedError, reauthenticateWithPassword } from '@/services/auth/reauth'
 
 /* Partes de desarrollo: con import.meta.env.DEV falso no se cargan y no entran en el bundle. */
 const DevParts = import.meta.env.DEV
@@ -38,7 +37,8 @@ export function StaffTenantSwitcher() {
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<StaffTenant | null>(null)
   const [catalogDetail, setCatalogDetail] = useState<ObservedTenant | null>(null)
-  const [reason, setReason] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const root = useRef<HTMLDivElement>(null)
 
@@ -77,19 +77,38 @@ export function StaffTenantSwitcher() {
     queryClient.removeQueries({ queryKey: ['tenant'] })
   }
 
-  const change = useMutation({
-    mutationFn: (args: { tenant: StaffTenant; reason: string }) =>
-      api!.selectContext(args.tenant.id, args.reason).then(() => args.tenant),
-    onSuccess: (tenant) => {
+  /*
+   * Confirmación con contraseña. La contraseña no se guarda en estado de consultas ni se envía a FastAPI:
+   * solo viaja a Supabase Auth, y el campo se vacía al terminar el intento, tenga éxito o no.
+   */
+  const confirmChange = async (tenant: StaffTenant, typed: string) => {
+    if (!portal) return
+    setConfirming(true)
+    setMessage(null)
+    try {
+      const email = await portal.auth.currentEmail()
+      if (!email) throw new Error('No se pudo verificar la cuenta. Inicie sesión de nuevo.')
+      const challenge = await api!.requestContextChallenge(tenant.id)
+      const reauthToken = await reauthenticateWithPassword(email, typed, {
+        VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+        VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      })
+      await api!.selectContext(tenant.id, challenge.challengeId, reauthToken)
       clearTenantCache()
       setActiveStaffTenant(tenant)
       setPending(null)
-      setReason('')
-      setMessage(null)
       setOpen(false)
-    },
-    onError: (error) => setMessage(staffErrorMessage(error)),
-  })
+    } catch (error) {
+      setMessage(
+        error instanceof PasswordRejectedError
+          ? 'La contraseña no es correcta. Se mantiene la empresa actual.'
+          : staffErrorMessage(error),
+      )
+    } finally {
+      setPassword('')
+      setConfirming(false)
+    }
+  }
 
   const exit = useMutation({
     mutationFn: () => api!.exitContext(),
@@ -119,7 +138,7 @@ export function StaffTenantSwitcher() {
 
   if (api === null) return null
 
-  const reasonValid = reason.trim().length >= REASON_MIN && reason.trim().length <= REASON_MAX
+  const passwordValid = password.length > 0
   const pick = (t: StaffTenant) => {
     setMessage(null)
     if (active?.id === t.id) setOpen(false)
@@ -166,36 +185,48 @@ export function StaffTenantSwitcher() {
               className="flex flex-col gap-3 p-4"
               onSubmit={(e) => {
                 e.preventDefault()
-                if (!reasonValid) return
-                change.mutate({ tenant: pending, reason: reason.trim() })
+                if (!passwordValid || confirming) return
+                void confirmChange(pending, password)
               }}
             >
+              <p className="text-sm font-semibold text-ink">Cambiar empresa de trabajo</p>
               <p className="text-sm text-ink">
-                Cambiar a <span className="font-semibold">{pending.legalName}</span>
+                Destino: <span className="font-semibold">{pending.legalName}</span>
               </p>
               {DevParts && (
                 <Suspense fallback={null}>
                   <DevParts part="notice" />
                 </Suspense>
               )}
-              <label htmlFor="staff-reason" className="text-xs font-semibold text-ink-soft">
-                Motivo de soporte (obligatorio, queda registrado)
+              <label htmlFor="staff-password" className="text-xs font-semibold text-ink-soft">
+                Contraseña de tu cuenta
               </label>
               <input
-                id="staff-reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                maxLength={REASON_MAX}
+                id="staff-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 autoFocus
+                disabled={confirming}
                 className="h-10 rounded-lg border border-line bg-canvas px-3 text-sm focus:border-blue focus:outline-none focus:ring-3 focus:ring-blue/15"
               />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setPending(null)} className="h-9 rounded-lg px-3 text-sm text-ink-soft hover:bg-surface-muted">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPending(null)
+                    setPassword('')
+                    setMessage(null)
+                  }}
+                  disabled={confirming}
+                  className="h-9 rounded-lg px-3 text-sm text-ink-soft hover:bg-surface-muted"
+                >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={!reasonValid || change.isPending}
+                  disabled={!passwordValid || confirming}
                   className="h-9 rounded-lg bg-blue px-3 text-sm font-medium text-white hover:bg-navy disabled:opacity-40"
                 >
                   Confirmar cambio

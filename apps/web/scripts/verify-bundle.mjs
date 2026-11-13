@@ -24,7 +24,7 @@ const FORBIDDEN = [
   'Datos sintéticos',
   'datos sintéticos',
   'Entorno local',
-  'Cambiar empresa',
+  'Cambiar empresa (entorno local)',
   'Sesión DEMO',
   'Cerrar sesión DEMO',
   'authenticateDemo',
