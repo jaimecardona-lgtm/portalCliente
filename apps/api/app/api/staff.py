@@ -46,9 +46,12 @@ def staff_me(ctx: StaffDep) -> dict[str, Any]:
 
 
 @router.get("/tenants", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def staff_tenants(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+def staff_tenants(ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
     _require(ctx, "tenants.read")
     items = svc.assigned_tenants(session)
+    if not request.app.state.settings.qa_synthetic_enabled:
+        # Segunda barrera (la primera es la bandera de base de datos y RLS): sin configuración QA no se listan.
+        items = [i for i in items if not i["qa_synthetic"]]
     svc.audit(session, ctx, "tenants_list", tenant_id=None, result="allowed")
     session.commit()
     return {"items": items}
@@ -73,10 +76,12 @@ class ContextIn(BaseModel):
 
 
 @router.post("/context/challenge", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def create_context_challenge(body: ChallengeIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+def create_context_challenge(
+    body: ChallengeIn, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
     """Desafío de cambio de empresa: solo para empresas autorizadas, con caducidad y un solo uso."""
     _require(ctx, "tenants.read")
-    if not svc.tenant_visible(session, body.tenant_id):
+    if not svc.tenant_visible(session, body.tenant_id, allow_qa=_qa_enabled(request)):
         svc.audit(
             session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
         )
@@ -136,9 +141,11 @@ def exit_context(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
 
 
 @router.get("/tenants/{tenant_id}/operations", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def staff_tenant_operations(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+def staff_tenant_operations(
+    tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
     _require(ctx, "operations.read")
-    if not svc.tenant_visible(session, tenant_id):
+    if not svc.tenant_visible(session, tenant_id, allow_qa=_qa_enabled(request)):
         svc.audit(
             session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
         )
@@ -157,10 +164,10 @@ def staff_tenant_operations(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> d
     responses=_STAFF_RESPONSES,
 )
 def staff_operation_events(
-    tenant_id: UUID, operation_id: UUID, ctx: StaffDep, session: DbDep
+    tenant_id: UUID, operation_id: UUID, ctx: StaffDep, session: DbDep, request: Request
 ) -> dict[str, Any]:
     _require(ctx, "operations.read")
-    if not svc.tenant_visible(session, tenant_id):
+    if not svc.tenant_visible(session, tenant_id, allow_qa=_qa_enabled(request)):
         svc.audit(
             session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
         )
@@ -173,10 +180,16 @@ def staff_operation_events(
     return {"items": items}
 
 
-def _selected_tenant(session: Session, ctx: StaffContext, tenant_id: UUID, permission: str) -> None:
+def _qa_enabled(request: Request) -> bool:
+    return bool(request.app.state.settings.qa_synthetic_enabled)
+
+
+def _selected_tenant(
+    session: Session, ctx: StaffContext, tenant_id: UUID, permission: str, request: Request
+) -> None:
     """Permiso + empresa asignada (o pendiente con permiso propio) + fijar el tenant de la transacción."""
     _require(ctx, permission)
-    if not svc.tenant_visible(session, tenant_id):
+    if not svc.tenant_visible(session, tenant_id, allow_qa=_qa_enabled(request)):
         svc.audit(
             session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
         )
@@ -199,8 +212,8 @@ class RequestIn(BaseModel):
 
 
 @router.get("/tenants/{tenant_id}/client-accounts", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def staff_list_client_accounts(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
-    _selected_tenant(session, ctx, tenant_id, "operations.read")
+def staff_list_client_accounts(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "operations.read", request)
     items = svc.list_client_accounts(session, tenant_id)
     svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
     session.commit()
@@ -214,9 +227,9 @@ def staff_list_client_accounts(tenant_id: UUID, ctx: StaffDep, session: DbDep) -
     responses=_STAFF_RESPONSES,
 )
 def staff_create_client_account(
-    tenant_id: UUID, body: ClientAccountIn, ctx: StaffDep, session: DbDep
+    tenant_id: UUID, body: ClientAccountIn, ctx: StaffDep, session: DbDep, request: Request
 ) -> dict[str, Any]:
-    _selected_tenant(session, ctx, tenant_id, "records.write")
+    _selected_tenant(session, ctx, tenant_id, "records.write", request)
     item = svc.create_client_account(session, ctx, tenant_id, body.legal_name, body.tax_id)
     svc.audit(session, ctx, "record_create", tenant_id=tenant_id, result="allowed")
     session.commit()
@@ -224,8 +237,8 @@ def staff_create_client_account(
 
 
 @router.get("/tenants/{tenant_id}/requests", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def staff_list_requests(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
-    _selected_tenant(session, ctx, tenant_id, "operations.read")
+def staff_list_requests(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "operations.read", request)
     items = svc.list_requests(session, tenant_id)
     svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
     session.commit()
@@ -238,8 +251,10 @@ def staff_list_requests(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[
     tags=["personal interno"],
     responses=_STAFF_RESPONSES,
 )
-def staff_create_request(tenant_id: UUID, body: RequestIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
-    _selected_tenant(session, ctx, tenant_id, "records.write")
+def staff_create_request(
+    tenant_id: UUID, body: RequestIn, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "records.write", request)
     item = svc.create_request(
         session, ctx, tenant_id, body.request_type, body.subject, body.description
     )

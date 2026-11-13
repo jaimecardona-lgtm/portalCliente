@@ -73,7 +73,7 @@ def assigned_tenants(session: Session) -> list[dict[str, Any]]:
             text(
                 """
             SELECT id, slug, legal_name, external_tenant_id, integration_status, is_demo,
-                   discovery_observed_label
+                   discovery_observed_label, segment
             FROM tenants
             ORDER BY legal_name, id
             """
@@ -87,6 +87,7 @@ def assigned_tenants(session: Session) -> list[dict[str, Any]]:
 
 def _tenant_out(r: Any) -> dict[str, Any]:
     return {
+        "qa_synthetic": r["segment"] == "QA_SYNTHETIC_ONLY",
         "id": str(r["id"]),
         "slug": r["slug"],
         "legal_name": r["legal_name"],
@@ -220,9 +221,15 @@ def list_requests(session: Session, tenant_id: UUID) -> list[dict[str, Any]]:
     return [_request_out(r) for r in rows]
 
 
-def tenant_visible(session: Session, tenant_id: UUID) -> bool:
-    row = session.execute(text("SELECT 1 FROM tenants WHERE id = :t"), {"t": tenant_id}).first()
-    return row is not None
+def tenant_visible(session: Session, tenant_id: UUID, *, allow_qa: bool = False) -> bool:
+    """Visible para la persona según RLS. Sin configuración QA, una empresa sintética no es visible aunque RLS la deje."""
+    row = session.execute(
+        text("SELECT segment FROM tenants WHERE id = :t"), {"t": tenant_id}
+    ).first()
+    if row is None:
+        return False
+    return allow_qa or row[0] != "QA_SYNTHETIC_ONLY"
+
 
 
 def fix_selected_tenant(session: Session, tenant_id: UUID) -> None:

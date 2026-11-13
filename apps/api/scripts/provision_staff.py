@@ -33,8 +33,10 @@ from app.services.staff_provisioning import (  # noqa: E402
     assert_owner_connection,
     grant_scope,
     grant_staff,
+    grant_qa_synthetic_scope,
     grant_tenant,
     provision_tenant,
+    set_qa_synthetic_environment,
     revoke_scope,
     revoke_staff,
     revoke_tenant,
@@ -86,6 +88,15 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("--tax-id", required=True, help="NIT aportado por la autorización. Nunca se inventa.")
     pt.add_argument("--authorized-by", required=True)
     pt.add_argument("--reason", default="Alta empresarial autorizada")
+
+    gq = sub.add_parser("grant-qa-scope", help="Alcance QA sobre empresas sintéticas (roles qa o platform_admin).")
+    gq.add_argument("--user-id", required=True, type=UUID)
+    gq.add_argument("--authorized-by", required=True)
+    gq.add_argument("--reason", required=True)
+
+    qe = sub.add_parser("set-qa-environment", help="Activa o desactiva la bandera del entorno QA (por defecto: desactivada).")
+    qe.add_argument("--enabled", required=True, choices=["true", "false"])
+    qe.add_argument("--authorized-by", required=True)
 
     vt = sub.add_parser("verify-tenant", help="Verifica una empresa con su identificador oficial.")
     vt.add_argument("--tenant-slug", required=True)
@@ -144,6 +155,12 @@ def _run(conn, args: argparse.Namespace) -> str:
             args.legal_name,
             args.tax_id,
             Authorization(args.authorized_by, args.reason),
+        )
+    if args.command == "grant-qa-scope":
+        return grant_qa_synthetic_scope(conn, args.user_id, Authorization(args.authorized_by, args.reason))
+    if args.command == "set-qa-environment":
+        return set_qa_synthetic_environment(
+            conn, args.enabled == "true", Authorization(args.authorized_by, "Modalidad QA interna autorizada")
         )
     if args.command == "revoke-tenant":
         return revoke_tenant(conn, args.user_id, args.tenant_slug, args.reason)

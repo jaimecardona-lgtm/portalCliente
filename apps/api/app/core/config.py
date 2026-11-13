@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     # Los modelos no tienen valor por defecto: se fijan tras verificar disponibilidad, precio, herramientas,
     # privacidad y dimensiones de embeddings (ver docs/logix-arquitectura.md).
     logix_ai_enabled: bool = False
+    # Modalidad QA interna (CLAUDE.md). Desactivada por defecto. Necesita también la bandera de la base de datos.
+    qa_synthetic_enabled: bool = False
     logix_rag_enabled: bool = False
     # Interruptor de negocio: sin esta autorización explícita, Logix no puede enviar datos a OpenRouter.
     logix_external_processing_authorized: bool = False

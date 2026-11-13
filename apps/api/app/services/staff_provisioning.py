@@ -304,3 +304,40 @@ def provision_tenant(
         {"s": slug, "n": legal_name.strip(), "x": tax, "l": label, "by": auth.authorized_by.strip()},
     )
     return "empresa dada de alta pendiente de integración (sin identificador oficial)"
+
+
+def grant_qa_synthetic_scope(conn: Connection, user_id: UUID, auth: Authorization) -> str:
+    """Alcance QA sobre empresas sintéticas. Solo roles qa o platform_admin. No verifica ni vincula empresas."""
+    row = conn.execute(
+        text("SELECT staff_role, active FROM platform_staff WHERE user_id = :u"), {"u": user_id}
+    ).first()
+    if row is None or not row[1]:
+        raise ProvisioningError("La cuenta no tiene un rol interno activo.")
+    if row[0] not in ("qa", "platform_admin"):
+        raise ProvisioningError("Solo los roles QA o administrador pueden tener alcance QA.")
+    conn.execute(
+        text(
+            """
+            UPDATE platform_staff
+            SET tenant_scope = 'qa_synthetic_only', scope_authorized_by = :by, scope_granted_at = now()
+            WHERE user_id = :u
+            """
+        ),
+        {"u": user_id, "by": auth.authorized_by.strip()},
+    )
+    return "alcance QA concedido (empresas sintéticas, solo con la bandera del entorno activa)"
+
+
+def set_qa_synthetic_environment(conn: Connection, enabled: bool, auth: Authorization) -> str:
+    """Enciende o apaga la bandera del entorno QA. Por defecto está apagada; apagarla oculta todo de inmediato."""
+    conn.execute(
+        text(
+            """
+            UPDATE portal_environment_flags
+            SET enabled = :e, authorized_by = :by, updated_at = now()
+            WHERE flag = 'qa_synthetic_enabled'
+            """
+        ),
+        {"e": enabled, "by": auth.authorized_by.strip()},
+    )
+    return "entorno QA activado" if enabled else "entorno QA desactivado"
