@@ -38,6 +38,8 @@ class TokenClaims:
     subject: UUID
     email: str | None
     expires_at: datetime
+    # Último inicio de sesión con contraseña (claim amr). None si el token no lo declara.
+    password_authenticated_at: datetime | None = None
 
 
 class TokenVerifier(Protocol):
@@ -90,6 +92,7 @@ class SupabaseTokenVerifier:
             subject=subject,
             email=email if isinstance(email, str) else None,
             expires_at=datetime.fromtimestamp(int(payload["exp"]), tz=UTC),
+            password_authenticated_at=_password_time(payload),
         )
 
     def _resolve_key(self, token: str) -> tuple[Any, list[str]]:
@@ -106,3 +109,18 @@ def build_token_verifier(settings: Settings) -> TokenVerifier | None:
     if not settings.auth_configured:
         return None
     return SupabaseTokenVerifier(settings)
+
+
+def _password_time(payload: dict[str, Any]) -> datetime | None:
+    """Momento del último inicio de sesión con contraseña según el claim amr de Supabase."""
+    amr = payload.get("amr")
+    if not isinstance(amr, list):
+        return None
+    times = [
+        int(item["timestamp"])
+        for item in amr
+        if isinstance(item, dict)
+        and item.get("method") == "password"
+        and isinstance(item.get("timestamp"), (int, float))
+    ]
+    return datetime.fromtimestamp(max(times), tz=UTC) if times else None

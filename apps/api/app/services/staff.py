@@ -14,6 +14,7 @@ denegados."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -193,13 +194,15 @@ def audit(
     result: str,
     reason: str | None = None,
     previous_tenant_id: UUID | None = None,
+    reauthenticated_at: datetime | None = None,
 ) -> None:
     session.execute(
         text(
             """
             INSERT INTO staff_access_audit
-              (actor_id, staff_role, tenant_id, previous_tenant_id, action, reason, result)
-            VALUES (:actor, :role, :tenant, :previous, :action, :reason, :result)
+              (actor_id, staff_role, tenant_id, previous_tenant_id, action, reason, result,
+               reauthenticated_at)
+            VALUES (:actor, :role, :tenant, :previous, :action, :reason, :result, :reauth)
             """
         ),
         {
@@ -207,6 +210,7 @@ def audit(
             "role": ctx.staff_role,
             "tenant": tenant_id,
             "previous": previous_tenant_id,
+            "reauth": reauthenticated_at,
             "action": action,
             "reason": reason,
             "result": result,
@@ -228,3 +232,58 @@ def observed_tenants(session: Session) -> list[dict[str, Any]]:
         }
         for r in rows
     ]
+
+
+# Códigos que lanza la base de datos en el cambio de empresa. Se traducen a códigos de API estables.
+_CONTEXT_ERRORS: dict[str, tuple[int, str]] = {
+    "challenge_invalid": (403, "Este cambio ya no es válido. Vuelva a intentarlo."),
+    "reauth_stale": (403, "La verificación de contraseña no es reciente. Vuelva a introducir su contraseña."),
+    "reauth_reused": (403, "Esta verificación ya se utilizó. Vuelva a introducir su contraseña."),
+    "tenant_not_authorized": (403, "No tiene acceso a la empresa indicada."),
+    "rate_limited": (429, "Ha superado el número de intentos de cambio. Espere unos minutos."),
+    "staff_required": (403, "Su usuario no tiene un rol interno autorizado."),
+}
+
+
+def _context_error(exc: Exception) -> Exception:
+    from app.core.errors import AccessDenied, AppError
+
+    message = str(getattr(exc, "orig", exc))
+    for code, (status, text_message) in _CONTEXT_ERRORS.items():
+        if code in message:
+            if status == 429:
+                return AppError(text_message, code="rate_limited", status_code=429)
+            return AccessDenied(text_message, code=code)
+    return exc
+
+
+def request_context_challenge(session: Session, tenant_id: UUID) -> dict[str, Any]:
+    from sqlalchemy.exc import DBAPIError
+
+    try:
+        row = (
+            session.execute(
+                text("SELECT challenge_id, expires_at FROM portal_request_context_challenge(:t)"),
+                {"t": tenant_id},
+            )
+            .mappings()
+            .one()
+        )
+    except DBAPIError as exc:
+        raise _context_error(exc) from exc
+    return {"challenge_id": str(row["challenge_id"]), "expires_at": row["expires_at"].isoformat()}
+
+
+def confirm_context_change(
+    session: Session, challenge_id: UUID, reauth_at: datetime, fingerprint: str, previous: UUID | None
+) -> UUID:
+    from sqlalchemy.exc import DBAPIError
+
+    try:
+        value = session.execute(
+            text("SELECT portal_confirm_context_change(:c, :r, :f, :p)"),
+            {"c": challenge_id, "r": reauth_at, "f": fingerprint, "p": previous},
+        ).scalar_one()
+    except DBAPIError as exc:
+        raise _context_error(exc) from exc
+    return UUID(str(value))

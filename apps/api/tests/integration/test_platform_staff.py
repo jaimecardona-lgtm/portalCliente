@@ -16,7 +16,7 @@ from sqlalchemy.engine import Engine
 
 from app.core.config import Settings
 from app.main import create_app
-from tests.conftest import Seed, mint_token
+from tests.conftest import Seed, mint_token, switch_context
 
 pytestmark = pytest.mark.integration
 
@@ -87,25 +87,14 @@ def test_qa_lists_only_verified_and_assigned_tenants(client, qa, seed) -> None:
 
 
 def test_unverified_tenant_is_denied_even_when_assigned(client, qa, seed) -> None:
-    r = client.post(
-        "/api/v1/staff/context",
-        json={"tenant_id": str(seed.tenant_b), "reason": "Soporte de prueba"},
-        headers=_h(qa),
-    )
+    r = switch_context(client, qa, seed.tenant_b)
     assert r.status_code == 403 and r.json()["error"]["code"] == "tenant_not_authorized"
     r = client.get(f"/api/v1/staff/tenants/{seed.tenant_b}/operations", headers=_h(qa))
     assert r.status_code == 403
 
 
 def test_context_selection_then_operations_of_selected_tenant_only(client, qa, seed) -> None:
-    assert (
-        client.post(
-            "/api/v1/staff/context",
-            json={"tenant_id": str(seed.tenant_a), "reason": "Soporte de prueba"},
-            headers=_h(qa),
-        ).status_code
-        == 200
-    )
+    assert switch_context(client, qa, seed.tenant_a).status_code == 200
     ops = client.get(f"/api/v1/staff/tenants/{seed.tenant_a}/operations", headers=_h(qa)).json()["items"]
     ids = {o["id"] for o in ops}
     assert ids == {str(seed.op_a), str(seed.op_a2)}
@@ -152,16 +141,8 @@ def test_revocation_takes_effect_on_the_next_request(client, qa, owner_engine, s
 
 def test_sensitive_actions_are_audited_including_denials(client, qa, owner_engine, seed) -> None:
     client.get("/api/v1/staff/tenants", headers=_h(qa))
-    client.post(
-        "/api/v1/staff/context",
-        json={"tenant_id": str(seed.tenant_b), "reason": "Soporte de prueba"},
-        headers=_h(qa),
-    )
-    client.post(
-        "/api/v1/staff/context",
-        json={"tenant_id": str(seed.tenant_a), "reason": "Soporte de prueba"},
-        headers=_h(qa),
-    )
+    switch_context(client, qa, seed.tenant_b)
+    switch_context(client, qa, seed.tenant_a)
     client.get(f"/api/v1/staff/tenants/{seed.tenant_a}/operations", headers=_h(qa))
     rows = _db(owner_engine, "SELECT action, result FROM staff_access_audit WHERE actor_id = :u", u=qa)
     actions = {(r["action"], r["result"]) for r in rows}

@@ -6,11 +6,12 @@ consultar datos. Un cliente externo recibe 403 `no_staff_role` aunque tenga memb
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import APIRouter, Depends, Header, Request
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_staff
@@ -27,13 +28,6 @@ _STAFF_RESPONSES: dict[int | str, dict[str, Any]] = {
     **AUTH_RESPONSES,
     403: {"description": "Sin rol interno activo, o sin permiso, o tenant no asignado y verificado."},
 }
-
-
-class ContextIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    tenant_id: UUID
-    # Motivo de soporte: obligatorio y auditado con el cambio de empresa.
-    reason: str = Field(min_length=3, max_length=300)
 
 
 def _require(ctx: StaffContext, permission: str) -> None:
@@ -67,8 +61,20 @@ def staff_observed_tenants(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
     return {"items": svc.observed_tenants(session)}
 
 
-@router.post("/context", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def select_context(body: ContextIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+class ChallengeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: UUID
+
+
+class ContextIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tenant_id: UUID
+    challenge_id: UUID
+
+
+@router.post("/context/challenge", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def create_context_challenge(body: ChallengeIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+    """Desafío de cambio de empresa: solo para empresas autorizadas, con caducidad y un solo uso."""
     _require(ctx, "tenants.read")
     if not svc.tenant_visible(session, body.tenant_id):
         svc.audit(
@@ -76,18 +82,47 @@ def select_context(body: ContextIn, ctx: StaffDep, session: DbDep) -> dict[str, 
         )
         session.commit()
         raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
+    result = svc.request_context_challenge(session, body.tenant_id)
+    session.commit()
+    return result
+
+
+@router.post("/context", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def select_context(
+    body: ContextIn,
+    request: Request,
+    ctx: StaffDep,
+    session: DbDep,
+    x_reauth_token: Annotated[str | None, Header(alias="X-Reauth-Token")] = None,
+) -> dict[str, Any]:
+    """Cambio de empresa con reautenticación por contraseña reciente, vinculada al desafío."""
+    _require(ctx, "tenants.read")
+    if not x_reauth_token:
+        raise AccessDenied("Se requiere confirmar su contraseña.", code="reauth_required")
+    try:
+        claims = request.app.state.token_verifier.verify(x_reauth_token)
+    except Exception as exc:  # token inválido o caducado: no se revela el motivo
+        raise AccessDenied("La verificación de contraseña no es válida.", code="reauth_required") from exc
+    if claims.subject != ctx.user_id or claims.password_authenticated_at is None:
+        raise AccessDenied("La verificación de contraseña no es válida.", code="reauth_required")
+    fingerprint = hashlib.sha256(x_reauth_token.encode("utf-8")).hexdigest()
     previous = svc.previous_context_tenant(session)
-    svc.fix_selected_tenant(session, body.tenant_id)
+    confirmed = svc.confirm_context_change(
+        session, body.challenge_id, claims.password_authenticated_at, fingerprint, previous
+    )
+    if confirmed != body.tenant_id:
+        raise AccessDenied("Este cambio ya no es válido. Vuelva a intentarlo.", code="challenge_invalid")
+    svc.fix_selected_tenant(session, confirmed)
     svc.audit(
         session,
         ctx,
         "context_select",
-        tenant_id=body.tenant_id,
+        tenant_id=confirmed,
         result="allowed",
-        reason=body.reason.strip(),
         previous_tenant_id=previous,
+        reauthenticated_at=claims.password_authenticated_at,
     )
-    tenant = next(t for t in svc.assigned_tenants(session) if t["id"] == str(body.tenant_id))
+    tenant = next(t for t in svc.assigned_tenants(session) if t["id"] == str(confirmed))
     session.commit()
     return {"tenant": tenant}
 

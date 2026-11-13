@@ -11,6 +11,7 @@ El secreto de firma es solo para pruebas y nunca se usa fuera de ellas.
 from __future__ import annotations
 
 import os
+import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -296,6 +297,7 @@ def mint_token(
     issuer: str = ISSUER,
     role: str = "authenticated",
     expires_in: timedelta = timedelta(minutes=10),
+    password_at: datetime | None = None,
 ) -> str:
     now = datetime.now(UTC)
     payload = {
@@ -306,8 +308,28 @@ def mint_token(
         "email": "prueba@sintetico.test",
         "iat": int(now.timestamp()),
         "exp": int((now + expires_in).timestamp()),
+        "jti": str(uuid.uuid4()),
     }
+    if password_at is not None:
+        # Igual que Supabase tras un inicio de sesión con contraseña (claim amr).
+        payload["amr"] = [{"method": "password", "timestamp": int(password_at.timestamp())}]
     return jwt.encode(payload, secret, algorithm="HS256")
+
+
+def switch_context(client, user_id, tenant_id, *, password_at: datetime | None = None):
+    """Flujo real de cambio de empresa: desafío y confirmación con reautenticación reciente."""
+    headers = {"Authorization": f"Bearer {mint_token(user_id)}"}
+    challenge = client.post(
+        "/api/v1/staff/context/challenge", json={"tenant_id": str(tenant_id)}, headers=headers
+    )
+    if challenge.status_code != 200:
+        return challenge
+    token = mint_token(user_id, password_at=password_at or datetime.now(UTC))
+    return client.post(
+        "/api/v1/staff/context",
+        json={"tenant_id": str(tenant_id), "challenge_id": challenge.json()["challenge_id"]},
+        headers={**headers, "X-Reauth-Token": token},
+    )
 
 
 @pytest.fixture
