@@ -15,7 +15,7 @@ Decisiones no evidentes:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
@@ -96,6 +96,16 @@ class OperationRef(Base):
     reference: Mapped[str | None] = mapped_column(Text)
     last_known_status: Mapped[str | None] = mapped_column(Text)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Campos de presentación (migración 20261113000100). NULL = sin información.
+    origin_name: Mapped[str | None] = mapped_column(Text)
+    destination_name: Mapped[str | None] = mapped_column(Text)
+    transport_type: Mapped[str | None] = mapped_column(Text)
+    etd: Mapped[date | None] = mapped_column()
+    eta: Mapped[date | None] = mapped_column()
+    booking_number: Mapped[str | None] = mapped_column(Text)
+    carrier_name: Mapped[str | None] = mapped_column(Text)
+    responsible_name: Mapped[str | None] = mapped_column(Text)
+    pending_client_response: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

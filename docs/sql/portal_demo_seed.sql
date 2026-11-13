@@ -65,31 +65,50 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
   legal_name = EXCLUDED.legal_name, status = 'active', updated_at = now();
 
--- 3. Operaciones: tres por empresa, con estados y datos distintos.
+-- 3. Operaciones: tres por empresa, con información logística completa y coherente (todo sintético).
+--    ETA posterior a ETD. Solo las operaciones en aduana o en puerto requieren respuesta del cliente.
 INSERT INTO operation_refs (id, tenant_id, external_system, external_id, do_number, reference,
-                            last_known_status, last_synced_at, client_account_id, source_version)
+                            last_known_status, last_synced_at, client_account_id, source_version,
+                            origin_name, destination_name, transport_type, etd, eta, booking_number,
+                            carrier_name, responsible_name, pending_client_response)
 VALUES
   (md5('demo-op:A-1')::uuid, md5('demo-tenant:DEMO-A-0001')::uuid, 'logixtic', 'DEMO-A-OP-001',
-   'DO-DEMO-A-001', 'Pedido sintético A-1 · insumos', 'En tránsito', now(),
-   md5('demo-client:A1')::uuid, 'demo-1'),
+   'DO-DEMO-A-001', 'Pedido sintético A-1 · insumos', 'En tránsito', now(), md5('demo-client:A1')::uuid, 'demo-1',
+   'Origen demo A-1 (Puerto Norte)', 'Destino demo A-1 (Puerto Sur)', 'Marítimo FCL',
+   DATE '2026-10-20', DATE '2026-11-25', 'DEMO-BKG-A-001', 'Transportador demo 1 (sintético)',
+   'Ejecutiva demo A (sintética)', false),
   (md5('demo-op:A-2')::uuid, md5('demo-tenant:DEMO-A-0001')::uuid, 'logixtic', 'DEMO-A-OP-002',
-   'DO-DEMO-A-002', 'Pedido sintético A-2 · maquinaria', 'En aduana', now(),
-   md5('demo-client:A1')::uuid, 'demo-1'),
+   'DO-DEMO-A-002', 'Pedido sintético A-2 · maquinaria', 'En aduana', now(), md5('demo-client:A1')::uuid, 'demo-1',
+   'Origen demo A-2 (Puerto Este)', 'Almacén demo A (sintético)', 'Marítimo LCL',
+   DATE '2026-10-02', DATE '2026-11-05', 'DEMO-BKG-A-002', 'Transportador demo 2 (sintético)',
+   'Ejecutiva demo A (sintética)', true),
   (md5('demo-op:A-3')::uuid, md5('demo-tenant:DEMO-A-0001')::uuid, 'logixtic', 'DEMO-A-OP-003',
-   'DO-DEMO-A-003', 'Pedido sintético A-3 · muestras', 'Entregado', now(),
-   md5('demo-client:A2')::uuid, 'demo-1'),
+   'DO-DEMO-A-003', 'Pedido sintético A-3 · muestras', 'Entregado', now(), md5('demo-client:A2')::uuid, 'demo-1',
+   'Bodega demo A (sintética)', 'Planta demo A-2 (sintética)', 'Terrestre',
+   DATE '2026-09-15', DATE '2026-09-18', 'DEMO-BKG-A-003', 'Transportador demo 3 (sintético)',
+   'Ejecutivo demo A2 (sintético)', false),
   (md5('demo-op:B-1')::uuid, md5('demo-tenant:DEMO-B-0001')::uuid, 'logixtic', 'DEMO-B-OP-001',
-   'DO-DEMO-B-001', 'Pedido sintético B-1 · repuestos', 'Creado', now(),
-   md5('demo-client:B1')::uuid, 'demo-1'),
+   'DO-DEMO-B-001', 'Pedido sintético B-1 · repuestos', 'Creado', now(), md5('demo-client:B1')::uuid, 'demo-1',
+   'Origen demo B-1 (Aeropuerto Oeste)', 'Destino demo B-1 (Aeropuerto Central)', 'Aéreo',
+   DATE '2026-11-20', DATE '2026-11-22', 'DEMO-BKG-B-001', 'Transportador demo 4 (sintético)',
+   'Ejecutivo demo B (sintético)', false),
   (md5('demo-op:B-2')::uuid, md5('demo-tenant:DEMO-B-0001')::uuid, 'logixtic', 'DEMO-B-OP-002',
-   'DO-DEMO-B-002', 'Pedido sintético B-2 · alimentos', 'En puerto', now(),
-   md5('demo-client:B1')::uuid, 'demo-1'),
+   'DO-DEMO-B-002', 'Pedido sintético B-2 · alimentos', 'En puerto', now(), md5('demo-client:B1')::uuid, 'demo-1',
+   'Origen demo B-2 (Puerto Norte B)', 'Destino demo B-2 (Puerto Sur B)', 'Marítimo FCL',
+   DATE '2026-10-28', DATE '2026-11-15', 'DEMO-BKG-B-002', 'Transportador demo 5 (sintético)',
+   'Ejecutivo demo B (sintético)', true),
   (md5('demo-op:B-3')::uuid, md5('demo-tenant:DEMO-B-0001')::uuid, 'logixtic', 'DEMO-B-OP-003',
-   'DO-DEMO-B-003', 'Pedido sintético B-3 · textiles', 'Entregado', now(),
-   md5('demo-client:B2')::uuid, 'demo-1')
+   'DO-DEMO-B-003', 'Pedido sintético B-3 · textiles', 'Entregado', now(), md5('demo-client:B2')::uuid, 'demo-1',
+   'Bodega demo B (sintética)', 'Planta demo B-2 (sintética)', 'Terrestre',
+   DATE '2026-09-01', DATE '2026-09-04', 'DEMO-BKG-B-003', 'Transportador demo 6 (sintético)',
+   'Ejecutivo demo B2 (sintético)', false)
 ON CONFLICT (id) DO UPDATE SET
   reference = EXCLUDED.reference, last_known_status = EXCLUDED.last_known_status,
-  last_synced_at = EXCLUDED.last_synced_at, client_account_id = EXCLUDED.client_account_id;
+  last_synced_at = EXCLUDED.last_synced_at, client_account_id = EXCLUDED.client_account_id,
+  origin_name = EXCLUDED.origin_name, destination_name = EXCLUDED.destination_name,
+  transport_type = EXCLUDED.transport_type, etd = EXCLUDED.etd, eta = EXCLUDED.eta,
+  booking_number = EXCLUDED.booking_number, carrier_name = EXCLUDED.carrier_name,
+  responsible_name = EXCLUDED.responsible_name, pending_client_response = EXCLUDED.pending_client_response;
 
 -- 4. Eventos de trazabilidad: dos por operación (cambio de estado, visible para el cliente).
 INSERT INTO operation_events (id, tenant_id, operation_id, external_event_id, event_type, occurred_at,

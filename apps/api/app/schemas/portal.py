@@ -7,7 +7,7 @@ externos de Logixtic ni `author_id`.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -52,6 +52,16 @@ class OperationOut(_Out):
     reference: str | None
     last_known_status: str | None
     last_synced_at: datetime | None
+    # Campos de presentación: null cuando la información no existe.
+    origin_name: str | None = None
+    destination_name: str | None = None
+    transport_type: str | None = None
+    etd: date | None = None
+    eta: date | None = None
+    booking_number: str | None = None
+    carrier_name: str | None = None
+    responsible_name: str | None = None
+    pending_client_response: bool | None = None
 
 
 class EventOut(_Out):
