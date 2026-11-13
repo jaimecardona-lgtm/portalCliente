@@ -87,7 +87,11 @@ def test_qa_lists_only_verified_and_assigned_tenants(client, qa, seed) -> None:
 
 
 def test_unverified_tenant_is_denied_even_when_assigned(client, qa, seed) -> None:
-    r = client.post("/api/v1/staff/context", json={"tenant_id": str(seed.tenant_b)}, headers=_h(qa))
+    r = client.post(
+        "/api/v1/staff/context",
+        json={"tenant_id": str(seed.tenant_b), "reason": "Soporte de prueba"},
+        headers=_h(qa),
+    )
     assert r.status_code == 403 and r.json()["error"]["code"] == "tenant_not_authorized"
     r = client.get(f"/api/v1/staff/tenants/{seed.tenant_b}/operations", headers=_h(qa))
     assert r.status_code == 403
@@ -96,7 +100,9 @@ def test_unverified_tenant_is_denied_even_when_assigned(client, qa, seed) -> Non
 def test_context_selection_then_operations_of_selected_tenant_only(client, qa, seed) -> None:
     assert (
         client.post(
-            "/api/v1/staff/context", json={"tenant_id": str(seed.tenant_a)}, headers=_h(qa)
+            "/api/v1/staff/context",
+            json={"tenant_id": str(seed.tenant_a), "reason": "Soporte de prueba"},
+            headers=_h(qa),
         ).status_code
         == 200
     )
@@ -146,8 +152,16 @@ def test_revocation_takes_effect_on_the_next_request(client, qa, owner_engine, s
 
 def test_sensitive_actions_are_audited_including_denials(client, qa, owner_engine, seed) -> None:
     client.get("/api/v1/staff/tenants", headers=_h(qa))
-    client.post("/api/v1/staff/context", json={"tenant_id": str(seed.tenant_b)}, headers=_h(qa))
-    client.post("/api/v1/staff/context", json={"tenant_id": str(seed.tenant_a)}, headers=_h(qa))
+    client.post(
+        "/api/v1/staff/context",
+        json={"tenant_id": str(seed.tenant_b), "reason": "Soporte de prueba"},
+        headers=_h(qa),
+    )
+    client.post(
+        "/api/v1/staff/context",
+        json={"tenant_id": str(seed.tenant_a), "reason": "Soporte de prueba"},
+        headers=_h(qa),
+    )
     client.get(f"/api/v1/staff/tenants/{seed.tenant_a}/operations", headers=_h(qa))
     rows = _db(owner_engine, "SELECT action, result FROM staff_access_audit WHERE actor_id = :u", u=qa)
     actions = {(r["action"], r["result"]) for r in rows}

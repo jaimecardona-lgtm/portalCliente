@@ -196,3 +196,42 @@ def verify_tenant(conn: Connection, slug: str, external_id: str, verified_by: UU
         {"e": external_id, "v": verified_by, "t": tenant_id},
     )
     return "empresa verificada con identificador oficial"
+
+
+def grant_scope(conn: Connection, user_id: UUID, auth: Authorization) -> str:
+    """Concede alcance global a todos los tenants verificados y activos. Exige rol interno activo."""
+    staff = conn.execute(text("SELECT active FROM platform_staff WHERE user_id = :u"), {"u": user_id}).first()
+    if staff is None or not staff[0]:
+        raise ProvisioningError("La cuenta no tiene un rol interno activo.")
+    conn.execute(
+        text(
+            """
+            UPDATE platform_staff
+            SET tenant_scope = 'all_verified_support_tenants',
+                scope_authorized_by = :by,
+                scope_granted_at = now()
+            WHERE user_id = :u
+            """
+        ),
+        {"u": user_id, "by": auth.authorized_by.strip()},
+    )
+    return "alcance global de soporte concedido"
+
+
+def revoke_scope(conn: Connection, user_id: UUID, reason: str) -> str:
+    """Retira el alcance global. Los grants específicos por tenant no se tocan."""
+    if not (3 <= len(reason.strip()) <= 300):
+        raise ProvisioningError("El motivo de revocación debe tener entre 3 y 300 caracteres.")
+    result = conn.execute(
+        text(
+            """
+            UPDATE platform_staff
+            SET tenant_scope = 'assigned', scope_authorized_by = NULL, scope_granted_at = NULL
+            WHERE user_id = :u AND tenant_scope <> 'assigned'
+            """
+        ),
+        {"u": user_id},
+    )
+    if result.rowcount == 0:
+        raise ProvisioningError("La cuenta no tiene alcance global que revocar.")
+    return "alcance global de soporte revocado"

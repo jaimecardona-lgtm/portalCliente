@@ -131,6 +131,12 @@ def operations_of_selected_tenant(session: Session) -> list[dict[str, Any]]:
     ]
 
 
+def previous_context_tenant(session: Session) -> UUID | None:
+    """Último tenant de trabajo elegido por la persona (función SECURITY DEFINER)."""
+    value = session.execute(text("SELECT portal_staff_previous_context_tenant()")).scalar()
+    return UUID(str(value)) if value is not None else None
+
+
 def audit(
     session: Session,
     ctx: StaffContext,
@@ -139,18 +145,21 @@ def audit(
     tenant_id: UUID | None,
     result: str,
     reason: str | None = None,
+    previous_tenant_id: UUID | None = None,
 ) -> None:
     session.execute(
         text(
             """
-            INSERT INTO staff_access_audit (actor_id, staff_role, tenant_id, action, reason, result)
-            VALUES (:actor, :role, :tenant, :action, :reason, :result)
+            INSERT INTO staff_access_audit
+              (actor_id, staff_role, tenant_id, previous_tenant_id, action, reason, result)
+            VALUES (:actor, :role, :tenant, :previous, :action, :reason, :result)
             """
         ),
         {
             "actor": ctx.user_id,
             "role": ctx.staff_role,
             "tenant": tenant_id,
+            "previous": previous_tenant_id,
             "action": action,
             "reason": reason,
             "result": result,

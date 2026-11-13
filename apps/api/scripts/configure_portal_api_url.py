@@ -41,9 +41,7 @@ def main() -> int:
     lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
     # Se eliminan ambas claves: la conexión administrativa no debe quedar en .env.
     kept: list[str] = [
-        line
-        for line in lines
-        if not line.startswith(("DATABASE_URL=", "OWNER_DATABASE_URL="))
+        line for line in lines if not line.startswith(("DATABASE_URL=", "OWNER_DATABASE_URL="))
     ]
     kept.append(f"DATABASE_URL={new_url}")
 

@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_staff
@@ -32,6 +32,8 @@ _STAFF_RESPONSES: dict[int | str, dict[str, Any]] = {
 class ContextIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tenant_id: UUID
+    # Motivo de soporte: obligatorio y auditado con el cambio de empresa.
+    reason: str = Field(min_length=3, max_length=300)
 
 
 def _require(ctx: StaffContext, permission: str) -> None:
@@ -67,8 +69,17 @@ def select_context(body: ContextIn, ctx: StaffDep, session: DbDep) -> dict[str, 
         )
         session.commit()
         raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
+    previous = svc.previous_context_tenant(session)
     svc.fix_selected_tenant(session, body.tenant_id)
-    svc.audit(session, ctx, "context_select", tenant_id=body.tenant_id, result="allowed")
+    svc.audit(
+        session,
+        ctx,
+        "context_select",
+        tenant_id=body.tenant_id,
+        result="allowed",
+        reason=body.reason.strip(),
+        previous_tenant_id=previous,
+    )
     tenant = next(t for t in svc.assigned_tenants(session) if t["id"] == str(body.tenant_id))
     session.commit()
     return {"tenant": tenant}
@@ -76,7 +87,8 @@ def select_context(body: ContextIn, ctx: StaffDep, session: DbDep) -> dict[str, 
 
 @router.post("/context/exit", tags=["personal interno"], responses=_STAFF_RESPONSES)
 def exit_context(ctx: StaffDep, session: DbDep) -> dict[str, Any]:
-    svc.audit(session, ctx, "context_exit", tenant_id=None, result="allowed")
+    previous = svc.previous_context_tenant(session)
+    svc.audit(session, ctx, "context_exit", tenant_id=None, result="allowed", previous_tenant_id=previous)
     session.commit()
     return {"ok": True}
 
