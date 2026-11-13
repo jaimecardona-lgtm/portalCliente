@@ -531,3 +531,19 @@ Estado: el paso 1 no se ha ejecutado en esta fase.
 
 Conclusión: **no existe todavía ninguna prueba E2E real completada**. La validación de la estructura remota exige la
 consulta de solo lectura `docs/sql/fase-13-estado-remoto-solo-lectura.sql`, ejecutada por el propietario.
+
+### 22.7 Actualización: personal interno (RBAC) y cifras vigentes
+
+| Función | Estado | Cómo se verificó |
+|---|---|---|
+| Roles internos (`platform_admin`, `qa`, `developer`, `support`) con matriz de permisos | Implementada en local | Pruebas de integración con RLS |
+| Tenants verificados y asignados para personal | Implementada en local | Pruebas: tenant no verificado y no asignado denegados |
+| Panel `/soporte` y selección de contexto | Implementada en local | Pruebas del cliente HTTP y garantías estáticas; **sin prueba de interfaz** |
+| Auditoría de accesos de personal | Implementada en local | Pruebas que verifican filas permitidas y denegadas |
+| Aprovisionamiento del primer usuario QA | **Preparado, no ejecutado** | Requiere UUID real y autorización escrita del responsable |
+| Migración `20261112000400_platform_staff` | **No aplicada en remoto** | Pendiente de reconciliar objetos existentes (sección 22.6) |
+
+Cifras vigentes del cierre de esta fase: **API con PostgreSQL migrado: 205 aprobadas; sin base de datos: 78 aprobadas;
+web (Vitest): 236 aprobadas.** Las cifras de la sección 22.2 corresponden al cierre anterior.
+
+Procedimiento y modelo completos: `docs/rbac-personal-interno.md`.
