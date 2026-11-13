@@ -56,6 +56,14 @@ describe('resolveAccessState (producción)', () => {
 })
 
 describe('resolveAccessState (desarrollo)', () => {
+  it('el modo de presentación local concede acceso local aunque el proveedor esté declarado (solo en desarrollo)', () => {
+    expect(resolveAccessState({ isLocal: true, presentation: true, provider: 'supabase', apiBaseUrl: 'x', supabaseConfigured: true })).toEqual({ mode: 'local' })
+  })
+
+  it('fuera de desarrollo, el modo de presentación nunca concede acceso local', () => {
+    expect(resolveAccessState({ isLocal: false, presentation: true, provider: '' })).not.toEqual({ mode: 'local' })
+  })
+
   it('permite el acceso de presentación local sin proveedor declarado', () => {
     expect(resolveAccessState({ isLocal: true })).toEqual({ mode: 'local' })
   })

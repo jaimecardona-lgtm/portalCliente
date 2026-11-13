@@ -44,13 +44,15 @@ export interface AccessInput {
   apiBaseUrl?: string
   /** true solo si la configuración pública de Supabase es válida (ver supabase-config.ts). */
   supabaseConfigured?: boolean
+  /** Modo de presentación local (`vite --mode presentacion`). Solo tiene efecto en desarrollo. */
+  presentation?: boolean
 }
 
 /** Decide el modo de acceso. Función pura para poder probarla. */
 export function resolveAccessState(input: AccessInput): AccessState {
   const provider = (input.provider ?? '').trim()
   // Desarrollo sin proveedor declarado: presentación local con datos sintéticos.
-  if (input.isLocal && !provider) return { mode: 'local' }
+  if (input.isLocal && (input.presentation || !provider)) return { mode: 'local' }
   if (!provider) return { mode: 'blocked', reason: 'provider-missing' }
   if (!KNOWN_AUTH_PROVIDERS.includes(provider)) return { mode: 'blocked', reason: 'provider-unknown' }
   if (!(input.apiBaseUrl ?? '').trim()) return { mode: 'blocked', reason: 'api-url-missing' }
@@ -72,6 +74,7 @@ export function isSupabaseConfigured(env: SupabaseEnv): boolean {
 
 export const ACCESS_STATE: AccessState = resolveAccessState({
   isLocal: IS_LOCAL_PRESENTATION,
+  presentation: import.meta.env.MODE === 'presentacion',
   provider: import.meta.env.VITE_AUTH_PROVIDER,
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
   supabaseConfigured: isSupabaseConfigured({

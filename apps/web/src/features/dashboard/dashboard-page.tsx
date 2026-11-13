@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { Card, ErrorState, SectionHeading, Skeleton, Badge } from '@/components/ui/primitives'
 import { OperationStatusBadge } from '@/components/ui/status-badge'
 import { cn, daysUntil, formatDate, formatRelative } from '@/lib/format'
@@ -28,9 +30,12 @@ import { isVisibleToClient } from '@/features/operations/thread-utils'
 
 export function DashboardPage() {
   const repo = useRepository()
-  const { session, user, tenant, isResolving } = useSession()
+  const { session, user, tenant, isResolving, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
   const tenantId = session?.tenantId ?? ''
   const now = useMemo(() => referenceNow(), [])
+  // Personal interno sin sesión de empresa: la torre conserva su diseño, pero no hay cifras ni listas que mostrar.
+  const staffView = session === null && staff !== null
 
   const ops = useQuery({ queryKey: tenantKey(tenantId, 'operations'), queryFn: () => repo.listOperations(tenantId), enabled: Boolean(tenantId) })
   const docs = useQuery({ queryKey: tenantKey(tenantId, 'documents'), queryFn: () => repo.listDocuments(tenantId), enabled: Boolean(tenantId) })
@@ -53,7 +58,7 @@ export function DashboardPage() {
     )
   }
 
-  const loading = ops.isPending || docs.isPending || quotes.isPending
+  const loading = !staffView && (ops.isPending || docs.isPending || quotes.isPending)
   const operations = ops.data ?? []
   const active = operations.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado')
   const pending = operations.filter((o) => o.pendingClientResponse)
@@ -73,20 +78,20 @@ export function DashboardPage() {
     <div className="flex flex-col gap-6">
       <Hero
         greeting={greeting(now)}
-        firstName={firstName}
-        companyName={tenant?.legalName ?? ''}
+        firstName={staffView ? (staff.fullName.split(' ')[0] ?? '') : firstName}
+        companyName={staffView ? (activeStaff?.legalName ?? 'Personal interno · sin empresa seleccionada') : (tenant?.legalName ?? '')}
         resolving={isResolving}
-        activeCount={active.length}
-        pendingCount={pending.length}
-        manager={tenant?.accountManager}
+        activeCount={staffView ? NO_VALUE : active.length}
+        pendingCount={staffView ? NO_VALUE : pending.length}
+        manager={staffView ? undefined : tenant?.accountManager}
       />
 
       {/* Indicadores */}
       <section aria-label="Indicadores principales" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <KpiCard to="/operaciones" search={{ status: 'En tránsito,En puerto,En aduana' }} label="Operaciones activas" value={loading ? null : active.length} hint="En tránsito, puerto o aduana" icon={Package} tone="blue" />
-        <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={loading ? null : pending.length} hint="Operaciones con acción requerida" icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
-        <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
-        <KpiCard to="/documentos" label="Documentos vencidos" value={loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
+        <KpiCard to="/operaciones" search={{ status: 'En tránsito,En puerto,En aduana' }} label="Operaciones activas" value={staffView ? NO_VALUE : loading ? null : active.length} hint="En tránsito, puerto o aduana" icon={Package} tone="blue" />
+        <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={staffView ? NO_VALUE : loading ? null : pending.length} hint="Operaciones con acción requerida" icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
+        <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={staffView ? NO_VALUE : loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
+        <KpiCard to="/documentos" label="Documentos vencidos" value={staffView ? NO_VALUE : loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -97,7 +102,9 @@ export function DashboardPage() {
             description="Ordenadas por ETA para priorizar lo que llega primero"
             action={<Link to="/operaciones" className="inline-flex items-center gap-1 text-sm font-semibold text-blue hover:underline">Ver todas <ArrowUpRight className="size-3.5" aria-hidden /></Link>}
           />
-          {loading ? (
+          {staffView ? (
+            <StaffModuleNotice noun="operaciones" hasContext={Boolean(activeStaff)} />
+          ) : loading ? (
             <div className="flex flex-col gap-3" aria-busy="true"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
           ) : active.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-muted">No hay operaciones activas en este momento.</p>
@@ -113,7 +120,9 @@ export function DashboardPage() {
         {/* Alertas */}
         <Card className="min-w-0 p-5 sm:p-6">
           <SectionHeading title="Alertas y decisiones" description="Lo que necesita su atención" />
-          {loading ? (
+          {staffView ? (
+            <StaffModuleNotice noun="alertas" hasContext={Boolean(activeStaff)} />
+          ) : loading ? (
             <div className="flex flex-col gap-3" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           ) : (
             <AlertList pending={pending} expired={expiredDocs} soon={soonDocs} quotes={pendingQuotes} now={now} />
@@ -125,13 +134,15 @@ export function DashboardPage() {
         {/* Rutas */}
         <Card className="min-w-0 p-5 sm:p-6">
           <SectionHeading title="Rutas activas" description="Corredores con operaciones en curso" action={<RouteIcon className="size-4 text-ink-muted" aria-hidden />} />
-          <RoutesList ops={active} />
+          {staffView ? <StaffModuleNotice noun="rutas" hasContext={Boolean(activeStaff)} /> : <RoutesList ops={active} />}
         </Card>
 
         {/* Actividad reciente */}
         <Card className="min-w-0 p-5 sm:p-6">
           <SectionHeading title="Actividad reciente" description="Últimos eventos de sus operaciones" />
-          {events.length === 0 ? (
+          {staffView ? (
+            <StaffModuleNotice noun="actividades" hasContext={Boolean(activeStaff)} />
+          ) : events.length === 0 ? (
             <p className="py-6 text-center text-sm text-ink-muted">Aún no hay actividad registrada.</p>
           ) : (
             <ol className="relative ml-2 flex flex-col gap-4 border-l border-line pl-5">
@@ -179,8 +190,8 @@ function Hero({
   firstName: string
   companyName: string
   resolving: boolean
-  activeCount: number
-  pendingCount: number
+  activeCount: number | string
+  pendingCount: number | string
   manager?: string
 }) {
   return (
@@ -192,7 +203,7 @@ function Hero({
           <p className="inline-flex items-center gap-1.5 text-xs font-semibold tracking-[0.16em] text-blue uppercase">
             <Sparkles className="size-3.5" aria-hidden /> Torre de control
           </p>
-          <h1 id="hero-title" className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+          <h1 id="hero-title" className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {greet}{firstName && `, ${firstName}`}
           </h1>
           <p className="mt-1.5 max-w-xl text-sm text-white/65">
@@ -202,14 +213,14 @@ function Hero({
         </div>
         <div className="flex flex-wrap gap-3">
           <HeroStat label="Activas" value={activeCount} />
-          <HeroStat label="Requieren respuesta" value={pendingCount} highlight={pendingCount > 0} />
+          <HeroStat label="Requieren respuesta" value={pendingCount} highlight={typeof pendingCount === 'number' && pendingCount > 0} />
         </div>
       </div>
     </section>
   )
 }
 
-function HeroStat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+function HeroStat({ label, value, highlight }: { label: string; value: number | string; highlight?: boolean }) {
   return (
     <div className={cn('min-w-[140px] rounded-xl border px-4 py-3 backdrop-blur-sm', highlight ? 'border-warning-200/30 bg-danger/15' : 'border-white/10 bg-white/[0.06]')}>
       <p className="text-[11px] font-semibold tracking-wide text-white/55 uppercase">{label}</p>
@@ -224,6 +235,9 @@ function greeting(now: Date): string {
   if (hour < 19) return 'Buenas tardes'
   return 'Buenas noches'
 }
+
+/** Valor de un indicador que no tiene datos (sin empresa o sin contrato): nunca un cero. */
+const NO_VALUE = '—'
 
 const KPI_BAR = {
   blue: 'bg-gradient-to-r from-cyan to-blue',
@@ -253,7 +267,7 @@ function KpiCard({
   to: '/operaciones' | '/cotizaciones' | '/documentos'
   search?: Record<string, string>
   label: string
-  value: number | null
+  value: number | string | null
   hint: string
   icon: typeof Package
   tone: keyof typeof KPI_TONES

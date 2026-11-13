@@ -14,6 +14,8 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Columns3, Filter, Package, Search, X, Clock } from 'lucide-react'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useRepository } from '@/services/repositories'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives'
 import { OperationStatusBadge } from '@/components/ui/status-badge'
 import { cn, formatDate, daysUntil } from '@/lib/format'
@@ -104,7 +106,10 @@ function writeColumns(ids: ColumnId[]) {
 /* ------------------------------ Página ------------------------------ */
 
 export function OperationsPage({ search }: { search: Record<string, string> }) {
-  const { session } = useSession()
+  const { session, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
+  // Personal interno sin empresa de trabajo: la consulta no se lanza y la tabla explica la disponibilidad.
+  const staffView = session === null && staff !== null
   const repo = useRepository()
   const navigate = useNavigate()
   const tenantId = session?.tenantId ?? ''
@@ -153,12 +158,18 @@ export function OperationsPage({ search }: { search: Record<string, string> }) {
           <p className="text-xs font-semibold tracking-[0.16em] text-blue uppercase">Operación logística</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink sm:text-3xl">Operaciones</h1>
           <p className="mt-1 text-sm text-ink-muted">
-            {query.data ? `${results.length} de ${query.data.length} operaciones` : 'Cargando operaciones…'}
+            {query.data
+              ? `${results.length} de ${query.data.length} operaciones`
+              : staffView
+                ? 'Sin empresa de trabajo seleccionada'
+                : 'Cargando operaciones…'}
           </p>
         </div>
       </header>
 
       {query.data && query.data.length > 0 && <OperationsSummary ops={query.data} />}
+      {/* Personal interno sin empresa: las cifras no existen, se muestran como "—", nunca como cero. */}
+      {staffView && <OperationsSummary ops={null} />}
 
       {/* Barra de filtros */}
       <Card className="p-3 sm:p-4">
@@ -248,7 +259,7 @@ export function OperationsPage({ search }: { search: Record<string, string> }) {
 
       {query.isError && <Card><ErrorState message={query.error instanceof Error ? query.error.message : 'Error desconocido.'} onRetry={() => void query.refetch()} /></Card>}
 
-      {query.isPending && <LoadingTable />}
+      {query.isPending && (staffView ? <Card><StaffModuleNotice noun="operaciones" hasContext={Boolean(activeStaff)} /></Card> : <LoadingTable />)}
 
       {query.data && query.data.length === 0 && (
         <Card>
@@ -424,15 +435,17 @@ function DateField({ id, label, value, onChange }: { id: string; label: string; 
 }
 
 /** Franja de resumen sobre el total de operaciones (no depende de los filtros). */
-function OperationsSummary({ ops }: { ops: Operation[] }) {
-  const active = ops.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado').length
-  const inMotion = ops.filter((o) => ['En tránsito', 'En puerto', 'En aduana'].includes(o.status)).length
-  const pending = ops.filter((o) => o.pendingClientResponse).length
+function OperationsSummary({ ops }: { ops: Operation[] | null }) {
+  const list = ops ?? []
+  const active = list.filter((o) => o.status !== 'Cerrado' && o.status !== 'Entregado').length
+  const inMotion = list.filter((o) => ['En tránsito', 'En puerto', 'En aduana'].includes(o.status)).length
+  const pending = list.filter((o) => o.pendingClientResponse).length
+  const none = ops === null
   const items = [
-    { label: 'Activas', value: active, tone: 'text-blue' },
-    { label: 'En movimiento', value: inMotion, tone: 'text-navy-700' },
-    { label: 'Requieren su respuesta', value: pending, tone: pending > 0 ? 'text-danger-700' : 'text-ink' },
-    { label: 'Total registradas', value: ops.length, tone: 'text-ink' },
+    { label: 'Activas', value: none ? '—' : active, tone: 'text-blue' },
+    { label: 'En movimiento', value: none ? '—' : inMotion, tone: 'text-navy-700' },
+    { label: 'Requieren su respuesta', value: none ? '—' : pending, tone: pending > 0 ? 'text-danger-700' : 'text-ink' },
+    { label: 'Total registradas', value: none ? '—' : list.length, tone: 'text-ink' },
   ]
   return (
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Resumen de operaciones">

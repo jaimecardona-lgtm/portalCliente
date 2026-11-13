@@ -15,6 +15,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { ArrowLeft, MessageSquarePlus, Paperclip, Inbox, Send } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useToast } from '@/components/ui/toast'
 import { FEATURES } from '@/config/runtime'
@@ -53,7 +55,9 @@ export type RequestFormValues = z.infer<typeof requestSchema>
 
 export function RequestsListPage() {
   const repo = useRepository()
-  const { session } = useSession()
+  const { session, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
+  const staffView = session === null && staff !== null
   const tenantId = session?.tenantId ?? ''
   const requests = useQuery({ queryKey: tenantKey(tenantId, 'requests'), queryFn: () => repo.listRequests(tenantId), enabled: Boolean(tenantId) })
   const operations = useQuery({ queryKey: tenantKey(tenantId, 'operations'), queryFn: () => repo.listOperations(tenantId), enabled: Boolean(tenantId) })
@@ -74,7 +78,11 @@ export function RequestsListPage() {
 
       {requests.isError && <Card><ErrorState message="No se pudieron cargar las solicitudes." onRetry={() => void requests.refetch()} /></Card>}
 
-      {requests.isPending && <Card className="flex flex-col gap-3 p-4" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /></Card>}
+      {requests.isPending && (staffView ? (
+        <Card><StaffModuleNotice noun="solicitudes" hasContext={Boolean(activeStaff)} /></Card>
+      ) : (
+        <Card className="flex flex-col gap-3 p-4" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /></Card>
+      ))}
 
       {requests.data && requests.data.length === 0 && (
         <Card>

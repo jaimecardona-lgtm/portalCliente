@@ -13,6 +13,7 @@ import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { staffErrorMessage, type StaffTenant } from '@/services/api/staff-api'
 import { PortalApiError } from '@/services/api/http-client'
+import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
 
 const ROLE_LABEL: Record<string, string> = {
   platform_admin: 'Administrador de plataforma',
@@ -27,7 +28,8 @@ export function StaffPanelPage() {
   const portal = useContext(SupabasePortalContext)
   const api = portal?.staff ?? null
   const queryClient = useQueryClient()
-  const [active, setActive] = useState<StaffTenant | null>(null)
+  // La empresa de trabajo se comparte con el selector del menú lateral (memoria de la pestaña).
+  const active = useActiveStaffTenant()
   const [message, setMessage] = useState<string | null>(null)
 
   const me = useQuery({
@@ -49,7 +51,7 @@ export function StaffPanelPage() {
     onSuccess: (tenant) => {
       // Las operaciones de la empresa anterior no deben verse con la nueva: se descartan antes de cargar las de esta.
       queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
-      setActive(tenant)
+      setActiveStaffTenant(tenant)
       setMessage(null)
     },
     onError: (error) => setMessage(staffErrorMessage(error)),
@@ -70,7 +72,7 @@ export function StaffPanelPage() {
       setMessage(staffErrorMessage(error))
       return
     }
-    setActive(null)
+    setActiveStaffTenant(null)
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
   }
 

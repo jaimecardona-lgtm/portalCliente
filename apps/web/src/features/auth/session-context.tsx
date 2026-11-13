@@ -19,6 +19,7 @@ import type { CurrentAccount } from '@/services/api/mappers'
 import { accountIssueFor, type AccountIssue } from '@/services/auth/account-issues'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { resetStaffStatus, staffStatusFor, type StaffStatus } from '@/services/auth/staff-status'
+import { setActiveStaffTenant } from '@/services/auth/staff-context'
 import type { StaffMe } from '@/services/api/staff-api'
 import type { ID, Session, Tenant, User } from '@/types/domain'
 import { readStoredSession, writeStoredSession } from './session-storage'
@@ -171,6 +172,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
     if (!portal) return undefined
     return portal.auth.onSessionChange((hasSession) => {
       resetStaffStatus()
+      setActiveStaffTenant(null)
       setSignedOut(!hasSession)
       void queryClient.invalidateQueries({ queryKey: STAFF_STATUS_KEY })
       void queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY })
@@ -196,6 +198,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setSignedOut(true)
     resetStaffStatus()
+    setActiveStaffTenant(null)
     try {
       await portal?.auth.signOut()
     } finally {

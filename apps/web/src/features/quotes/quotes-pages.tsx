@@ -12,6 +12,8 @@ import { Link } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, CalendarClock, Check, FileText, Info, SearchX, X } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useToast } from '@/components/ui/toast'
 import { Badge, Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton, type Tone } from '@/components/ui/primitives'
@@ -30,7 +32,9 @@ const QUOTE_TONE: Record<QuoteStatus, Tone> = {
 
 export function QuotesListPage() {
   const repo = useRepository()
-  const { session } = useSession()
+  const { session, staff } = useSession()
+  const activeStaff = useActiveStaffTenant()
+  const staffView = session === null && staff !== null
   const tenantId = session?.tenantId ?? ''
   const now = useMemo(() => referenceNow(), [])
   const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) })
@@ -45,9 +49,11 @@ export function QuotesListPage() {
 
       {quotes.isError && <Card><ErrorState message="No se pudieron cargar las cotizaciones." onRetry={() => void quotes.refetch()} /></Card>}
 
-      {quotes.isPending && (
+      {quotes.isPending && (staffView ? (
+        <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>
+      ) : (
         <div className="grid gap-4 md:grid-cols-2" aria-busy="true"><Skeleton className="h-36" /><Skeleton className="h-36" /></div>
-      )}
+      ))}
 
       {quotes.data && quotes.data.length === 0 && (
         <Card><EmptyState icon={<FileText className="size-6" />} title="Sin cotizaciones" description="Cuando Logixtic emita una cotización para su empresa, aparecerá aquí." /></Card>

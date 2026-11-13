@@ -116,16 +116,11 @@ const appRoute = createRoute({
 })
 
 /**
- * Inicio de cliente. El personal interno con rol activo no tiene empresa propia: va directo a /soporte.
- * La decisión usa el mismo resultado de /api/v1/staff/me que el contexto de sesión (una sola petición).
+ * Torre de control. Para personal interno conserva el mismo diseño; sin empresa de trabajo muestra estados vacíos.
  */
 const dashboardRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
-  beforeLoad: async () => {
-    if (!SUPABASE_ACCESS_ENABLED) return
-    if ((await loadStaffStatus()).kind === 'staff') throw redirect({ to: '/soporte' })
-  },
   component: DashboardPage,
 })
 

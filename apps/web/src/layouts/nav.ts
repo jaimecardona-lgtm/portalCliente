@@ -69,17 +69,28 @@ export const SECTION_LABELS: Record<string, string> = {
  */
 export const STAFF_NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Soporte',
-    items: [{ to: '/soporte', label: 'Panel de soporte', icon: ShieldCheck }],
+    label: 'Control',
+    items: [{ to: '/', label: 'Torre de control', icon: LayoutDashboard }],
   },
   {
-    label: 'Empresa',
+    label: 'Operación',
     items: [
       { to: '/operaciones', label: 'Operaciones', icon: Package },
       { to: '/documentos', label: 'Documentos', icon: FolderArchive },
       { to: '/cotizaciones', label: 'Cotizaciones', icon: FileText },
       { to: '/solicitudes', label: 'Solicitudes', icon: MessageSquarePlus },
     ],
+  },
+  {
+    label: 'Empresa',
+    items: [
+      { to: '/cuenta', label: 'Información de cuenta', icon: Building2 },
+      { to: '/marketplace', label: 'Marketplace', icon: Store, futureOnly: true },
+    ],
+  },
+  {
+    label: 'Soporte',
+    items: [{ to: '/soporte', label: 'Panel de soporte', icon: ShieldCheck }],
   },
 ]
 

@@ -21,7 +21,9 @@ import { Card, ErrorState } from '@/components/ui/primitives'
 import { Logo, LogoMark } from '@/components/brand/logo'
 import { cn, daysUntil } from '@/lib/format'
 import { NAV_GROUPS, STAFF_NAV_GROUPS, STAFF_ROLE_LABELS, SECTION_LABELS, type NavGroup, type NavItem } from './nav'
-import { StaffModuleNotice } from '@/features/support/staff-module-notice'
+import { StaffTenantSelector } from '@/features/support/staff-tenant-selector'
+import { StaffSectionPage } from '@/features/support/staff-module-notice'
+import { useActiveStaffTenant } from '@/services/auth/staff-context'
 
 /** Grupos de navegación según las funciones disponibles en el entorno. */
 /** Selector de empresa de QA: solo en desarrollo y solo con presentación local (datos sintéticos). */
@@ -29,9 +31,22 @@ const LocalTenantSwitcher = import.meta.env.DEV
   ? lazy(() => import('./local-tenant-switcher').then((m) => ({ default: m.LocalTenantSwitcher })))
   : null
 
+const VISIBLE_STAFF_NAV_GROUPS = STAFF_NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.futureOnly || FEATURES.marketplace) })).filter((g) => g.items.length > 0)
+
 const VISIBLE_NAV_GROUPS = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.futureOnly || FEATURES.marketplace) })).filter((g) => g.items.length > 0)
 
 const SIDEBAR_KEY = 'logixtic.portal.sidebar-collapsed'
+
+/** Pantallas de empresa que el personal no monta. Las listas (operaciones, cotizaciones, solicitudes) sí conservan su tabla. */
+function staffSectionFor(pathname: string): { title: string; noun: string; description?: string } | null {
+  if (pathname === '/documentos') return { title: 'Documentos', noun: 'documentos' }
+  if (pathname === '/cuenta') return { title: 'Información de cuenta', noun: 'datos de la empresa' }
+  if (pathname === '/perfil') return { title: 'Mi perfil', noun: 'datos de perfil' }
+  if (pathname === '/solicitudes/nueva') return { title: 'Nueva solicitud', noun: 'solicitudes' }
+  if (/^\/operaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de operación', noun: 'operaciones' }
+  if (/^\/cotizaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de cotización', noun: 'cotizaciones' }
+  return null
+}
 
 function readCollapsed(): boolean {
   try {
@@ -63,6 +78,7 @@ export function AppShell() {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState<boolean>(() => readCollapsed())
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const activeStaffTenant = useActiveStaffTenant()
 
   useEffect(() => writeCollapsed(collapsed), [collapsed])
   useEffect(() => setDrawerOpen(false), [location.pathname])
@@ -77,9 +93,9 @@ export function AppShell() {
     return <AccountStatus issue={accountIssue} />
   }
 
-  const groups = staffMode ? STAFF_NAV_GROUPS : VISIBLE_NAV_GROUPS
-  // Solo /soporte es del personal. Las demás rutas de empresa no montan sus pantallas: no hay contexto de cliente.
-  const showStaffNotice = staffMode && location.pathname !== '/soporte'
+  const groups = staffMode ? VISIBLE_STAFF_NAV_GROUPS : VISIBLE_NAV_GROUPS
+  // Personal interno: las pantallas de detalle, cuenta, perfil y documentos no se montan (consultarían datos de cliente).
+  const staffSection = staffMode ? staffSectionFor(location.pathname) : null
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
@@ -91,7 +107,7 @@ export function AppShell() {
           collapsed ? 'w-[76px]' : 'w-[260px]',
         )}
       >
-        <SidebarContent groups={groups} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
+        <SidebarContent groups={groups} staffMode={staffMode} collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       </aside>
 
       {/* Drawer móvil */}
@@ -104,7 +120,7 @@ export function AppShell() {
             onClick={() => setDrawerOpen(false)}
           />
           <aside className="relative flex h-full w-[280px] max-w-[85vw] animate-slide-up flex-col bg-midnight text-white shadow-pop">
-            <SidebarContent groups={groups} collapsed={false} onClose={() => setDrawerOpen(false)} />
+            <SidebarContent groups={groups} staffMode={staffMode} collapsed={false} onClose={() => setDrawerOpen(false)} />
           </aside>
         </div>
       )}
@@ -114,7 +130,7 @@ export function AppShell() {
           onOpenMenu={() => setDrawerOpen(true)}
           staffMode={staffMode}
           companyName={
-            staffMode ? 'Personal interno' : (tenant?.shortName ?? account?.tenant.legalName ?? (isResolving ? 'Cargando…' : '—'))
+            staffMode ? (activeStaffTenant?.legalName ?? 'Personal interno') : (tenant?.shortName ?? account?.tenant.legalName ?? (isResolving ? 'Cargando…' : '—'))
           }
           userName={staffMode ? staff.fullName : (user?.fullName ?? account?.fullName ?? (isResolving ? 'Cargando…' : '—'))}
           userRole={staffMode ? (STAFF_ROLE_LABELS[staff.staffRole] ?? 'Usuario interno') : (user?.role ?? (account ? roleLabel(account.role) : ''))}
@@ -123,13 +139,14 @@ export function AppShell() {
         <main id="contenido" className="min-w-0 flex-1 overflow-x-clip px-4 pt-6 pb-16 sm:px-6 lg:px-8" tabIndex={-1}>
           <div className="mx-auto w-full max-w-[1400px]">
             <Suspense fallback={<PageFallback />}>
-              {showStaffNotice ? <StaffModuleNotice /> : <Outlet />}
+              {staffSection ? <StaffSectionPage {...staffSection} /> : <Outlet />}
             </Suspense>
           </div>
         </main>
       </div>
 
-      {LogixAssistantDev && LOCAL_ACCESS_ENABLED && (
+      {/* Lanzador Logix: en modo Supabase muestra "Próximamente" (sin respuestas); el panel solo existe en presentación local. */}
+      {LogixAssistantDev && (
         <Suspense fallback={null}>
           <LogixAssistantDev />
         </Suspense>
@@ -177,11 +194,13 @@ function AccountStatus({ issue }: { issue: AccountIssue | null }) {
 
 function SidebarContent({
   groups,
+  staffMode,
   collapsed,
   onToggle,
   onClose,
 }: {
   groups: NavGroup[]
+  staffMode: boolean
   collapsed: boolean
   onToggle?: () => void
   onClose?: () => void
@@ -212,6 +231,8 @@ function SidebarContent({
           </div>
         ))}
       </nav>
+
+      {staffMode && <StaffTenantSelector collapsed={collapsed} />}
 
       {!collapsed && tenant && (
         <div className="mx-3 mb-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
@@ -303,13 +324,13 @@ function Topbar({
 
         <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
           {/* Búsqueda y alertas consultan operaciones de una empresa: el personal no tiene una sin seleccionar. */}
-          {!staffMode && <GlobalSearch />}
+          {staffMode ? <StaffSearchDisabled /> : <GlobalSearch />}
           {import.meta.env.DEV && LOCAL_ACCESS_ENABLED && LocalTenantSwitcher && (
             <Suspense fallback={null}>
               <LocalTenantSwitcher />
             </Suspense>
           )}
-          {!staffMode && <AlertsBadge />}
+          {staffMode ? <StaffAlertsDisabled /> : <AlertsBadge />}
           <ProfileMenu
             companyName={companyName}
             userName={userName}
@@ -443,6 +464,34 @@ function GlobalSearch() {
         </ul>
       )}
     </div>
+  )
+}
+
+/** Búsqueda deshabilitada para personal: buscar requiere una empresa de trabajo y su contrato de lectura. */
+function StaffSearchDisabled() {
+  return (
+    <div className="relative hidden w-72 sm:block lg:w-80">
+      <label htmlFor="global-search" className="sr-only">Buscar operación por número DO</label>
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" aria-hidden />
+      <input
+        id="global-search"
+        type="search"
+        disabled
+        value=""
+        readOnly
+        placeholder="Seleccione una empresa para buscar"
+        className="h-10 w-full cursor-not-allowed rounded-lg border border-line bg-canvas pr-3 pl-9 text-sm text-ink-muted placeholder:text-ink-muted"
+      />
+    </div>
+  )
+}
+
+/** Alertas deshabilitadas para personal: no hay empresa de trabajo que contar. */
+function StaffAlertsDisabled() {
+  return (
+    <span aria-label="Alertas: seleccione una empresa para verlas" className="relative grid size-10 place-items-center rounded-lg text-ink-muted">
+      <Bell className="size-5" aria-hidden />
+    </span>
   )
 }
 
