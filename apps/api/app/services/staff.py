@@ -72,7 +72,8 @@ def assigned_tenants(session: Session) -> list[dict[str, Any]]:
         session.execute(
             text(
                 """
-            SELECT id, slug, legal_name, external_tenant_id
+            SELECT id, slug, legal_name, external_tenant_id, integration_status, is_demo,
+                   discovery_observed_label
             FROM tenants
             ORDER BY legal_name, id
             """
@@ -81,15 +82,142 @@ def assigned_tenants(session: Session) -> list[dict[str, Any]]:
         .mappings()
         .all()
     )
-    return [
-        {
-            "id": str(r["id"]),
-            "slug": r["slug"],
-            "legal_name": r["legal_name"],
-            "external_tenant_id": r["external_tenant_id"],
-        }
-        for r in rows
-    ]
+    return [_tenant_out(r) for r in rows]
+
+
+def _tenant_out(r: Any) -> dict[str, Any]:
+    return {
+        "id": str(r["id"]),
+        "slug": r["slug"],
+        "legal_name": r["legal_name"],
+        "external_tenant_id": r["external_tenant_id"],
+        "integration_status": r["integration_status"],
+        "is_demo": r["is_demo"],
+        "discovery_observed_label": r["discovery_observed_label"],
+    }
+
+
+def _request_number() -> str:
+    """Número legible y único por empresa (la restricción UNIQUE lo garantiza al insertar)."""
+    from datetime import UTC
+    from secrets import token_hex
+
+    return f"SOL-{datetime.now(UTC).strftime('%y%m%d%H%M%S')}-{token_hex(2).upper()}"
+
+
+def create_client_account(
+    session: Session, ctx: StaffContext, tenant_id: UUID, legal_name: str, tax_id: str | None
+) -> dict[str, Any]:
+    """Cliente final creado desde el portal (procedencia portal_manual). RLS exige empresa seleccionada."""
+    row = (
+        session.execute(
+            text(
+                """
+                INSERT INTO client_accounts (tenant_id, legal_name, tax_id, origin)
+                VALUES (:t, :n, :x, 'portal_manual')
+                RETURNING id, tenant_id, legal_name, tax_id, status, origin, created_at
+                """
+            ),
+            {"t": tenant_id, "n": legal_name.strip(), "x": tax_id.strip() if tax_id else None},
+        )
+        .mappings()
+        .one()
+    )
+    return _client_account_out(row)
+
+
+def _client_account_out(r: Any) -> dict[str, Any]:
+    return {
+        "id": str(r["id"]),
+        "tenant_id": str(r["tenant_id"]),
+        "legal_name": r["legal_name"],
+        "tax_id": r["tax_id"],
+        "status": r["status"],
+        "origin": r["origin"],
+        "created_at": r["created_at"].isoformat(),
+    }
+
+
+def list_client_accounts(session: Session, tenant_id: UUID) -> list[dict[str, Any]]:
+    rows = (
+        session.execute(
+            text(
+                """
+                SELECT id, tenant_id, legal_name, tax_id, status, origin, created_at
+                FROM client_accounts WHERE tenant_id = :t ORDER BY legal_name, id
+                """
+            ),
+            {"t": tenant_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [_client_account_out(r) for r in rows]
+
+
+def create_request(
+    session: Session,
+    ctx: StaffContext,
+    tenant_id: UUID,
+    request_type: str,
+    subject: str,
+    description: str,
+) -> dict[str, Any]:
+    """Solicitud creada desde el portal (procedencia portal_manual, estado inicial 'recibida')."""
+    row = (
+        session.execute(
+            text(
+                """
+                INSERT INTO requests (tenant_id, number, request_type, subject, description, status,
+                                      created_by, origin)
+                VALUES (:t, :n, :rt, :s, :d, 'recibida', :u, 'portal_manual')
+                RETURNING id, tenant_id, number, request_type, subject, description, status, origin, created_at
+                """
+            ),
+            {
+                "t": tenant_id,
+                "n": _request_number(),
+                "rt": request_type,
+                "s": subject.strip(),
+                "d": description.strip(),
+                "u": ctx.user_id,
+            },
+        )
+        .mappings()
+        .one()
+    )
+    return _request_out(row)
+
+
+def _request_out(r: Any) -> dict[str, Any]:
+    return {
+        "id": str(r["id"]),
+        "tenant_id": str(r["tenant_id"]),
+        "number": r["number"],
+        "request_type": r["request_type"],
+        "subject": r["subject"],
+        "description": r["description"],
+        "status": r["status"],
+        "origin": r["origin"],
+        "created_at": r["created_at"].isoformat(),
+    }
+
+
+def list_requests(session: Session, tenant_id: UUID) -> list[dict[str, Any]]:
+    rows = (
+        session.execute(
+            text(
+                """
+                SELECT id, tenant_id, number, request_type, subject, description, status, origin, created_at
+                FROM requests WHERE tenant_id = :t ORDER BY created_at, id
+                """
+            ),
+            {"t": tenant_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [_request_out(r) for r in rows]
 
 
 def tenant_visible(session: Session, tenant_id: UUID) -> bool:

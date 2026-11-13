@@ -7,11 +7,11 @@ consultar datos. Un cliente externo recibe 403 `no_staff_role` aunque tenga memb
 from __future__ import annotations
 
 import hashlib
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_staff
@@ -171,3 +171,78 @@ def staff_operation_events(
     svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
     session.commit()
     return {"items": items}
+
+
+def _selected_tenant(session: Session, ctx: StaffContext, tenant_id: UUID, permission: str) -> None:
+    """Permiso + empresa asignada (o pendiente con permiso propio) + fijar el tenant de la transacción."""
+    _require(ctx, permission)
+    if not svc.tenant_visible(session, tenant_id):
+        svc.audit(
+            session, ctx, "context_denied", tenant_id=None, result="denied", reason="tenant_not_assigned"
+        )
+        session.commit()
+        raise AccessDenied("No tiene acceso a la empresa indicada.", code="tenant_not_authorized")
+    svc.fix_selected_tenant(session, tenant_id)
+
+
+class ClientAccountIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    legal_name: str = Field(min_length=2, max_length=200)
+    tax_id: str | None = Field(default=None, min_length=3, max_length=40)
+
+
+class RequestIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_type: Literal["consulta", "modificacion_datos", "documentacion", "cotizacion", "otro"]
+    subject: str = Field(min_length=5, max_length=120)
+    description: str = Field(min_length=20, max_length=2000)
+
+
+@router.get("/tenants/{tenant_id}/client-accounts", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_list_client_accounts(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "operations.read")
+    items = svc.list_client_accounts(session, tenant_id)
+    svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"items": items}
+
+
+@router.post(
+    "/tenants/{tenant_id}/client-accounts",
+    status_code=201,
+    tags=["personal interno"],
+    responses=_STAFF_RESPONSES,
+)
+def staff_create_client_account(
+    tenant_id: UUID, body: ClientAccountIn, ctx: StaffDep, session: DbDep
+) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "records.write")
+    item = svc.create_client_account(session, ctx, tenant_id, body.legal_name, body.tax_id)
+    svc.audit(session, ctx, "record_create", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"item": item}
+
+
+@router.get("/tenants/{tenant_id}/requests", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_list_requests(tenant_id: UUID, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "operations.read")
+    items = svc.list_requests(session, tenant_id)
+    svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"items": items}
+
+
+@router.post(
+    "/tenants/{tenant_id}/requests",
+    status_code=201,
+    tags=["personal interno"],
+    responses=_STAFF_RESPONSES,
+)
+def staff_create_request(tenant_id: UUID, body: RequestIn, ctx: StaffDep, session: DbDep) -> dict[str, Any]:
+    _selected_tenant(session, ctx, tenant_id, "records.write")
+    item = svc.create_request(
+        session, ctx, tenant_id, body.request_type, body.subject, body.description
+    )
+    svc.audit(session, ctx, "record_create", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"item": item}

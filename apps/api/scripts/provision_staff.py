@@ -34,6 +34,7 @@ from app.services.staff_provisioning import (  # noqa: E402
     grant_scope,
     grant_staff,
     grant_tenant,
+    provision_tenant,
     revoke_scope,
     revoke_staff,
     revoke_tenant,
@@ -75,6 +76,16 @@ def build_parser() -> argparse.ArgumentParser:
     rs = sub.add_parser("revoke-scope", help="Retira el alcance global (conserva los grants).")
     rs.add_argument("--user-id", required=True, type=UUID)
     rs.add_argument("--reason", required=True)
+
+    pt = sub.add_parser(
+        "provision-tenant", help="Alta de empresa observada, pendiente de integración, sin operaciones."
+    )
+    pt.add_argument("--observed-label", required=True, help="Etiqueta exacta del descubrimiento.")
+    pt.add_argument("--tenant-slug", required=True)
+    pt.add_argument("--legal-name", required=True)
+    pt.add_argument("--tax-id", required=True, help="NIT aportado por la autorización. Nunca se inventa.")
+    pt.add_argument("--authorized-by", required=True)
+    pt.add_argument("--reason", default="Alta empresarial autorizada")
 
     vt = sub.add_parser("verify-tenant", help="Verifica una empresa con su identificador oficial.")
     vt.add_argument("--tenant-slug", required=True)
@@ -125,6 +136,15 @@ def _run(conn, args: argparse.Namespace) -> str:
         return grant_scope(conn, args.user_id, Authorization(args.authorized_by, args.reason))
     if args.command == "revoke-scope":
         return revoke_scope(conn, args.user_id, args.reason)
+    if args.command == "provision-tenant":
+        return provision_tenant(
+            conn,
+            args.observed_label,
+            args.tenant_slug,
+            args.legal_name,
+            args.tax_id,
+            Authorization(args.authorized_by, args.reason),
+        )
     if args.command == "revoke-tenant":
         return revoke_tenant(conn, args.user_id, args.tenant_slug, args.reason)
     return verify_tenant(conn, args.tenant_slug, args.external_id, args.verified_by_user_id)

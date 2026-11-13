@@ -235,3 +235,72 @@ def revoke_scope(conn: Connection, user_id: UUID, reason: str) -> str:
     if result.rowcount == 0:
         raise ProvisioningError("La cuenta no tiene alcance global que revocar.")
     return "alcance global de soporte revocado"
+
+
+_LABEL_MAX = 200
+
+
+def provision_tenant(
+    conn: Connection,
+    observed_label: str,
+    slug: str,
+    legal_name: str,
+    tax_id: str,
+    auth: Authorization,
+) -> str:
+    """Alta administrativa de una empresa observada en Logixtic, SIN identificador oficial y sin operaciones.
+
+    - La etiqueta debe existir en el descubrimiento. El alta guarda la etiqueta, nunca el UUID del descubrimiento.
+    - Idempotente: si la etiqueta ya tiene empresa, no crea otra. El código y el NIT no pueden repetirse.
+    - El NIT lo aporta la autorización administrativa; nunca se inventa. Sin NIT no hay alta.
+    - La empresa nace pendiente de integración: external_tenant_id y verified_at quedan en NULL.
+    """
+    label = observed_label.strip()
+    if not (2 <= len(label) <= _LABEL_MAX):
+        raise ProvisioningError("La etiqueta observada no es válida.")
+    if not _SLUG.match(slug):
+        raise ProvisioningError("El código de empresa (slug) no es válido.")
+    if not (2 <= len(legal_name.strip()) <= 200):
+        raise ProvisioningError("El nombre legal debe tener entre 2 y 200 caracteres.")
+    tax = tax_id.strip()
+    if not (3 <= len(tax) <= 40):
+        raise ProvisioningError("El NIT es obligatorio y debe tener entre 3 y 40 caracteres.")
+
+    discovered = conn.execute(
+        text(
+            "SELECT 1 FROM logixtic_tenant_discovery WHERE source_system = 'logixtic' AND observed_label = :l"
+        ),
+        {"l": label},
+    ).first()
+    if discovered is None:
+        raise ProvisioningError("La empresa no figura en el descubrimiento de Logixtic.")
+
+    existing = conn.execute(
+        text(
+            """
+            SELECT slug FROM tenants
+            WHERE discovery_source_system = 'logixtic' AND discovery_observed_label = :l
+            """
+        ),
+        {"l": label},
+    ).first()
+    if existing is not None:
+        return "la empresa ya estaba dada de alta (no se creó otra)"
+
+    clash = conn.execute(
+        text("SELECT slug, tax_id FROM tenants WHERE slug = :s OR tax_id = :x"), {"s": slug, "x": tax}
+    ).first()
+    if clash is not None:
+        raise ProvisioningError("Ya existe una empresa con ese código o ese NIT.")
+
+    conn.execute(
+        text(
+            """
+            INSERT INTO tenants (slug, legal_name, tax_id, status, discovery_source_system,
+                discovery_observed_label, provisioned_authorized_by, provisioned_at)
+            VALUES (:s, :n, :x, 'active', 'logixtic', :l, :by, now())
+            """
+        ),
+        {"s": slug, "n": legal_name.strip(), "x": tax, "l": label, "by": auth.authorized_by.strip()},
+    )
+    return "empresa dada de alta pendiente de integración (sin identificador oficial)"
