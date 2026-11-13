@@ -25,23 +25,34 @@ export interface StaffTenant {
   externalTenantId: string | null
   /** Derivado en la base de datos: 'verified' solo con verificación oficial; si no, pendiente. */
   integrationStatus: TenantIntegrationStatus
-  isDemo: boolean
+  /** Empresa sintética de la modalidad QA interna (segment QA_SYNTHETIC_ONLY). Nunca es integración oficial. */
+  qaSynthetic: boolean
   discoveryObservedLabel: string | null
 }
 
 /**
- * Categoría que se muestra en el selector. Siempre texto e icono, nunca solo color.
- * La empresa de ejemplo solo existe en entornos locales (is_demo); la interfaz de producción no la usa.
+ * Dos estados separados, siempre con texto e icono (nunca solo color):
+ * - integración oficial con Logixtic (vinculada o pendiente);
+ * - disponibilidad para revisión QA (solo empresas sintéticas autorizadas).
+ * Una empresa puede estar pendiente de integración oficial y, a la vez, disponible para revisión QA.
  */
-export function tenantCategory(t: Pick<StaffTenant, 'isDemo' | 'integrationStatus'>): {
-  label: string
-  icon: string
-  tone: 'ok' | 'pending' | 'sample'
+export function tenantCategory(t: Pick<StaffTenant, 'integrationStatus' | 'qaSynthetic'>): {
+  officialLabel: string
+  officialIcon: string
+  qaLabel: string | null
 } {
-  if (t.isDemo) return { label: 'Empresa de ejemplo', icon: '◆', tone: 'sample' }
-  if (t.integrationStatus === 'verified') return { label: 'Empresa vinculada con Logixtic', icon: '✓', tone: 'ok' }
-  return { label: 'Registrada, pendiente de integración', icon: '◷', tone: 'pending' }
+  const official =
+    t.integrationStatus === 'verified'
+      ? { officialLabel: 'Integración oficial con Logixtic: vinculada', officialIcon: '✓' }
+      : { officialLabel: 'Integración oficial con Logixtic: pendiente', officialIcon: '◷' }
+  return {
+    ...official,
+    qaLabel: t.qaSynthetic ? 'Disponible para revisión QA' : null,
+  }
 }
+
+/** Texto obligatorio en las pantallas que muestran operaciones sintéticas (CLAUDE.md, modalidad QA). */
+export const QA_BANNER = 'ENTORNO QA · DATOS DE PRUEBA'
 
 export interface StaffClientAccount {
   id: string
@@ -147,7 +158,7 @@ export function toStaffTenant(raw: unknown): StaffTenant {
     legalName: requireString(r.legal_name, 'legal_name'),
     externalTenantId: typeof r.external_tenant_id === 'string' ? r.external_tenant_id : null,
     integrationStatus: r.integration_status === 'verified' ? 'verified' : 'pending_integration',
-    isDemo: r.is_demo === true,
+    qaSynthetic: r.qa_synthetic === true,
     discoveryObservedLabel: typeof r.discovery_observed_label === 'string' ? r.discovery_observed_label : null,
   }
 }

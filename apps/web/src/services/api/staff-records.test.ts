@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createStaffApi, tenantCategory, toStaffTenant } from './staff-api'
+import { createStaffApi, QA_BANNER, tenantCategory, toStaffTenant } from './staff-api'
 
 const BASE = 'https://api.prueba.test/api/v1'
 const TENANT = '3f9c1a2e-0000-4000-8000-0000000000e1'
@@ -15,19 +15,22 @@ function fake(body: unknown, status = 201) {
 }
 
 describe('categoría de empresa en el selector', () => {
-  it('distingue vinculada, pendiente y demostración con texto', () => {
-    expect(tenantCategory({ isDemo: false, integrationStatus: 'verified' }).label).toBe('Empresa vinculada con Logixtic')
-    expect(tenantCategory({ isDemo: false, integrationStatus: 'pending_integration' }).label).toBe(
-      'Registrada, pendiente de integración',
-    )
-    expect(tenantCategory({ isDemo: true, integrationStatus: 'pending_integration' }).label).toBe('Empresa de ejemplo')
+  it('separa la integración oficial de la disponibilidad QA', () => {
+    const qaPendiente = tenantCategory({ integrationStatus: 'pending_integration', qaSynthetic: true })
+    expect(qaPendiente.officialLabel).toBe('Integración oficial con Logixtic: pendiente')
+    expect(qaPendiente.qaLabel).toBe('Disponible para revisión QA')
+    expect(tenantCategory({ integrationStatus: 'verified', qaSynthetic: false }).qaLabel).toBeNull()
   })
 
   it('sin estado explícito del servidor, la empresa se trata como pendiente (nunca como vinculada)', () => {
     const t = toStaffTenant({ id: TENANT, slug: 'x-prueba', legal_name: 'Empresa de prueba', external_tenant_id: null })
     expect(t.integrationStatus).toBe('pending_integration')
-    expect(t.isDemo).toBe(false)
+    expect(t.qaSynthetic).toBe(false)
     expect(t.discoveryObservedLabel).toBeNull()
+  })
+
+  it('el texto de datos de prueba es el obligatorio de la modalidad QA', () => {
+    expect(QA_BANNER).toBe('ENTORNO QA · DATOS DE PRUEBA')
   })
 })
 

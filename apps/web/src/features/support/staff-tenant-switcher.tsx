@@ -75,6 +75,8 @@ export function StaffTenantSwitcher() {
   const clearTenantCache = () => {
     queryClient.removeQueries({ queryKey: ['supabase', 'staff-operations'] })
     queryClient.removeQueries({ queryKey: ['tenant'] })
+    queryClient.removeQueries({ queryKey: ['supabase', 'staff-requests'] })
+    queryClient.removeQueries({ queryKey: ['supabase', 'staff-client-accounts'] })
   }
 
   /*
@@ -317,9 +319,13 @@ export function StaffTenantSwitcher() {
                           <span className="min-w-0">
                             <span className="block truncate font-medium text-ink">{t.legalName}</span>
                             <span className="block truncate text-xs text-ink-muted">
-                              {category.icon} {category.label}
-                              {t.externalTenantId ? ` · Identificador oficial: ${t.externalTenantId}` : ''}
+                              {category.officialIcon} {category.officialLabel}
                             </span>
+                            {category.qaLabel && (
+                              <span className="block truncate text-xs font-medium text-ink-soft">
+                                ◇ {category.qaLabel}
+                              </span>
+                            )}
                           </span>
                           {active?.id === t.id && <Check className="size-4 shrink-0 text-blue" aria-label="Empresa activa" />}
                         </button>

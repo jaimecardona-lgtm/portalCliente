@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck } from 'lucide-react'
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
-import { staffErrorMessage, tenantCategory } from '@/services/api/staff-api'
+import { QA_BANNER, staffErrorMessage, tenantCategory } from '@/services/api/staff-api'
 import { StaffRecordsPanel } from '@/features/support/staff-records-panel'
 import { PortalApiError } from '@/services/api/http-client'
 import { setActiveStaffTenant, useActiveStaffTenant } from '@/services/auth/staff-context'
@@ -149,8 +149,11 @@ export function StaffPanelPage() {
                         <div>
                           <p className="font-semibold text-ink">{t.legalName}</p>
                           <p className="text-xs text-ink-soft">
-                            {category.icon} {category.label}
+                            {category.officialIcon} {category.officialLabel}
                           </p>
+                          {category.qaLabel && (
+                            <p className="text-xs font-medium text-ink-soft">◇ {category.qaLabel}</p>
+                          )}
                           <p className="text-xs text-ink-muted">
                             Identificador oficial: {t.externalTenantId ?? 'no disponible (pendiente de integración)'}
                           </p>
@@ -173,6 +176,12 @@ export function StaffPanelPage() {
                   description="Hasta que elija una empresa verificada, este panel no consulta operaciones ni datos de empresa."
                 />
               </Card>
+            )}
+
+            {active?.qaSynthetic && (
+              <p role="note" className="rounded-lg border border-line-strong bg-surface-muted px-4 py-2.5 text-sm font-semibold text-ink">
+                {QA_BANNER}
+              </p>
             )}
 
             {active && api !== null && (
