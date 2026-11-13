@@ -154,6 +154,11 @@ function AccountStatus({ issue }: { issue: AccountIssue | null }) {
             <Link to="/login" className="font-semibold text-blue hover:underline">Ir a iniciar sesión</Link>
           </div>
         )}
+        {issue === 'staff' && (
+          <div className="pb-8 text-center">
+            <Link to="/soporte" className="font-semibold text-blue hover:underline">Ir al panel de soporte</Link>
+          </div>
+        )}
       </Card>
     </main>
   )

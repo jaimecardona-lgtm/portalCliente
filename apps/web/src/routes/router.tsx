@@ -21,6 +21,7 @@ import { TermsPage, PrivacyPage } from '@/features/legal/legal-pages'
 import { readStoredSession } from '@/features/auth/session-storage'
 import { FEATURES, LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
 import { loadSupabasePortal } from '@/services/auth/supabase-runtime'
+import { loadStaffStatus } from '@/services/auth/staff-status'
 import { DashboardPage } from '@/features/dashboard/dashboard-page'
 import { StaffPanelPage } from '@/features/support/staff-panel-page'
 import { parseOperationSearch, toSearchParams } from '@/features/operations/filters'
@@ -92,6 +93,8 @@ const supportRoute = createRoute({
     if (!SUPABASE_ACCESS_ENABLED || !portal || !(await portal.auth.accessToken())) {
       throw redirect({ to: '/login', search: { redirect: location.pathname } })
     }
+    // Un cliente externo no entra al panel interno. Un fallo de red no concede nada: la pantalla lo muestra.
+    if ((await loadStaffStatus()).kind === 'client') throw redirect({ to: '/' })
   },
   component: StaffPanelPage,
 })
@@ -112,9 +115,17 @@ const appRoute = createRoute({
   component: AppShell,
 })
 
+/**
+ * Inicio de cliente. El personal interno con rol activo no tiene empresa propia: va directo a /soporte.
+ * La decisión usa el mismo resultado de /api/v1/staff/me que el contexto de sesión (una sola petición).
+ */
 const dashboardRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
+  beforeLoad: async () => {
+    if (!SUPABASE_ACCESS_ENABLED) return
+    if ((await loadStaffStatus()).kind === 'staff') throw redirect({ to: '/soporte' })
+  },
   component: DashboardPage,
 })
 

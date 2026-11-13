@@ -7,7 +7,7 @@
  */
 import { PortalApiError } from '@/services/api/http-client'
 
-export type AccountIssue = 'session' | 'no-membership' | 'suspended' | 'tenant-selection' | 'unavailable'
+export type AccountIssue = 'session' | 'staff' | 'no-membership' | 'suspended' | 'tenant-selection' | 'unavailable'
 
 /** Estado de la cuenta a partir del error de la consulta, o null si no hay error. */
 export function accountIssueFor(error: unknown): AccountIssue | null {
@@ -31,6 +31,7 @@ export function accountIssueFor(error: unknown): AccountIssue | null {
 
 const MESSAGES: Record<AccountIssue, string> = {
   session: 'Tu sesión caducó. Inicia sesión de nuevo para continuar.',
+  staff: 'Esta cuenta es del personal interno. Usa el panel de soporte.',
   'no-membership': 'Tu cuenta todavía no tiene una empresa asignada. Contacta a tu ejecutivo de cuenta.',
   suspended: 'Tu acceso está suspendido. Contacta a tu ejecutivo de cuenta.',
   'tenant-selection': 'Tu cuenta tiene acceso a varias empresas. La selección de empresa todavía no está disponible en el portal.',

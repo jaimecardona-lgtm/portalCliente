@@ -18,6 +18,7 @@ import { useOptionalRepository } from '@/services/repositories'
 import type { CurrentAccount } from '@/services/api/mappers'
 import { accountIssueFor, type AccountIssue } from '@/services/auth/account-issues'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
+import { resetStaffStatus, staffStatusFor, type StaffStatus } from '@/services/auth/staff-status'
 import type { ID, Session, Tenant, User } from '@/types/domain'
 import { readStoredSession, writeStoredSession } from './session-storage'
 
@@ -110,6 +111,17 @@ function LocalSessionProvider({ children, firstUserOf }: { children: ReactNode; 
 
 /** Clave de la cuenta del servidor. Una sola entrada: la sesión de Supabase es única en el navegador. */
 const ACCOUNT_KEY = ['supabase', 'account'] as const
+/** Tipo de cuenta (personal o cliente). Se decide antes de pedir /api/v1/me. */
+const STAFF_STATUS_KEY = ['supabase', 'staff-status'] as const
+
+/** Motivo visible por el que la cuenta no puede usar el portal de cliente. */
+function resolveAccountIssue(signedOut: boolean, status: StaffStatus | null, error: unknown): AccountIssue | null {
+  if (signedOut) return 'session'
+  if (status === null) return null
+  if (status.kind === 'staff') return 'staff'
+  if (status.kind === 'unknown') return 'unavailable'
+  return accountIssueFor(error)
+}
 
 /**
  * Reglas de esta rama (importantes):
@@ -125,9 +137,23 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [signedOut, setSignedOut] = useState(false)
 
+  // Primero se decide el tipo de cuenta. Solo una cuenta de cliente pide /api/v1/me.
+  const staffQuery = useQuery({
+    queryKey: STAFF_STATUS_KEY,
+    enabled: portal !== null && !signedOut,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async (): Promise<StaffStatus> => {
+      if (!portal) throw new Error('El portal de autenticación no está disponible.')
+      return staffStatusFor(portal.staff)
+    },
+  })
+  const staffStatus: StaffStatus | null = staffQuery.data ?? null
+  const isClient = staffStatus?.kind === 'client'
+
   const accountQuery = useQuery({
     queryKey: ACCOUNT_KEY,
-    enabled: portal !== null,
+    enabled: portal !== null && isClient,
     retry: false,
     staleTime: 60_000,
     queryFn: async () => {
@@ -136,17 +162,20 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
     },
   })
 
-  // Cambios de sesión de Supabase (inicio, cierre en otra pestaña, caducidad): se relee la cuenta.
+  // Cambios de sesión de Supabase (inicio, cierre en otra pestaña, caducidad): se vuelve a decidir el tipo de cuenta.
   useEffect(() => {
     if (!portal) return undefined
     return portal.auth.onSessionChange((hasSession) => {
+      resetStaffStatus()
       setSignedOut(!hasSession)
+      void queryClient.invalidateQueries({ queryKey: STAFF_STATUS_KEY })
       void queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY })
     })
   }, [portal, queryClient])
 
-  const account = signedOut || accountQuery.error ? null : (accountQuery.data ?? null)
-  const accountIssue = signedOut ? 'session' : accountIssueFor(accountQuery.error)
+  const account = signedOut || accountQuery.error || !isClient ? null : (accountQuery.data ?? null)
+  const accountIssue = resolveAccountIssue(signedOut, staffStatus, accountQuery.error)
+  const resolving = portal !== null && !signedOut && (staffStatus === null || (isClient && accountQuery.isPending))
 
   const session = useMemo<Session | null>(
     () => (account ? { userId: account.userId, tenantId: account.tenant.id, simulated: false } : null),
@@ -155,14 +184,18 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
 
   const refreshAccount = useCallback(async () => {
     setSignedOut(false)
+    resetStaffStatus()
+    await queryClient.invalidateQueries({ queryKey: STAFF_STATUS_KEY })
     await queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY })
   }, [queryClient])
 
   const signOut = useCallback(async () => {
     setSignedOut(true)
+    resetStaffStatus()
     try {
       await portal?.auth.signOut()
     } finally {
+      await queryClient.invalidateQueries({ queryKey: STAFF_STATUS_KEY })
       await queryClient.invalidateQueries({ queryKey: ACCOUNT_KEY })
     }
   }, [portal, queryClient])
@@ -178,7 +211,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       tenant: null,
       account,
       accountIssue,
-      isResolving: portal !== null && !signedOut && accountQuery.isPending,
+      isResolving: resolving,
       switchTenant,
       // En modo Supabase la sesión la crea el proveedor: aquí solo se vuelve a leer la cuenta.
       signIn: () => {
@@ -187,7 +220,7 @@ export function SupabaseSessionProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshAccount,
     }),
-    [session, account, accountIssue, portal, accountQuery.isPending, switchTenant, signOut, refreshAccount],
+    [session, account, accountIssue, portal, resolving, switchTenant, signOut, refreshAccount],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

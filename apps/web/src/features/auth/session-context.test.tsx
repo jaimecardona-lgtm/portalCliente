@@ -3,7 +3,8 @@
  * El repositorio fingido devuelve la cuenta anterior incluso después de cerrar sesión, para comprobar que la
  * interfaz no la usa (la caché de TanStack Query conserva datos tras un error y el repositorio cachea la cuenta).
  */
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { resetStaffStatus } from '@/services/auth/staff-status'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -34,7 +35,12 @@ function Probe() {
   )
 }
 
-function setup(options: { repoAccount: () => Promise<CurrentAccount> }) {
+/** Por defecto la cuenta es de cliente: /staff/me responde 403 no_staff_role. */
+const NOT_STAFF = async () => {
+  throw new PortalApiError('no_staff_role', 'sin rol interno', 403)
+}
+
+function setup(options: { repoAccount: () => Promise<CurrentAccount>; staffMe?: () => Promise<unknown> }) {
   let onChange: ((hasSession: boolean) => void) | undefined
   const auth = {
     signOut: vi.fn(async () => undefined),
@@ -48,7 +54,8 @@ function setup(options: { repoAccount: () => Promise<CurrentAccount> }) {
     }),
   }
   const repo = { refreshCurrentAccount: vi.fn(options.repoAccount) }
-  const portal = { auth, repo } as unknown as SupabasePortal
+  const staff = { me: vi.fn(options.staffMe ?? NOT_STAFF) }
+  const portal = { auth, repo, staff } as unknown as SupabasePortal
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -59,10 +66,30 @@ function setup(options: { repoAccount: () => Promise<CurrentAccount> }) {
       </SupabasePortalContext.Provider>
     </QueryClientProvider>,
   )
-  return { auth, repo, notifySession: (has: boolean) => onChange?.(has) }
+  return { auth, repo, staff, notifySession: (has: boolean) => onChange?.(has) }
 }
 
 describe('SupabaseSessionProvider', () => {
+  beforeEach(() => resetStaffStatus())
+
+  it('personal interno: muestra el estado "staff" sin pedir /api/v1/me', async () => {
+    const staffMe = async () => ({ user_id: ACCOUNT.userId, full_name: 'Personal Sintético', staff_role: 'qa', permissions: [] })
+    const { repo } = setup({ repoAccount: async () => ACCOUNT, staffMe })
+    await waitFor(() => expect(screen.getByTestId('issue').textContent).toBe('staff'))
+    expect(screen.getByTestId('user').textContent).toBe('sin-sesion')
+    expect(repo.refreshCurrentAccount).not.toHaveBeenCalled()
+  })
+
+  it('un fallo de red en /staff/me no concede acceso: queda "no disponible" y no pide /api/v1/me', async () => {
+    const staffMe = async () => {
+      throw new PortalApiError('network_error', 'sin red', 0)
+    }
+    const { repo } = setup({ repoAccount: async () => ACCOUNT, staffMe })
+    await waitFor(() => expect(screen.getByTestId('issue').textContent).toBe('unavailable'))
+    expect(screen.getByTestId('user').textContent).toBe('sin-sesion')
+    expect(repo.refreshCurrentAccount).not.toHaveBeenCalled()
+  })
+
   it('la sesión sale de la cuenta del servidor', async () => {
     setup({ repoAccount: async () => ACCOUNT })
     await waitFor(() => expect(screen.getByTestId('user').textContent).toBe(ACCOUNT.userId))

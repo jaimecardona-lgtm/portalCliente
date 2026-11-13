@@ -23,6 +23,7 @@ import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { useSession } from './session-context'
 import { AuthLayout, PasswordInput } from './auth-layout'
 import { loadLocalAuthApi, sessionForAccount } from './auth-gateway'
+import { staffStatusFor } from '@/services/auth/staff-status'
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, 'Escribe tu correo electrónico.').email('Escribe un correo válido.'),
@@ -78,7 +79,7 @@ export function LoginPage() {
       // La sesión existe en Supabase. La cuenta y la empresa las confirma el servidor al leer /me.
       await refreshAccount()
       // Personal interno con rol activo: entra al panel de soporte sin empresa previa.
-      const isStaff = await portal.staff.me().then(() => true, () => false)
+      const isStaff = (await staffStatusFor(portal.staff)).kind === 'staff'
       void navigate({ to: isStaff ? '/soporte' : target })
       return
     }
