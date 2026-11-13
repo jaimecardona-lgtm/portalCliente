@@ -25,15 +25,16 @@ WHERE table_schema = 'public'
                      'client_accounts', 'client_memberships', 'sync_runs', 'operation_refs', 'logixtic_tenant_discovery')
 ORDER BY table_name, ordinal_position;
 
--- 4. Restricciones (nombre, tipo y definición).
-SELECT conrelid::regclass AS tabla, conname, contype, pg_get_constraintdef(oid) AS definicion
-FROM pg_constraint
-WHERE conrelid IN (
-  'public.client_documents'::regclass, 'public.client_document_events'::regclass,
-  'public.storage_cleanup_jobs'::regclass, 'public.client_accounts'::regclass,
-  'public.client_memberships'::regclass, 'public.sync_runs'::regclass,
-  'public.operation_refs'::regclass, 'public.logixtic_tenant_discovery'::regclass)
-ORDER BY tabla::text, conname;
+-- 4. Restricciones (nombre, tipo y definición). Consulta por nombre de tabla para evitar problemas de regclass.
+SELECT t.relname AS tabla, c.conname, c.contype, pg_get_constraintdef(c.oid) AS definicion
+FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE n.nspname = 'public'
+  AND t.relname IN ('client_documents', 'client_document_events', 'storage_cleanup_jobs',
+                    'client_accounts', 'client_memberships', 'sync_runs', 'operation_refs',
+                    'logixtic_tenant_discovery', 'tenants', 'platform_staff', 'staff_tenant_grants')
+ORDER BY tabla, c.conname;
 
 -- 5. Índices (nombre y definición).
 SELECT tablename, indexname, indexdef

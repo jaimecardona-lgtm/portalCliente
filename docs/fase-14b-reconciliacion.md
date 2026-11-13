@@ -56,3 +56,37 @@ la CLI no la muestra y el volcado requiere Docker.
 - Autorización para registrar historial o aplicar cambios: pendiente del propietario.
 - Registro público de Auth: sigue activo (comprobado en la fase 14). Lo desactiva el propietario en el panel.
 - Verificación oficial de tenants: ningún tenant tiene `external_tenant_id`; el panel de soporte no mostrará empresas hasta que se verifiquen con sus identificadores oficiales.
+
+## 6. Auditoría de solo lectura del 12/11/2026 (resultado)
+
+Ejecutada con la conexión configurada en `apps/api/.env` (usuario administrador a través del pooler). Solo `SELECT`.
+Salida guardada fuera del repositorio.
+
+**Coincide con las cinco migraciones pendientes (por nombre y estructura):**
+
+| Elemento | Resultado |
+|---|---|
+| Tablas `client_accounts`, `client_memberships`, `client_documents`, `client_document_events`, `storage_cleanup_jobs`, `sync_runs`, `platform_staff`, `staff_tenant_grants`, `staff_access_audit`, `staff_role_permissions` | Existen |
+| Columnas nuevas de `tenants` (`external_tenant_id`, `verified_at`, `verified_by`) y restricciones asociadas | Existen |
+| Columnas nuevas de `operation_refs` (`client_account_id`, `source_*`, `sync_run_id`) | Existen |
+| `client_documents.operation_id` admite NULL | Sí (migración `…300` aplicada en estructura) |
+| Índices de las tablas nuevas (nombres y definiciones) | Coinciden |
+| RLS activa en todas las tablas nuevas | Sí |
+| Políticas RLS | 26, con los nombres exactos de las migraciones |
+| Funciones de contexto (`portal_current_staff_role`, `portal_staff_scope_tenant_ids`, etc.) | Existen |
+| Matriz `staff_role_permissions` | 11 filas, igual que la migración |
+| Privilegios de `portal_app` sobre las tablas nuevas | Coinciden (sin privilegios para anon, authenticated ni PUBLIC) |
+| `portal_app` | Sin LOGIN, sin BYPASSRLS |
+| Recuentos | `logixtic_tenant_discovery` 9; el resto 0; `platform_staff` 0; `profiles` 0; `tenants` 0 |
+
+**Lo que no se ha comparado todavía:** el cuerpo de las funciones y el texto completo de cada expresión de política y de
+cada CHECK. La igualdad es fuerte por nombres y estructura, pero no es prueba textual completa.
+
+**Falta:** el rol `portal_api`. Solo existe `portal_app`.
+
+**Conexión:** `DATABASE_URL` resuelve y conecta, pero usa el usuario administrador (`postgres.<ref>`), sin `sslmode`.
+No debe quedar como credencial de la API.
+
+**Decisión pendiente del propietario:** registrar el historial de las cinco versiones con `supabase migration repair --status applied`
+(opción A del plan, si acepta la equivalencia estructural) o comparar también el texto de funciones y políticas antes de decidir.
+Ninguna de las dos se ejecuta sin autorización escrita.
