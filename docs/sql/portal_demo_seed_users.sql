@@ -11,8 +11,8 @@
 -- Crea (solo demostración):
 --   * Membresías de cliente final: 1 usuario por cuenta de cliente (A1, A2, B1, B2).
 --   * 1 solicitud por empresa, vinculada a una operación.
---   * 2 documentos privados por empresa: metadatos, versión, estado y eventos. Los archivos van al bucket
---     privado logixtic-client-documents en las rutas indicadas al final (se suben aparte, no desde SQL).
+--   * NO crea documentos: se suben por la API después de crear el objeto en el bucket privado
+--     logixtic-client-documents (ruta demo/<tenant>/<cliente>/<operación>/<archivo>).
 -- Reversión: docs/sql/portal_demo_rollback.sql (borra estas filas por empresa demo).
 -- =====================================================================================================
 
@@ -72,31 +72,9 @@ FROM (VALUES
 ) AS t(key, ext, op, cl)
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, subject = EXCLUDED.subject;
 
--- 3. Documentos privados: metadatos por cliente. Ruta lógica: <tenant>/<cliente>/<operación>/<documento>.
-INSERT INTO client_documents (id, tenant_id, client_account_id, operation_id, file_name, mime_type, size_bytes,
-                              sha256, storage_bucket, storage_path, version, status, uploaded_by)
-SELECT md5('demo-doc:' || x.key)::uuid,
-       md5('demo-tenant:' || x.ext)::uuid,
-       md5('demo-client:' || x.cl)::uuid,
-       md5('demo-op:' || x.op)::uuid,
-       x.file_name, 'application/pdf', 2048,
-       encode(sha256(convert_to('demo-doc:' || x.key, 'UTF8')), 'hex'),
-       'logixtic-client-documents',
-       'demo/' || x.ext || '/' || x.cl || '/' || x.op || '/' || x.file_name,
-       1, 'available', (SELECT user_id FROM demo_users WHERE key = x.cl)
-FROM (VALUES
-  ('A-1-factura', 'DEMO-A-0001', 'A1', 'A-1', 'factura-demo-A-1.pdf'),
-  ('A-2-poliza',  'DEMO-A-0001', 'A1', 'A-2', 'poliza-demo-A-2.pdf'),
-  ('B-1-factura', 'DEMO-B-0001', 'B1', 'B-1', 'factura-demo-B-1.pdf'),
-  ('B-2-poliza',  'DEMO-B-0001', 'B1', 'B-2', 'poliza-demo-B-2.pdf')
-) AS x(key, ext, cl, op, file_name)
-ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, file_name = EXCLUDED.file_name;
-
-INSERT INTO client_document_events (document_id, tenant_id, client_account_id, actor_id, action, version, sha256)
-SELECT d.id, d.tenant_id, d.client_account_id, d.uploaded_by, 'uploaded', d.version, d.sha256
-FROM client_documents d
-WHERE d.storage_path LIKE 'demo/%'
-  AND NOT EXISTS (SELECT 1 FROM client_document_events e WHERE e.document_id = d.id AND e.action = 'uploaded');
+-- 3. Documentos: NO se registran aquí. Cada documento se crea con el flujo de subida de la API,
+--    que escribe primero el objeto en Storage y después sus metadatos (client_documents). Así nunca
+--    existe un documento 'disponible' sin archivo real.
 
 -- 4. Comprobación de recuentos del bloque.
 DO $$
@@ -106,14 +84,13 @@ BEGIN
     SELECT md5('demo-client:' || key)::uuid FROM demo_users);
   SELECT count(*) INTO n_req FROM requests WHERE number LIKE 'SOL-DEMO-%';
   SELECT count(*) INTO n_doc FROM client_documents WHERE storage_path LIKE 'demo/%';
-  IF n_mem <> 4 OR n_req <> 2 OR n_doc <> 4 THEN
+  IF n_mem <> 4 OR n_req <> 2 OR n_doc <> 0 THEN
     RAISE EXCEPTION 'Recuentos inesperados: membresías %, solicitudes %, documentos %', n_mem, n_req, n_doc;
   END IF;
 END $$;
 
 COMMIT;
 
--- Rutas de Storage a subir (bucket privado logixtic-client-documents, archivos PDF sintéticos de 2 KB):
---   demo/<tenant>/<cliente>/<operación>/<documento>
---   demo/md5(demo-tenant:DEMO-A-0001)/...  (los IDs reales salen de SELECT en client_documents)
--- Subir con el procedimiento de Storage. Ningún enlace público: las descargas usan URL firmadas temporales.
+-- Documentos de demostración (fuera de este SQL): subir PDF sintéticos al bucket privado con el procedimiento
+-- de Storage y registrarlos con la API de documentos. Ruta: demo/<tenant>/<cliente>/<operación>/<archivo>.
+-- Ningún enlace público: las descargas usan URL firmadas temporales.
