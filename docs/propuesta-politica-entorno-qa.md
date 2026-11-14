@@ -37,7 +37,7 @@ despliegue. Mientras tanto, rige la política vigente: sin datos sintéticos en 
 1. Aprobar esta modificación de `CLAUDE.md`.
 2. Retirar o aislar las filas actuales con nombres de empresas reales del proyecto `fjfnuttziwhxbjhkdtmk`, tras
    respaldo verificado. Mientras existan, no deben mostrarse en ningún entorno.
-3. Cargar la semilla neutra (`docs/sql/qa_demo_neutral_seed.sql`) solo en el proyecto QA aislado.
+3. Cargar la semilla neutra (`supabase/scripts/qa/qa_demo_neutral_seed.sql`) solo en el proyecto QA aislado.
 4. Desplegar en Render apuntando únicamente al proyecto QA aislado.
 
 ## Riesgo que esta propuesta no resuelve

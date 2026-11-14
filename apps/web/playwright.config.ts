@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
  * - PW_CHANNEL=chrome usa Google Chrome instalado en el equipo; sin variable usa el Chromium de Playwright
  *   (instalable con `npx playwright install chromium`).
  */
-const PORT = 5173
+const PORT = Number(process.env.PW_PORT ?? 5173)
 const BASE_URL = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({
