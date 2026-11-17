@@ -58,13 +58,13 @@ test.describe('operaciones', () => {
     const filtersToggle = page.getByRole('button', { name: /^Filtros/ })
     if (await filtersToggle.isVisible()) await filtersToggle.click()
 
-    await page.getByRole('button', { name: 'En aduana', exact: true }).click()
-    await expect(page).toHaveURL(/status=En(%20|\s|\+)aduana/)
-    await expect(page.getByRole('link', { name: 'DO-26-0398' }).first()).toBeVisible()
-    await expect(page.getByRole('link', { name: 'DO-26-0412' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'En tránsito', exact: true }).click()
+    await expect(page).toHaveURL(/status=En(%20|\s|\+)tr%C3%A1nsito/)
+    await expect(page.getByRole('link', { name: 'DO-26-0412' }).first()).toBeVisible()
+    await expect(page.getByRole('link', { name: 'DO-26-0398' })).toHaveCount(0)
 
     await page.reload()
-    await expect(page.getByRole('link', { name: 'DO-26-0412' })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'DO-26-0398' })).toHaveCount(0)
   })
 
   test('buscar por número DO encuentra la operación exacta', async ({ page }) => {
@@ -177,22 +177,10 @@ test.describe('formularios y diálogos', () => {
   })
 })
 
-test.describe('asistente Logix', () => {
-  test('responde con datos del tenant activo', async ({ page }) => {
+test.describe('política de Logix', () => {
+  test('no simula respuestas en la presentación local', async ({ page }) => {
     await loginAs(page)
-    await page.getByRole('button', { name: 'Abrir asistente Logix' }).click()
-    await expect(page.getByRole('region', { name: 'Asistente Logix' }).or(page.getByLabel('Asistente Logix'))).toBeVisible()
-    await page.getByLabel('Escriba su pregunta para Logix').fill('¿Cuántas operaciones activas tengo?')
-    await page.keyboard.press('Enter')
-    await expect(page.getByText(/Tiene 4 operaciones activas/)).toBeVisible()
-  })
-
-  test('Escape cierra el panel', async ({ page }) => {
-    await loginAs(page)
-    await page.getByRole('button', { name: 'Abrir asistente Logix' }).click()
-    await expect(page.getByLabel('Escriba su pregunta para Logix')).toBeFocused()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Abrir asistente Logix' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Preguntar a Logix Web' })).toHaveCount(0)
   })
 })
 

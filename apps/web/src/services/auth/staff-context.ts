@@ -1,9 +1,9 @@
 /**
- * Empresa de trabajo del personal interno (solo memoria de la pestaña).
+ * Empresa de trabajo del personal interno.
  *
  * Responsabilidad: recordar qué empresa verificada eligió la persona de soporte para que el selector del sidebar y el
  * panel de soporte muestren la misma. No es autorización: el servidor valida cada consulta con POST /staff/context.
- * Reglas: no se guarda en la URL ni en localStorage. Solo se persiste el UUID en sessionStorage (ver abajo).
+ * Reglas: no se guarda en la URL. Solo se persiste el UUID en localStorage, ligado al usuario (ver abajo).
  */
 import { useSyncExternalStore } from 'react'
 import type { StaffTenant } from '@/services/api/staff-api'
@@ -37,7 +37,7 @@ export function setActiveStaffTenant(tenant: StaffTenant | null): void {
 }
 
 /*
- * Persistencia por pestaña (sessionStorage) del UUID de la empresa elegida, ligada al usuario autenticado.
+ * Persistencia entre recargas y pestañas (localStorage) del UUID de la empresa elegida, ligada al usuario autenticado.
  * El UUID no es permiso: al restaurarlo, la empresa debe seguir figurando en GET /staff/tenants (el servidor decide).
  * Nunca se guardan contraseñas, tokens ni cabeceras de autorización.
  */
@@ -45,7 +45,7 @@ const PERSIST_PREFIX = 'logixtic:staff-tenant:'
 
 function storage(): Storage | null {
   try {
-    return typeof window !== 'undefined' ? window.sessionStorage : null
+    return typeof window !== 'undefined' ? window.localStorage : null
   } catch {
     return null
   }

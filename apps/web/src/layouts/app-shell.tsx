@@ -25,6 +25,7 @@ import { StaffTenantSwitcher } from '@/features/support/staff-tenant-switcher'
 import { StaffSectionPage } from '@/features/support/staff-module-notice'
 import { LogixWidget } from '@/features/assistant/logix/logix-widget'
 import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { staffSectionFor } from './staff-route-policy'
 
 /** Grupos de navegación según las funciones disponibles en el entorno. */
 /** Selector de empresa de QA: solo en desarrollo y solo con presentación local (datos sintéticos). */
@@ -37,21 +38,6 @@ const VISIBLE_STAFF_NAV_GROUPS = STAFF_NAV_GROUPS.map((g) => ({ ...g, items: g.i
 const VISIBLE_NAV_GROUPS = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.futureOnly || FEATURES.marketplace) })).filter((g) => g.items.length > 0)
 
 const SIDEBAR_KEY = 'logixtic.portal.sidebar-collapsed'
-
-/** Pantallas de empresa que el personal no monta. Las listas (operaciones, cotizaciones, solicitudes) sí conservan su tabla. */
-function staffSectionFor(
-  pathname: string,
-  hasContext: boolean,
-): { title: string; noun: string; description?: string } | null {
-  if (pathname === '/documentos') return { title: 'Documentos', noun: 'documentos' }
-  if (pathname === '/cuenta') return { title: 'Información de cuenta', noun: 'datos de la empresa' }
-  if (pathname === '/perfil') return { title: 'Mi perfil', noun: 'datos de perfil' }
-  if (pathname === '/solicitudes/nueva') return { title: 'Nueva solicitud', noun: 'solicitudes' }
-  // Con empresa de trabajo, el detalle de operación carga sus datos desde la API de personal.
-  if (!hasContext && /^\/operaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de operación', noun: 'operaciones' }
-  if (/^\/cotizaciones\/[^/]+$/.test(pathname)) return { title: 'Detalle de cotización', noun: 'cotizaciones' }
-  return null
-}
 
 function readCollapsed(): boolean {
   try {
@@ -101,8 +87,9 @@ export function AppShell() {
   const groups = staffMode ? VISIBLE_STAFF_NAV_GROUPS : VISIBLE_NAV_GROUPS
   // Empresa para Logix: la de la sesión del cliente o la de trabajo del personal (nunca ambas).
   const logixTenantId = staffMode ? (activeStaffTenant?.id ?? null) : (session?.tenantId ?? null)
-  // Personal interno: las pantallas de detalle, cuenta, perfil y documentos no se montan (consultarían datos de cliente).
-  const staffSection = staffMode ? staffSectionFor(location.pathname, session !== null) : null
+  // Solo se interceptan módulos sin contrato administrativo. La empresa activa,
+  // no la existencia de una sesión derivada, decide si puede montarse un detalle.
+  const staffSection = staffMode ? staffSectionFor(location.pathname, activeStaffTenant !== null) : null
 
   return (
     <div className="min-h-dvh bg-canvas lg:flex">
