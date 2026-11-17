@@ -26,6 +26,7 @@ def test_por_defecto_logix_y_rag_estan_desactivados_sin_modelo() -> None:
     assert s.logix_ai_enabled is False
     assert s.logix_rag_enabled is False
     assert s.logix_external_processing_authorized is False
+    assert s.logix_operational_payload_authorized is False
     assert s.openrouter_api_key is None
     assert s.openrouter_model is None
     assert s.openrouter_embedding_model is None

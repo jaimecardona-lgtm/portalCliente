@@ -74,11 +74,17 @@ class Settings(BaseSettings):
     # Los modelos no tienen valor por defecto: se fijan tras verificar disponibilidad, precio, herramientas,
     # privacidad y dimensiones de embeddings (ver docs/logix-arquitectura.md).
     logix_ai_enabled: bool = False
-    # Modalidad QA interna (CLAUDE.md). Desactivada por defecto. Necesita también la bandera de la base de datos.
+    # Modalidad QA interna (CLAUDE.md). Desactivada por defecto.
+    # Necesita también la bandera de la base de datos.
     qa_synthetic_enabled: bool = False
     logix_rag_enabled: bool = False
     # Interruptor de negocio: sin esta autorización explícita, Logix no puede enviar datos a OpenRouter.
+    # Solo cubre conocimiento general (la pregunta y las reglas del sistema).
+    # No autoriza resultados de empresa.
     logix_external_processing_authorized: bool = False
+    # Autorización aparte para enviar resultados operativos al proveedor. Permanece apagada:
+    # la bandera anterior no acredita ese envío (docs/logix-arquitectura.md, decisión D1).
+    logix_operational_payload_authorized: bool = False
     openrouter_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str | None = None
@@ -100,6 +106,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _logix_requires_explicit_authorization(self) -> Settings:
+        if self.logix_operational_payload_authorized and not self.logix_external_processing_authorized:
+            raise ValueError(
+                "LOGIX_OPERATIONAL_PAYLOAD_AUTHORIZED requiere LOGIX_EXTERNAL_PROCESSING_AUTHORIZED "
+                "y, además, una autorización expresa para resultados de empresa. "
+                "Por defecto permanece apagada."
+            )
         if self.logix_rag_enabled and not self.logix_ai_enabled:
             raise ValueError("LOGIX_RAG_ENABLED requiere LOGIX_AI_ENABLED.")
         if self.logix_ai_enabled:

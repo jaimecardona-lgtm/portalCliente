@@ -5,7 +5,8 @@ Reglas (no negociables):
   SOLO con consultas deterministas a PostgreSQL, bajo el tenant autorizado. Nunca van a OpenRouter.
 - Las preguntas generales van a OpenRouter solo si la configuración lo habilita y lo autoriza.
   Solo viaja el texto de la pregunta y reglas del sistema: sin historial, datos de empresa ni identificadores.
-- Cada respuesta declara su origen: `deterministic`, `model`, `unavailable` o `provider_failure`.
+- Cada respuesta declara su origen: `local` (cortesía, sin datos ni modelo), `deterministic`
+  (consulta PostgreSQL del tenant), `model`, `unavailable` o `provider_failure`.
 - Ausencia de datos y error del proveedor son respuestas distintas. Nunca se inventan resultados.
 - Sin tenant autorizado no hay datos privados: la respuesta lo dice.
 """
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import re
 import time
+import unicodedata
 from collections import defaultdict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,7 +27,7 @@ from app.db.models import OperationRef
 from app.integrations.openrouter import ProviderError, chat_completion
 from app.services.logix_tools import ToolName, ToolResult
 
-AnswerKind = Literal["deterministic", "model", "unavailable", "provider_failure"]
+AnswerKind = Literal["local", "deterministic", "model", "unavailable", "provider_failure"]
 
 _PRIVATE_TERMS = re.compile(
     r"(operaci|embarque|\bETA\b|\bETD\b|documento|cotizaci|solicitud|mi empresa|mis |estado|"
@@ -41,9 +43,10 @@ _OPEN = "abierto"
 
 GENERAL_SYSTEM_PROMPT = (
     "Eres Logix, asistente del Portal Cliente de Logixtic. Responde en español, de forma breve, sobre "
-    "conceptos generales de logística y comercio exterior. No inventes datos de empresas, operaciones, "
-    "documentos ni cifras de Logixtic. Si la pregunta requiere datos de una empresa concreta, di que "
-    "debe consultarlos en el portal con una empresa seleccionada."
+    "conceptos generales de logística y comercio exterior. Usa texto plano, sin asteriscos ni markdown. "
+    "No inventes datos de empresas, operaciones, documentos ni cifras de Logixtic. Si la pregunta "
+    "requiere datos de una empresa concreta, di que debe consultarlos en el portal con una empresa "
+    "seleccionada."
 )
 
 UNAVAILABLE_GENERAL = (
@@ -55,12 +58,25 @@ PROVIDER_FAILURE = (
 )
 NO_TENANT = "Seleccione una empresa autorizada para consultar sus operaciones."
 
+_PROVIDER_FAILURE_MESSAGES = {
+    "status_401": "El proveedor rechazó la credencial configurada. Contacte al administrador.",
+    "status_402": "El proveedor no tiene saldo disponible para responder en este momento.",
+    "status_404": "El modelo configurado no está disponible en el proveedor.",
+    "status_429": "El proveedor alcanzó su límite de solicitudes. Inténtelo más tarde.",
+    "timeout": "El proveedor tardó demasiado en responder. Inténtelo de nuevo.",
+    "invalid_response": "El proveedor devolvió una respuesta que no se pudo validar.",
+    "empty_response": "El proveedor devolvió una respuesta vacía.",
+}
+
 
 @dataclass(frozen=True)
 class LogixAnswer:
     text: str
     kind: AnswerKind
     sources: tuple[str, ...] = field(default_factory=tuple)
+    tools: tuple[str, ...] = field(default_factory=tuple)
+    follow_ups: tuple[str, ...] = field(default_factory=tuple)
+    limitations: tuple[str, ...] = field(default_factory=tuple)
 
 
 class RateLimiter:
@@ -85,6 +101,28 @@ def is_private(question: str) -> bool:
     if _GENERAL_DEFINITION.search(question) and not _PRIVATE_POSSESSIVE.search(question):
         return False
     return bool(_PRIVATE_TERMS.search(question))
+
+
+def answer_courtesy(question: str) -> LogixAnswer | None:
+    """Respuestas locales explícitas para cortesías; nunca se presentan como generadas por IA."""
+    normalized = "".join(
+        char
+        for char in unicodedata.normalize("NFKD", question.casefold())
+        if not unicodedata.combining(char)
+    )
+    normalized = re.sub(r"[^a-z0-9 ]+", " ", normalized)
+    normalized = " ".join(normalized.split())
+    if normalized in {"hola", "buenos dias", "buenas tardes", "buenas noches"}:
+        return LogixAnswer(
+            "¡Hola! Soy Logix. Puedo consultar la empresa activa "
+            "o explicar conceptos generales de logística.",
+            "local",
+        )
+    if normalized in {"gracias", "muchas gracias"}:
+        return LogixAnswer("Con gusto. ¿Necesita consultar otra información?", "local")
+    if normalized in {"adios", "hasta luego", "chao"}:
+        return LogixAnswer("Hasta luego. Estaré disponible cuando me necesite.", "local")
+    return None
 
 
 def extract_do_number(question: str) -> str | None:
@@ -279,6 +317,9 @@ def answer_general(
     *,
     transport=None,  # noqa: ANN001 - transporte HTTP inyectable en pruebas
 ) -> LogixAnswer:
+    courtesy = answer_courtesy(question)
+    if courtesy is not None:
+        return courtesy
     if not settings.logix_ai_enabled or settings.openrouter_api_key is None:
         return LogixAnswer(text=UNAVAILABLE_GENERAL, kind="unavailable")
     messages = [
@@ -295,6 +336,7 @@ def answer_general(
             timeout_seconds=settings.logix_timeout_seconds,
             transport=transport,
         )
-    except ProviderError:
-        return LogixAnswer(text=PROVIDER_FAILURE, kind="provider_failure")
+    except ProviderError as exc:
+        message = _PROVIDER_FAILURE_MESSAGES.get(str(exc), PROVIDER_FAILURE)
+        return LogixAnswer(text=message, kind="provider_failure")
     return LogixAnswer(text=text, kind="model")

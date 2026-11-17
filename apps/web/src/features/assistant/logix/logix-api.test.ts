@@ -48,6 +48,8 @@ describe('origen de la respuesta', () => {
     expect(answerKindLabel('provider_failure')).toMatch(/Problema temporal/)
     expect(answerKindLabel('unavailable')).toMatch(/no disponible/)
     expect(answerKindLabel('model')).toMatch(/IA/)
+    expect(answerKindLabel('local')).toMatch(/local del asistente/)
+    expect(answerKindLabel('local')).not.toMatch(/empresa activa|IA/)
     expect(answerKindLabel('deterministic')).toMatch(/empresa activa/)
   })
 })

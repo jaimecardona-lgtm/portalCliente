@@ -217,6 +217,19 @@
   background: color-mix(in oklab, var(--color-surface) 8%, transparent);
 }
 
+.aw-bot p {
+  white-space: pre-wrap;
+}
+
+.aw-follow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .aw-error {
   align-self: flex-start;
   color: var(--color-warning);

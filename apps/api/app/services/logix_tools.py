@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import OperationEvent, OperationRef
@@ -49,6 +49,8 @@ def _operation_row(op: OperationRef) -> dict[str, Any]:
         "destination": op.destination_name,
         "eta": op.eta.isoformat() if op.eta else None,
         "etd": op.etd.isoformat() if op.etd else None,
+        "transport_type": op.transport_type,
+        "pending_client_response": op.pending_client_response,
         "last_synced_at": op.last_synced_at.isoformat() if op.last_synced_at else None,
     }
 
@@ -58,6 +60,12 @@ def get_dashboard_summary(session: Session, tenant_id: UUID) -> ToolResult:
     active = [op for op in operations if _status(op) in _ACTIVE]
     transit = [op for op in operations if _status(op) == "en tránsito"]
     opened = [op for op in operations if _status(op) == "abierto"]
+    by_status: dict[str, int] = {}
+    for op in operations:
+        label = (op.last_known_status or "").strip() or "sin estado registrado"
+        by_status[label] = by_status.get(label, 0) + 1
+    pending = sum(1 for op in operations if op.pending_client_response is True)
+    pending_unknown = sum(1 for op in operations if op.pending_client_response is None)
     return ToolResult(
         name="get_dashboard_summary",
         data={
@@ -65,6 +73,11 @@ def get_dashboard_summary(session: Session, tenant_id: UUID) -> ToolResult:
             "active": len(active),
             "in_transit": len(transit),
             "open": len(opened),
+            "by_status": by_status,
+            "in_transit_numbers": [op.do_number for op in transit],
+            "open_numbers": [op.do_number for op in opened],
+            "pending_client_response": pending,
+            "pending_client_response_unknown": pending_unknown,
         },
         sources=tuple(op.do_number for op in operations[:10]),
     )
@@ -76,7 +89,7 @@ def list_operations(
     safe_limit = max(1, min(limit, 50))
     stmt = select(OperationRef).where(OperationRef.tenant_id == tenant_id)
     if status is not None:
-        stmt = stmt.where(OperationRef.last_known_status == status)
+        stmt = stmt.where(func.lower(OperationRef.last_known_status) == status.casefold())
     stmt = stmt.order_by(OperationRef.do_number, OperationRef.id).limit(safe_limit)
     operations = list(session.scalars(stmt))
     return ToolResult(

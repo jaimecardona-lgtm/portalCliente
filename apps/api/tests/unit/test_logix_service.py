@@ -152,6 +152,28 @@ def test_general_questions_do_not_call_the_provider_when_disabled() -> None:
     assert calls == []
 
 
+def test_courtesy_is_local_and_never_calls_the_provider() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json={})
+
+    answer = logix.answer_general(
+        "¡Hola!",
+        _settings(
+            logix_ai_enabled=True,
+            logix_external_processing_authorized=True,
+            openrouter_api_key=SecretStr("sk-or-v1-prueba-sintetica"),
+            openrouter_model="modelo/prueba",
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+    assert answer.kind == "local"
+    assert answer.text.startswith("¡Hola!")
+    assert calls == []
+
+
 def test_enabled_general_path_sends_only_the_question_and_system_rules() -> None:
     sent: list[dict] = []
 
@@ -191,6 +213,26 @@ def test_provider_failure_is_distinct_from_no_data_and_leaks_no_details() -> Non
     assert answer.kind == "provider_failure"
     assert "detalle interno" not in answer.text
     assert "sk-or-v1" not in answer.text
+
+
+def test_provider_http_failures_have_safe_specific_messages() -> None:
+    settings = _settings(
+        logix_ai_enabled=True,
+        logix_external_processing_authorized=True,
+        openrouter_api_key=SecretStr("sk-or-v1-prueba-sintetica"),
+        openrouter_model="modelo/prueba",
+    )
+    expected = {
+        401: "credencial",
+        402: "saldo",
+        404: "modelo",
+        429: "límite",
+    }
+    for status, fragment in expected.items():
+        transport = httpx.MockTransport(lambda _request, code=status: httpx.Response(code))
+        answer = logix.answer_general("¿Qué es ETA?", settings, transport=transport)
+        assert answer.kind == "provider_failure"
+        assert fragment in answer.text
 
 
 def test_provider_timeout_maps_to_provider_error() -> None:

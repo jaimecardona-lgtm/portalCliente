@@ -157,7 +157,7 @@ def test_staff_with_global_scope_switches_tenants_and_is_audited(client, seed, o
         rows = conn.execute(
             text(
                 "SELECT tenant_id FROM staff_access_audit "
-                "WHERE actor_id = :a AND action LIKE 'logix.%' "
+                "WHERE actor_id = :a AND action = 'operations_list' "
                 "ORDER BY created_at"
             ),
             {"a": qa},

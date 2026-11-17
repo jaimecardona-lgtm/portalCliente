@@ -15,7 +15,7 @@ import { Mic, MicOff, Send, Volume2, VolumeX, X } from 'lucide-react'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { PortalApiError } from '@/services/api/http-client'
 import { answerKindLabel, type LogixAnswerKind } from './logix-api'
-import { listen, speak, speechRecognitionCtor, stopSpeaking } from './speech'
+import { listen, speak, speechRecognitionCtor, speechSynthesisAvailable, stopSpeaking } from './speech'
 import './logix-widget.css'
 
 const AVATAR = '/logix-avatar-referencia.png'
@@ -43,6 +43,9 @@ const T = {
   errGeneric: 'No pudimos responder. Inténtelo de nuevo.',
   errSession: 'Su sesión caducó. Inicie sesión de nuevo.',
   errRate: 'Ha alcanzado el límite de consultas. Inténtelo más tarde.',
+  listen: 'Escuchar respuesta',
+  consulted: 'Consultas realizadas',
+  limits: 'Límites de la información',
   suggestionList: [
     '¿Cuántas operaciones tengo?',
     '¿Qué estado tiene mi operación más reciente?',
@@ -55,7 +58,19 @@ interface Turn {
   text: string
   kind?: LogixAnswerKind
   sources?: string[]
+  tools?: string[]
+  followUps?: string[]
+  limitations?: string[]
   tenant?: string | null
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  get_dashboard_summary: 'Resumen de operaciones',
+  list_operations: 'Listado de operaciones',
+  get_operation_detail: 'Detalle de operación',
+  get_operation_events: 'Eventos de operación',
+  list_requests: 'Solicitudes',
+  get_tenant_profile: 'Perfil de empresa',
 }
 
 const SUGGESTIONS = T.suggestionList
@@ -143,9 +158,17 @@ export function LogixWidget({ tenantId }: { tenantId: string | null }) {
       const reply = await api.ask(message, tenantId)
       setTurns((prev) => [
         ...prev,
-        { role: 'assistant', text: reply.answer, kind: reply.answerKind, sources: reply.sources, tenant: reply.tenant },
+        {
+          role: 'assistant',
+          text: reply.answer,
+          kind: reply.answerKind,
+          sources: reply.sources,
+          tools: reply.tools,
+          followUps: reply.followUps,
+          limitations: reply.limitations,
+          tenant: reply.tenant,
+        },
       ])
-      say(reply.answer)
     } catch (error) {
       setTurns((prev) => [...prev, { role: 'error', text: errorText(error) }])
     } finally {
@@ -244,6 +267,16 @@ export function LogixWidget({ tenantId }: { tenantId: string | null }) {
                 <div key={i} className="aw-bubble aw-bot">
                   <p>{turn.text}</p>
                   {turn.kind ? <small className="aw-note">{answerKindLabel(turn.kind)}</small> : null}
+                  {turn.tools && turn.tools.length > 0 ? (
+                    <div className="aw-sources">
+                      <span>{T.consulted}</span>
+                      <ul>
+                        {[...new Set(turn.tools)].map((id) => (
+                          <li key={id}>{TOOL_LABELS[id] ?? id}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   {turn.sources && turn.sources.length > 0 ? (
                     <div className="aw-sources">
                       <span>Registros consultados</span>
@@ -253,6 +286,32 @@ export function LogixWidget({ tenantId }: { tenantId: string | null }) {
                         ))}
                       </ul>
                     </div>
+                  ) : null}
+                  {turn.limitations && turn.limitations.length > 0 ? (
+                    <div className="aw-sources">
+                      <span>{T.limits}</span>
+                      <ul>
+                        {turn.limitations.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {turn.followUps && turn.followUps.length > 0 ? (
+                    <ul className="aw-follow">
+                      {turn.followUps.map((question) => (
+                        <li key={question}>
+                          <button type="button" className="aw-chip focus-ring" onClick={() => void ask(question)} disabled={busy}>
+                            {question}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {speechSynthesisAvailable() ? (
+                    <button type="button" className="aw-chip focus-ring" onClick={() => speak(turn.text)}>
+                      {T.listen}
+                    </button>
                   ) : null}
                 </div>
               ),

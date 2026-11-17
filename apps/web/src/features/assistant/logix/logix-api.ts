@@ -8,13 +8,16 @@
 import { createAuthedRequester } from '@/services/api/authed-request'
 import { PortalApiError } from '@/services/api/http-client'
 
-export type LogixAnswerKind = 'deterministic' | 'model' | 'unavailable' | 'provider_failure'
+export type LogixAnswerKind = 'local' | 'deterministic' | 'model' | 'unavailable' | 'provider_failure'
 
 export interface LogixReply {
   answer: string
   answerKind: LogixAnswerKind
   tenant: string | null
   sources: string[]
+  tools: string[]
+  followUps: string[]
+  limitations: string[]
 }
 
 export interface LogixApiOptions {
@@ -27,7 +30,11 @@ export interface LogixApi {
   ask(message: string, tenantId: string | null): Promise<LogixReply>
 }
 
-const KINDS: readonly LogixAnswerKind[] = ['deterministic', 'model', 'unavailable', 'provider_failure']
+const KINDS: readonly LogixAnswerKind[] = ['local', 'deterministic', 'model', 'unavailable', 'provider_failure']
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
 
 function toReply(raw: unknown): LogixReply {
   const r = (raw ?? {}) as Record<string, unknown>
@@ -39,7 +46,10 @@ function toReply(raw: unknown): LogixReply {
     answer: r.answer,
     answerKind: kind,
     tenant: typeof r.tenant === 'string' ? r.tenant : null,
-    sources: Array.isArray(r.sources) ? r.sources.filter((s): s is string => typeof s === 'string') : [],
+    sources: strings(r.sources),
+    tools: strings(r.tools),
+    followUps: strings(r.follow_ups),
+    limitations: strings(r.limitations),
   }
 }
 
@@ -63,6 +73,8 @@ export function createLogixApi(options: LogixApiOptions): LogixApi {
 /** Texto visible de origen de la respuesta. Nunca afirma que el asistente esté conectado. */
 export function answerKindLabel(kind: LogixAnswerKind): string {
   switch (kind) {
+    case 'local':
+      return 'Respuesta local del asistente'
     case 'deterministic':
       return 'Dato consultado en la empresa activa'
     case 'model':
