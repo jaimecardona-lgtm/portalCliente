@@ -1,17 +1,25 @@
 # Agente Logix: arquitectura, decisiones pendientes y criterios de aceptación
 
-**Estado:** propuesta. Ninguna parte de Logix con modelos reales está implementada ni activa.
-La configuración (`apps/api/app/core/config.py`) existe con todo desactivado por defecto.
+> Actualización 2026-11-17: `POST /api/v1/logix/chat`, el cliente OpenRouter y las herramientas
+> `get_dashboard_summary`, `list_operations`, `get_operation_detail`, `get_operation_events`,
+> `list_requests` y `get_tenant_profile` están implementados. Las herramientas reciben el tenant
+> ya autorizado por FastAPI y no aceptan SQL. OpenRouter continúa desactivado mientras no exista
+> autorización explícita de procesamiento externo. Las secciones marcadas como propuesta describen
+> la evolución a conversaciones persistidas y RAG.
+
+**Estado:** herramientas deterministas de solo lectura y cliente OpenRouter implementados. El procesamiento
+externo permanece desactivado por defecto y no se activa sin autorización explícita.
 
 ## 1. Orden de trabajo (directiva de arquitectura)
 
 1. **Supabase Auth real y primer usuario validado.** Requiere pasos manuales del responsable (`docs/supabase-primer-acceso.md`).
    Bloquea todo lo siguiente.
-2. Cliente OpenRouter en FastAPI, con pruebas y sin datos reales.
+2. Cliente OpenRouter en FastAPI, con pruebas y sin datos empresariales en preguntas generales. **Implementado, desactivado.**
 3. Migración RAG nueva en `supabase/migrations/` (pgvector, fuentes, fragmentos, sesiones, mensajes, auditoría).
    **Bloqueada** por la elección del modelo de embeddings: la dimensión de la columna depende de él.
-4. Herramientas de consulta de operaciones y documentos con identidad validada por FastAPI.
-5. Frontend del asistente conectado a FastAPI.
+4. Herramientas de consulta con identidad validada por FastAPI. **Implementadas para resumen, operaciones,
+   detalle, eventos, solicitudes y perfil; documentos quedan pendientes.**
+5. Frontend del asistente conectado a FastAPI. **Implementado para sesiones Supabase reales.**
 6. Pruebas E2E de seguridad, precisión y aislamiento.
 
 ## 2. Decisiones que requieren al responsable
@@ -54,13 +62,13 @@ Navegador (React)  ──Bearer Supabase──▶  FastAPI (app/services/ai/)
                                   Auditoría de consultas (sin secretos)
 ```
 
-Módulos previstos en `apps/api/app/services/ai/` (responsabilidades separadas):
+Módulos actuales y previstos (responsabilidades separadas):
 
 | Módulo | Responsabilidad | Restricción |
 |---|---|---|
-| `openrouter_client.py` | Llamadas HTTP a OpenRouter | Clave solo desde `Settings`; nunca en logs ni en errores |
-| `orchestrator.py` | Conversación, selección de herramientas, control de bucles | Número máximo de pasos; sin SQL libre |
-| `tools_operations.py` | Herramientas de lectura de operaciones | Funciones tipadas y parametrizadas; el tenant viene del contexto autenticado |
+| `app/integrations/openrouter.py` | Llamadas HTTP a OpenRouter | Clave solo desde `Settings`; nunca en logs ni en errores |
+| `app/services/logix.py` | Clasificación, selección determinista y presentación | Sin SQL libre; preguntas empresariales nunca salen del servidor |
+| `app/services/logix_tools.py` | Herramientas de lectura del portal | Funciones tipadas; el tenant viene del contexto autenticado y los límites se acotan en servidor |
 | `tools_documents.py` | Búsqueda documental | Solo fragmentos de la empresa autenticada |
 | `retrieval.py` | Búsqueda vectorial | Filtro por `tenant_id` además de RLS |
 | `permissions.py` | Validación de rol y de empresa | Fuente única: `tenant_memberships` |
@@ -68,7 +76,12 @@ Módulos previstos en `apps/api/app/services/ai/` (responsabilidades separadas):
 
 **El modelo nunca decide a qué empresa accede.** La empresa la fija el token validado por FastAPI.
 
-## 5. Contratos API (propuesta)
+## 5. Contrato API actual
+
+`POST /api/v1/logix/chat` recibe `{ message }` y devuelve `{ answer, answer_kind, tenant, sources }`.
+Requiere JWT Supabase. Para personal interno, `X-Tenant-Id` debe coincidir con el contexto reautenticado.
+
+Las rutas de conversación persistida siguientes continúan como propuesta futura:
 
 | Método | Ruta | Entrada | Salida | Errores |
 |---|---|---|---|---|

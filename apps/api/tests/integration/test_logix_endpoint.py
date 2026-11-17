@@ -78,6 +78,21 @@ def test_client_own_operation_is_found_by_do_number(client, seed, owner_engine) 
     assert r.json()["sources"] == [own_do]
 
 
+def test_client_can_read_visible_events_and_profile_only_from_active_tenant(
+    client, seed, owner_engine
+) -> None:
+    own_do = _do_of(owner_engine, seed.op_a)
+    events = _ask(client, seed.ana, seed.tenant_a, f"Últimos eventos de {own_do}")
+    assert events.status_code == 200
+    assert events.json()["answer_kind"] == "deterministic"
+    assert events.json()["sources"] == [own_do]
+
+    profile = _ask(client, seed.ana, seed.tenant_a, "¿Cuál es el NIT de mi empresa?")
+    assert profile.status_code == 200
+    assert profile.json()["answer_kind"] == "deterministic"
+    assert profile.json()["sources"] == ["Perfil de empresa"]
+
+
 def test_user_without_company_gets_the_no_company_answer_not_data(client, seed) -> None:
     r = _ask(client, seed.eva, None, "¿Cuántas operaciones tengo?")
     assert r.status_code == 200
@@ -86,7 +101,7 @@ def test_user_without_company_gets_the_no_company_answer_not_data(client, seed) 
 
 
 def test_general_question_never_reaches_a_disabled_provider(client, seed) -> None:
-    r = _ask(client, seed.ana, seed.tenant_a, "¿Qué es un incoterm?")
+    r = _ask(client, seed.ana, seed.tenant_a, "¿Qué significa ETA?")
     assert r.status_code == 200
     assert r.json()["answer_kind"] == "unavailable"
     assert "no está activo" in r.json()["answer"]
@@ -141,7 +156,8 @@ def test_staff_with_global_scope_switches_tenants_and_is_audited(client, seed, o
     with owner_engine.connect() as conn:
         rows = conn.execute(
             text(
-                "SELECT tenant_id FROM staff_access_audit WHERE actor_id = :a AND action = 'operations_list' "
+                "SELECT tenant_id FROM staff_access_audit "
+                "WHERE actor_id = :a AND action LIKE 'logix.%' "
                 "ORDER BY created_at"
             ),
             {"a": qa},

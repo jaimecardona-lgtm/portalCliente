@@ -28,6 +28,16 @@ Estabilización del primer flujo vertical administrativo.
 - Recorrer el flujo vertical real de Capacity Tenant 01 y contrastar 20 totales, 8 activas y 4 en movimiento.
 - Validar Cuenta y Logix desde el navegador autenticado.
 
+## Hito Logix de solo lectura
+
+- Implementadas herramientas acotadas: `get_dashboard_summary`, `list_operations`, `get_operation_detail`,
+  `get_operation_events`, `list_requests` y `get_tenant_profile`.
+- El tenant lo inyecta FastAPI después de validar identidad, visibilidad y contexto reautenticado; ninguna herramienta
+  acepta SQL ni un tenant elegido por el modelo.
+- “¿Qué significa ETA?” se clasifica como conocimiento general; una pregunta sobre la ETA de una operación permanece privada.
+- Verificación: 92 unitarias backend aprobadas y lint dirigido limpio. Siete integraciones de Logix omitidas por ausencia
+  explícita de `PORTAL_TEST_DATABASE_URL`; no se ejecutaron contra Supabase compartido.
+
 ## Bloqueos externos conocidos
 
 - La aplicación remota de migraciones requiere revisar el historial de Supabase con credenciales autorizadas.

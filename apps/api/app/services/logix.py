@@ -23,6 +23,7 @@ from uuid import UUID
 from app.core.config import Settings
 from app.db.models import OperationRef
 from app.integrations.openrouter import ProviderError, chat_completion
+from app.services.logix_tools import ToolName, ToolResult
 
 AnswerKind = Literal["deterministic", "model", "unavailable", "provider_failure"]
 
@@ -32,6 +33,8 @@ _PRIVATE_TERMS = re.compile(
     re.IGNORECASE,
 )
 _DO_NUMBER = re.compile(r"\b(?:QA-)?DO-[A-Za-z0-9][A-Za-z0-9-]{1,35}\b", re.IGNORECASE)
+_GENERAL_DEFINITION = re.compile(r"^\s*¿?\s*(?:qu[eé]\s+(?:es|significa))\b", re.IGNORECASE)
+_PRIVATE_POSSESSIVE = re.compile(r"\b(?:mi|mis|nuestra|nuestro)\b|\b(?:QA-)?DO-", re.IGNORECASE)
 _ACTIVE = frozenset({"abierto", "en tránsito"})
 _IN_TRANSIT = "en tránsito"
 _OPEN = "abierto"
@@ -79,7 +82,123 @@ class RateLimiter:
 
 
 def is_private(question: str) -> bool:
+    if _GENERAL_DEFINITION.search(question) and not _PRIVATE_POSSESSIVE.search(question):
+        return False
     return bool(_PRIVATE_TERMS.search(question))
+
+
+def extract_do_number(question: str) -> str | None:
+    match = _DO_NUMBER.search(question)
+    return match.group(0).upper() if match else None
+
+
+def tool_for(question: str) -> ToolName:
+    normalized = question.casefold()
+    if "solicitud" in normalized:
+        return "list_requests"
+    profile_terms = ("perfil de empresa", "información de cuenta", "nit", "datos de la empresa")
+    if any(term in normalized for term in profile_terms):
+        return "get_tenant_profile"
+    if extract_do_number(question) and any(
+        term in normalized for term in ("evento", "cronología", "seguimiento", "último movimiento")
+    ):
+        return "get_operation_events"
+    if extract_do_number(question):
+        return "get_operation_detail"
+    if any(term in normalized for term in ("muestra", "muéstr", "lista", "cuáles")):
+        return "list_operations"
+    return "get_dashboard_summary"
+
+
+def answer_tool(result: ToolResult) -> LogixAnswer:
+    data = result.data
+    if result.name == "get_dashboard_summary":
+        return LogixAnswer(
+            text=(
+                f"Operaciones registradas de la empresa activa: {data['total']}. "
+                f"Activas: {data['active']}. En tránsito: {data['in_transit']}."
+            ),
+            kind="deterministic",
+            sources=result.sources,
+        )
+    if result.name == "list_operations":
+        items = data["items"]
+        if not items:
+            qualifier = f" con estado {data['filter_status']}" if data.get("filter_status") else ""
+            return LogixAnswer(
+                f"No hay operaciones{qualifier} en la empresa activa.", "deterministic"
+            )
+        summary = ", ".join(
+            f"{item['do_number']} ({item['status'] or 'sin estado'})" for item in items
+        )
+        label = (
+            "Operaciones abiertas"
+            if data.get("filter_status") == "Abierto"
+            else "Operaciones disponibles"
+        )
+        return LogixAnswer(
+            f"{label} ({data['returned']}): {summary}.",
+            "deterministic",
+            result.sources,
+        )
+    if result.name == "get_operation_detail":
+        item = data["item"]
+        if item is None:
+            return LogixAnswer(
+                f"No encontré la operación {data['requested_do']} en la empresa activa.",
+                "deterministic",
+            )
+        return LogixAnswer(
+            (
+                f"{item['do_number']}: estado {item['status'] or 'sin estado registrado'}. "
+                f"Referencia: {item['reference'] or 'sin referencia'}. "
+                f"ETA: {item['eta'] or 'sin registrar'}."
+            ),
+            "deterministic",
+            result.sources,
+        )
+    if result.name == "get_operation_events":
+        if not data["operation_found"]:
+            return LogixAnswer(
+                f"No encontré la operación {data['requested_do']} en la empresa activa.",
+                "deterministic",
+            )
+        items = data["items"]
+        if not items:
+            return LogixAnswer(
+                f"No hay eventos visibles registrados para {data['requested_do']}.",
+                "deterministic",
+                result.sources,
+            )
+        summary = "; ".join(f"{item['occurred_at']}: {item['title']}" for item in items)
+        return LogixAnswer(
+            f"Últimos eventos de {data['requested_do']}: {summary}.",
+            "deterministic",
+            result.sources,
+        )
+    if result.name == "list_requests":
+        items = data["items"]
+        if not items:
+            return LogixAnswer("No hay solicitudes registradas para la empresa activa.", "deterministic")
+        summary = ", ".join(f"{item['number']} ({item['status']})" for item in items)
+        return LogixAnswer(
+            f"Solicitudes registradas ({data['returned']}): {summary}.",
+            "deterministic",
+            result.sources,
+        )
+    item = data["item"]
+    if item is None:
+        return LogixAnswer("No hay un perfil disponible para la empresa activa.", "deterministic")
+    return LogixAnswer(
+        (
+            f"Empresa: {item['legal_name'] or 'sin nombre registrado'}. "
+            f"NIT: {item['tax_id'] or 'no registrado'}. "
+            f"Ubicación: {item['city'] or 'ciudad no registrada'}, "
+            f"{item['country'] or 'país no registrado'}."
+        ),
+        "deterministic",
+        result.sources,
+    )
 
 
 def answer_private(question: str, operations: list[OperationRef]) -> LogixAnswer:

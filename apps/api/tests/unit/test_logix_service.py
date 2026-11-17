@@ -12,6 +12,7 @@ from pydantic import SecretStr
 from app.core.config import Settings
 from app.integrations import openrouter
 from app.services import logix
+from app.services.logix_tools import ToolResult
 
 
 def _op(do: str, status: str | None, *, synced: bool = True) -> SimpleNamespace:
@@ -41,6 +42,49 @@ def test_private_questions_are_routed_to_the_database_not_the_model() -> None:
     assert logix.is_private("¿En qué estado está DO-26-0412?")
     assert logix.is_private("¿Tengo documentos vencidos?")
     assert not logix.is_private("¿Qué es un incoterm FOB?")
+    assert not logix.is_private("¿Qué significa ETA?")
+    assert logix.is_private("¿Qué significa la ETA de mi operación?")
+
+
+def test_private_tool_selection_is_bounded_and_deterministic() -> None:
+    assert logix.tool_for("¿Cuántas operaciones tengo?") == "get_dashboard_summary"
+    assert logix.tool_for("Muéstrame las operaciones") == "list_operations"
+    assert logix.tool_for("¿Cuál es el estado de QA-DO-CAPACITY-01-001?") == "get_operation_detail"
+    assert logix.tool_for("Últimos eventos de QA-DO-CAPACITY-01-001") == "get_operation_events"
+    assert logix.tool_for("Muéstrame las solicitudes") == "list_requests"
+    assert logix.tool_for("¿Cuál es el NIT de mi empresa?") == "get_tenant_profile"
+
+
+def test_tool_answers_distinguish_missing_values_from_records() -> None:
+    profile = logix.answer_tool(
+        ToolResult(
+            "get_tenant_profile",
+            {"item": {"legal_name": "Empresa QA", "tax_id": None, "city": None, "country": "CO"}},
+            ("Perfil de empresa",),
+        )
+    )
+    assert "NIT: no registrado" in profile.text
+    assert "ciudad no registrada" in profile.text
+    requests = logix.answer_tool(ToolResult("list_requests", {"items": [], "returned": 0}))
+    assert "No hay solicitudes registradas" in requests.text
+
+
+def test_open_operations_tool_keeps_the_verified_status_filter_visible() -> None:
+    answer = logix.answer_tool(
+        ToolResult(
+            "list_operations",
+            {
+                "items": [
+                    {"do_number": "QA-DO-CAPACITY-01-001", "status": "Abierto"},
+                ],
+                "returned": 1,
+                "filter_status": "Abierto",
+            },
+            ("QA-DO-CAPACITY-01-001",),
+        )
+    )
+    assert answer.text.startswith("Operaciones abiertas (1)")
+    assert answer.sources == ("QA-DO-CAPACITY-01-001",)
 
 
 def test_no_operations_is_reported_as_absence_not_as_zero_or_error() -> None:

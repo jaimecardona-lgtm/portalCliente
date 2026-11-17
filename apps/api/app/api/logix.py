@@ -23,6 +23,7 @@ from app.core.errors import AccessDenied, AppError
 from app.core.security import TokenClaims
 from app.repositories import portal as portal_repo
 from app.services import logix as logix_svc
+from app.services import logix_tools
 from app.services import staff as staff_svc
 from app.services.access import resolve_context
 from app.services.staff import resolve_staff
@@ -106,16 +107,30 @@ def chat(
     if tenant_id is None:
         return _payload(logix_svc.LogixAnswer(text=logix_svc.NO_TENANT, kind="deterministic"), None)
 
+    tool_name = logix_svc.tool_for(question)
+    permission = "tenants.read" if tool_name == "get_tenant_profile" else "operations.read"
     if staff_ctx is not None:
-        if not staff_ctx.can("operations.read"):
+        if not staff_ctx.can(permission):
             raise AccessDenied(
-                "Su rol no tiene permiso para consultar operaciones.", code="permission_denied"
+                "Su rol no tiene permiso para realizar esta consulta.", code="permission_denied"
             )
-        staff_svc.audit(session, staff_ctx, "operations_list", tenant_id=tenant_id, result="allowed")
-
-    operations = portal_repo.list_operations(session, tenant_id, limit=500, offset=0)
-    operations = [op for op in operations if op.tenant_id == tenant_id]
-    answer = logix_svc.answer_private(question, operations)
+    do_number = logix_svc.extract_do_number(question)
+    if tool_name == "get_operation_detail":
+        result = logix_tools.get_operation_detail(session, tenant_id, do_number=do_number or "")
+    elif tool_name == "get_operation_events":
+        result = logix_tools.get_operation_events(session, tenant_id, do_number=do_number or "")
+    elif tool_name == "list_operations":
+        status = "Abierto" if "abiert" in question.casefold() else None
+        result = logix_tools.list_operations(session, tenant_id, status=status)
+    elif tool_name == "list_requests":
+        result = logix_tools.list_requests(session, tenant_id)
+    elif tool_name == "get_tenant_profile":
+        result = logix_tools.get_tenant_profile(session, tenant_id)
+    else:
+        result = logix_tools.get_dashboard_summary(session, tenant_id)
+    if staff_ctx is not None:
+        staff_svc.audit(session, staff_ctx, f"logix.{result.name}", tenant_id=tenant_id, result="allowed")
+    answer = logix_svc.answer_tool(result)
     session.commit()
     return _payload(answer, tenant_name)
 
