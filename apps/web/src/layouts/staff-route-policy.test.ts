@@ -20,6 +20,10 @@ describe("política de rutas para personal interno", () => {
       title: "Documentos",
       noun: "documentos",
     });
+    expect(staffSectionFor("/cotizaciones", true)).toEqual({
+      title: "Cotizaciones",
+      noun: "cotizaciones",
+    });
     expect(staffSectionFor("/cotizaciones/quote-id", true)).toEqual({
       title: "Detalle de cotización",
       noun: "cotizaciones",

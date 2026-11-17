@@ -20,6 +20,9 @@ export function staffSectionFor(
   if (!hasActiveTenant && /^\/operaciones\/[^/]+$/.test(pathname)) {
     return { title: "Detalle de operación", noun: "operaciones" };
   }
+  if (pathname === "/cotizaciones") {
+    return { title: "Cotizaciones", noun: "cotizaciones" };
+  }
   if (/^\/cotizaciones\/[^/]+$/.test(pathname)) {
     return { title: "Detalle de cotización", noun: "cotizaciones" };
   }

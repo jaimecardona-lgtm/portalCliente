@@ -332,11 +332,17 @@ function Topbar({
 function Breadcrumbs() {
   const location = useLocation()
   const repo = useRepository()
-  const { session } = useSession()
+  const { session, staff } = useSession()
   const tenantId = session?.tenantId ?? ''
   const segments = location.pathname.split('/').filter(Boolean)
   const ops = useQuery({ queryKey: tenantKey(tenantId, 'operations'), queryFn: () => repo.listOperations(tenantId), enabled: Boolean(tenantId) && segments[0] === 'operaciones', staleTime: 60_000 })
-  const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) && segments[0] === 'cotizaciones', staleTime: 60_000 })
+  // Cotizaciones no tienen contrato de lectura. El personal interno no debe disparar listQuotes.
+  const quotes = useQuery({
+    queryKey: tenantKey(tenantId, 'quotes'),
+    queryFn: () => repo.listQuotes(tenantId),
+    enabled: Boolean(tenantId) && staff === null && segments[0] === 'cotizaciones',
+    staleTime: 60_000,
+  })
   const crumbs: Array<{ label: string; to: string }> = [{ label: 'Inicio', to: '/' }]
   let acc = ''
   segments.forEach((seg, index) => {
