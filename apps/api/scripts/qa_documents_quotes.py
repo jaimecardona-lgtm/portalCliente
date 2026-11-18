@@ -158,7 +158,9 @@ def _insert_account(session: Session, account: AccountPlan, user_id: UUID) -> No
             or existing["legal_name"] != account.legal_name
             or existing["tax_id"] != account.tax_id
         ):
-            raise QaGuardError("La cuenta documental coincide con un registro ajeno o alterado. No se continúa.")
+            raise QaGuardError(
+                "La cuenta documental coincide con un registro ajeno o alterado. No se continúa."
+            )
         return
 
     inserted = session.execute(
@@ -406,7 +408,9 @@ def _rollback(session: Session, user_id: UUID) -> list[str]:
                 {"batch": BATCH, "tenant": tenant_id},
             ).scalars().all()
             if any(path not in allowed_paths for path in paths):
-                raise QaGuardError("El libro QA contiene rutas de Storage no reconocidas. Reversión detenida.")
+                raise QaGuardError(
+                    "El libro QA contiene rutas de Storage no reconocidas. Reversión detenida."
+                )
             all_paths.extend(path for path in paths if path)
             session.execute(
                 text(
@@ -463,7 +467,9 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     except (AttributeError, ValueError):
         pass
-    parser = argparse.ArgumentParser(description="Simula, aplica o retira el lote QA de documentos y cotizaciones.")
+    parser = argparse.ArgumentParser(
+        description="Simula, aplica o retira el lote QA de documentos y cotizaciones."
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--rollback", action="store_true")
@@ -488,7 +494,8 @@ def main() -> int:
                 if args.apply or args.rollback:
                     if storage is None:
                         raise QaGuardError(
-                            "Falta la clave de Storage en el backend. No se escribe sin poder guardar o borrar archivos."
+                            "Falta la clave de Storage en el backend. "
+                            "No se escribe sin poder guardar o borrar archivos."
                         )
                     if args.apply:
                         _apply(session, user_id, storage, uploaded_paths)
