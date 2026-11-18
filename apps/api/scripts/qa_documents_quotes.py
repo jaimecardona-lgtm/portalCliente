@@ -190,7 +190,7 @@ def _insert_account(session: Session, account: AccountPlan, user_id: UUID) -> No
         )
 
 
-def _apply(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
+def _apply(session: Session, user_id: UUID, storage: ObjectStorage, uploaded_paths: list[str]) -> None:
     if not _tables_ready(session):
         raise QaGuardError("Falta la migración 20261117000100. No se escribe nada.")
     tenants = _visible_tenants(session, user_id)
@@ -240,6 +240,7 @@ def _apply(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                     ".pdf",
                 )
                 storage.upload(path, content, "application/pdf")
+                uploaded_paths.append(path)
                 session.execute(
                     text(
                         """
@@ -474,6 +475,7 @@ def main() -> int:
     storage = build_storage(settings)
     engine = create_db_engine(settings)
     rollback_paths: list[str] | None = None
+    uploaded_paths: list[str] = []
     try:
         with Session(engine) as session:
             with session.begin():
@@ -489,7 +491,7 @@ def main() -> int:
                             "Falta la clave de Storage en el backend. No se escribe sin poder guardar o borrar archivos."
                         )
                     if args.apply:
-                        _apply(session, user_id, storage)
+                        _apply(session, user_id, storage, uploaded_paths)
                     else:
                         rollback_paths = _rollback(session, user_id)
                 else:
@@ -507,9 +509,20 @@ def main() -> int:
                 with session.begin():
                     _finish_rollback(session, STAFF_USER)
             _print(f"Lote {BATCH} retirado. Operaciones y solicitudes no se modificaron.")
-    except QaGuardError as exc:
-        _print(str(exc))
-        return 2
+    except Exception as exc:
+        # Database rollback occurs when the transaction context exits. Compensate
+        # only Storage objects uploaded during this invocation, never existing files.
+        if storage is not None:
+            for path in uploaded_paths:
+                try:
+                    storage.delete([path])
+                except Exception:  # noqa: BLE001 - do not expose provider response or secret
+                    _print("No se pudo limpiar un archivo QA recién subido; requiere revisión de Storage.")
+        if isinstance(exc, QaGuardError):
+            _print(str(exc))
+            return 2
+        _print(f"El lote se interrumpió ({type(exc).__name__}). Revise logs seguros antes de reintentar.")
+        return 1
     return 0
 
 
