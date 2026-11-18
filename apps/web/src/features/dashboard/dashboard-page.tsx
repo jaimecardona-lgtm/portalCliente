@@ -44,8 +44,8 @@ export function DashboardPage() {
   const docs = useQuery({ queryKey: tenantKey(tenantId, 'documents'), queryFn: () => repo.listDocuments(tenantId), enabled: Boolean(tenantId) && staff === null })
   const staffDocuments = useQuery({
     queryKey: ['staff', 'documents', tenantId],
-    queryFn: () => portal!.staffApi.documents(tenantId),
-    enabled: Boolean(tenantId) && staff !== null && portal?.staffApi != null,
+    queryFn: () => portal!.staff.documents(tenantId),
+    enabled: Boolean(tenantId) && staff !== null && portal?.staff != null,
   })
   const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) })
 

@@ -129,7 +129,11 @@ def _run_tools(
     if "list_documents" in names:
         add(
             "documents",
-            _blocked("list_documents") if documents_blocked else logix_tools.list_documents(session, tenant_id),
+            (
+                _blocked("list_documents")
+                if documents_blocked
+                else logix_tools.list_documents(session, tenant_id)
+            ),
         )
     if "list_quotes" in names:
         add(

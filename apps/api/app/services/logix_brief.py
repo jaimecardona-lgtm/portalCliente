@@ -116,7 +116,8 @@ def _catalog_answer(
         return LogixAnswer(line, "deterministic", (), tools)
     if name == "list_documents":
         details = "\n".join(
-            f"- {item['file_name']} · versión {item['version']} · {item['size_bytes']} bytes" for item in items
+            f"- {item['file_name']} · versión {item['version']} · {item['size_bytes']} bytes"
+            for item in items
         )
         sources = tuple(item["file_name"] for item in items)
     else:

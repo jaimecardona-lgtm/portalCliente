@@ -51,7 +51,8 @@ def staff_tenants(ctx: StaffDep, session: DbDep, request: Request) -> dict[str, 
     _require(ctx, "tenants.read")
     items = svc.assigned_tenants(session)
     if not request.app.state.settings.qa_synthetic_enabled:
-        # Segunda barrera (la primera es la bandera de base de datos y RLS): sin configuración QA no se listan.
+        # Segunda barrera: sin configuración QA no se listan datos sintéticos.
+        # La bandera y la política RLS de PostgreSQL conforman la primera barrera.
         items = [i for i in items if not i["qa_synthetic"]]
     svc.audit(session, ctx, "tenants_list", tenant_id=None, result="allowed")
     session.commit()
@@ -239,7 +240,7 @@ class RequestIn(BaseModel):
 
 @router.get("/tenants/{tenant_id}/profile", tags=["personal interno"], responses=_STAFF_RESPONSES)
 def staff_tenant_profile(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
-    """Datos generales de la empresa autorizada. Empresa no visible y empresa inexistente responden igual (403)."""
+    """Perfil de empresa autorizada; sin acceso y no existente producen el mismo 403."""
     _selected_tenant(session, ctx, tenant_id, "tenants.read", request)
     profile = svc.tenant_profile(session, tenant_id)
     if profile is None:
@@ -250,7 +251,9 @@ def staff_tenant_profile(tenant_id: UUID, ctx: StaffDep, session: DbDep, request
 
 
 @router.get("/tenants/{tenant_id}/client-accounts", tags=["personal interno"], responses=_STAFF_RESPONSES)
-def staff_list_client_accounts(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+def staff_list_client_accounts(
+    tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
     _selected_tenant(session, ctx, tenant_id, "operations.read", request)
     items = svc.list_client_accounts(session, tenant_id)
     svc.audit(session, ctx, "operations_list", tenant_id=tenant_id, result="allowed")
