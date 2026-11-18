@@ -22,7 +22,7 @@ export function StaffDocumentsPanel() {
   const { session } = useSession()
   const activeStaff = useActiveStaffTenant()
   const tenantId = session?.tenantId ?? ''
-  const api = portal?.staffApi ?? null
+  const api = portal?.staff ?? null
   const canQuery = Boolean(api && tenantId)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
