@@ -149,7 +149,9 @@ def _document(account: AccountPlan, key: str, file_name: str) -> DocumentPlan:
     )
 
 
-def _line(quote_key: str, position: int, concept: str, quantity: str, unit: str, amount: str) -> QuoteLinePlan:
+def _line(
+    quote_key: str, position: int, concept: str, quantity: str, unit: str, amount: str
+) -> QuoteLinePlan:
     return QuoteLinePlan(
         stable_id(f"line:{quote_key}:{position}"),
         position,
