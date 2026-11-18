@@ -55,7 +55,7 @@ jobs:
           SELECT CASE WHEN to_regclass('public.quotes') IS NOT NULL
                     AND to_regclass('public.quote_lines') IS NOT NULL
                     AND to_regclass('public.qa_seed_records') IS NOT NULL
-               THEN 'ready' ELSE 1/0::text END;
+               THEN 'ready' ELSE 'missing' END;
           " | grep -Fx ready
       - name: Run backend tests against ephemeral database
         working-directory: apps/api
