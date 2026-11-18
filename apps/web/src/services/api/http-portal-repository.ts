@@ -268,10 +268,12 @@ export function createHttpPortalRepository(options: HttpPortalRepositoryOptions)
     async addDocumentVersion(): Promise<DocumentRecord> {
       throw notAvailable('addDocumentVersion')
     },
-    async listQuotes(): Promise<Quote[]> {
+    async listQuotes(tenantId): Promise<Quote[]> {
+      if (isStaffTenant(tenantId)) return staffApi!.quotes(tenantId)
       throw notAvailable('listQuotes')
     },
-    async getQuote(): Promise<Quote | null> {
+    async getQuote(tenantId, quoteId): Promise<Quote | null> {
+      if (isStaffTenant(tenantId)) return staffApi!.quote(tenantId, quoteId)
       throw notAvailable('getQuote')
     },
     async decideQuote(): Promise<Quote> {

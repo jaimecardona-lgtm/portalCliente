@@ -34,6 +34,8 @@ _ALLOWED_TOOLS = frozenset(
         "get_operation_events",
         "list_requests",
         "get_tenant_profile",
+        "list_documents",
+        "list_quotes",
     }
 )
 _FORBIDDEN_ARGUMENTS = frozenset({"tenant_id", "tenant", "sql", "query"})
@@ -75,6 +77,8 @@ def tool_schemas() -> list[dict[str, Any]]:
         tool("get_operation_events", "Eventos visibles de una operación.", {"do_number": do_number}),
         tool("list_requests", "Solicitudes registradas de la empresa ya seleccionada."),
         tool("get_tenant_profile", "Datos generales de la empresa ya seleccionada."),
+        tool("list_documents", "Metadatos de documentos de la empresa ya seleccionada. Sin archivos."),
+        tool("list_quotes", "Cotizaciones y montos de la empresa ya seleccionada."),
     ]
 
 

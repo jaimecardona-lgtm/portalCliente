@@ -45,6 +45,28 @@ def _focus_from(plan: TurnPlan, dashboard: dict[str, Any] | None, numbers: tuple
     )
 
 
+def _catalog_line(label: str, data: dict[str, Any] | None) -> str:
+    if data is None:
+        return f"{label}: no consultados. Eso no equivale a cero."
+    availability = data.get("availability")
+    if availability == "unauthorized":
+        return f"{label}: consulta no autorizada para este rol."
+    if availability != "queried":
+        return f"{label}: la consulta no está disponible. Eso no equivale a cero."
+    returned = data.get("returned")
+    if returned == 0:
+        return f"{label}: 0 registros en la empresa activa."
+    return f"{label}: {returned} registros en la empresa activa."
+
+
+def _catalog_gap(results: dict[str, ToolResult]) -> str:
+    documents = _data(results, "list_documents")
+    quotes = _data(results, "list_quotes")
+    if documents is None and quotes is None:
+        return _DOCUMENTS_GAP
+    return f"{_catalog_line('Documentos', documents)} {_catalog_line('Cotizaciones', quotes)}"
+
+
 def compose(
     plan: TurnPlan,
     results: dict[str, ToolResult],
@@ -70,6 +92,10 @@ def compose(
         return _alerts(results, tools), _focus_from(
             plan, _data(results, "get_dashboard_summary"), _numbers(results, "list_operations")
         )
+    if plan.intent == "documents":
+        return _catalog_answer(results, tools, "list_documents", "Documentos"), None
+    if plan.intent == "quotes":
+        return _catalog_answer(results, tools, "list_quotes", "Cotizaciones"), None
     return _single(results, tools), None
 
 
@@ -78,6 +104,29 @@ def _data(results: dict[str, ToolResult], name: str) -> dict[str, Any] | None:
         if result.name == name:
             return result.data
     return None
+
+
+def _catalog_answer(
+    results: dict[str, ToolResult], tools: tuple[str, ...], name: str, label: str
+) -> LogixAnswer:
+    data = _data(results, name)
+    line = _catalog_line(label, data)
+    items = (data or {}).get("items") or []
+    if not data or data.get("availability") != "queried" or not items:
+        return LogixAnswer(line, "deterministic", (), tools)
+    if name == "list_documents":
+        details = "\n".join(
+            f"- {item['file_name']} · versión {item['version']} · {item['size_bytes']} bytes" for item in items
+        )
+        sources = tuple(item["file_name"] for item in items)
+    else:
+        details = "\n".join(
+            f"- {item['number']} · {item['status']} · vigente hasta {item['valid_until']} · "
+            f"{item['total']} {item['currency']}"
+            for item in items
+        )
+        sources = tuple(item["number"] for item in items)
+    return LogixAnswer(f"{line}\n{details}", "deterministic", sources, tools)
 
 
 def _numbers(results: dict[str, ToolResult], name: str) -> tuple[str, ...]:
@@ -181,7 +230,7 @@ def _executive(
         f"{request_text}\n\n"
         f"{alert}\n\n"
         f"{event_text}\n\n"
-        f"{_DOCUMENTS_GAP}\n\n"
+        f"{_catalog_gap(results)}\n\n"
         "Interpretación: el panorama sale solo de estos conteos y listas. "
         "No hay en la consulta un campo de demora, factura o riesgo, así que no lo afirmo."
     )
@@ -192,7 +241,8 @@ def _executive(
         "Profundiza en esas operaciones.",
         "¿Hay solicitudes pendientes?",
     )
-    answer = LogixAnswer(text, "deterministic", sources, tools, follow, (_DOCUMENTS_GAP,))
+    catalog = _catalog_gap(results)
+    answer = LogixAnswer(text, "deterministic", sources, tools, follow, (catalog,))
     return answer, Focus("executive", numbers, total, active, in_transit)
 
 

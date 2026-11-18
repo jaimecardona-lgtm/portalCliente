@@ -50,7 +50,21 @@ def answer_turn(
         return logix_svc.LogixAnswer(logix_svc.NO_TENANT, "local"), False
 
     profile_blocked = False
+    documents_blocked = False
+    quotes_blocked = False
     if staff_ctx is not None:
+        if "list_documents" in plan.tools and not staff_ctx.can("documents.read"):
+            if plan.intent == "documents":
+                raise AccessDenied(
+                    "Su rol no tiene permiso para realizar esta consulta.", code="permission_denied"
+                )
+            documents_blocked = True
+        if "list_quotes" in plan.tools and not staff_ctx.can("quotes.read"):
+            if plan.intent == "quotes":
+                raise AccessDenied(
+                    "Su rol no tiene permiso para realizar esta consulta.", code="permission_denied"
+                )
+            quotes_blocked = True
         if plan.needs_operations and not staff_ctx.can("operations.read"):
             raise AccessDenied(
                 "Su rol no tiene permiso para realizar esta consulta.", code="permission_denied"
@@ -62,7 +76,14 @@ def answer_turn(
                 )
             profile_blocked = True
 
-    results = _run_tools(session, tenant_id, plan, include_profile=not profile_blocked)
+    results = _run_tools(
+        session,
+        tenant_id,
+        plan,
+        include_profile=not profile_blocked,
+        documents_blocked=documents_blocked,
+        quotes_blocked=quotes_blocked,
+    )
     answer, focus = compose(plan, results, profile_unavailable=profile_blocked, prior=prior)
     if focus is not None:
         store.remember(user_id, tenant_id, focus)
@@ -75,8 +96,18 @@ def answer_turn(
     return answer, bool(results)
 
 
+def _blocked(name: str) -> ToolResult:
+    return ToolResult(name=name, data={"availability": "unauthorized", "items": [], "returned": None})
+
+
 def _run_tools(
-    session: Session, tenant_id: UUID, plan: TurnPlan, *, include_profile: bool
+    session: Session,
+    tenant_id: UUID,
+    plan: TurnPlan,
+    *,
+    include_profile: bool,
+    documents_blocked: bool = False,
+    quotes_blocked: bool = False,
 ) -> dict[str, ToolResult]:
     results: dict[str, ToolResult] = {}
     names = set(plan.tools)
@@ -95,6 +126,16 @@ def _run_tools(
         add("list", logix_tools.list_operations(session, tenant_id, status=plan.status, limit=20))
     if "list_requests" in names:
         add("requests", logix_tools.list_requests(session, tenant_id))
+    if "list_documents" in names:
+        add(
+            "documents",
+            _blocked("list_documents") if documents_blocked else logix_tools.list_documents(session, tenant_id),
+        )
+    if "list_quotes" in names:
+        add(
+            "quotes",
+            _blocked("list_quotes") if quotes_blocked else logix_tools.list_quotes(session, tenant_id),
+        )
     if "get_operation_detail" in names or "get_operation_events" in names:
         for do_number in plan.do_numbers[:4]:
             if "get_operation_detail" in names and not add(

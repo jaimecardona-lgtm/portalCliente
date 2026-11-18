@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useContext, useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -19,6 +19,7 @@ import {
 import { useRepository } from '@/services/repositories'
 import { useSession, tenantKey } from '@/features/auth/session-context'
 import { useActiveStaffTenant } from '@/services/auth/staff-context'
+import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { Card, ErrorState, SectionHeading, Skeleton, Badge } from '@/components/ui/primitives'
 import { OperationStatusBadge } from '@/components/ui/status-badge'
@@ -38,8 +39,14 @@ export function DashboardPage() {
   // Personal interno sin sesión de empresa: la torre conserva su diseño, pero no hay cifras ni listas que mostrar.
   const staffView = session === null && staff !== null
 
+  const portal = useContext(SupabasePortalContext)
   const ops = useQuery({ queryKey: tenantKey(tenantId, 'operations'), queryFn: () => repo.listOperations(tenantId), enabled: Boolean(tenantId) })
-  const docs = useQuery({ queryKey: tenantKey(tenantId, 'documents'), queryFn: () => repo.listDocuments(tenantId), enabled: Boolean(tenantId) })
+  const docs = useQuery({ queryKey: tenantKey(tenantId, 'documents'), queryFn: () => repo.listDocuments(tenantId), enabled: Boolean(tenantId) && staff === null })
+  const staffDocuments = useQuery({
+    queryKey: ['staff', 'documents', tenantId],
+    queryFn: () => portal!.staffApi.documents(tenantId),
+    enabled: Boolean(tenantId) && staff !== null && portal?.staffApi != null,
+  })
   const quotes = useQuery({ queryKey: tenantKey(tenantId, 'quotes'), queryFn: () => repo.listQuotes(tenantId), enabled: Boolean(tenantId) })
 
   const eventQueries = useQueries({
@@ -52,7 +59,7 @@ export function DashboardPage() {
 
   // Solo las operaciones bloquean la torre. Documentos y cotizaciones sin contrato se muestran como no disponibles.
   const error = ops.error
-  const docsUnavailable = docs.isError
+  const docsUnavailable = staff !== null ? staffDocuments.isError : docs.isError
   const quotesUnavailable = quotes.isError
   if (error) {
     return (
@@ -62,7 +69,12 @@ export function DashboardPage() {
     )
   }
 
-  const loading = !staffView && (ops.isPending || docs.isPending || quotes.isPending)
+  const loading = !staffView && (
+    ops.isPending
+    || (staff === null && docs.isPending)
+    || (staff !== null && staffDocuments.isLoading)
+    || quotes.isPending
+  )
   const operations = ops.data ?? []
   // En operación = Abierto + En tránsito (regla de negocio, no inferida de otros estados).
   const active = operations.filter((o) => ACTIVE_STATUSES.includes(o.status))
@@ -99,7 +111,14 @@ export function DashboardPage() {
         <KpiCard to="/operaciones" search={{ status: 'Abierto,En tránsito' }} label="Operaciones activas" value={staffView ? NO_VALUE : loading ? null : active.length} hint={staffView || loading ? 'Abiertas y en tránsito' : `De ${operations.length} registradas`} icon={Package} tone="blue" />
         <KpiCard to="/operaciones" search={{ pendiente: '1' }} label="Esperan su respuesta" value={staffView || !responseKnown ? NO_VALUE : loading ? null : pending.length} hint={responseKnown ? 'Operaciones con acción requerida' : 'Sin información de respuesta en la base'} icon={MessageCircleWarning} tone={pending.length > 0 ? 'danger' : 'neutral'} />
         <KpiCard to="/cotizaciones" label="Cotizaciones pendientes" value={staffView || quotesUnavailable ? NO_VALUE : loading ? null : pendingQuotes.length} hint="Vigentes y sin decisión" icon={FileText} tone="cyan" />
-        <KpiCard to="/documentos" label="Documentos vencidos" value={staffView || docsUnavailable ? NO_VALUE : loading ? null : expiredDocs.length} hint={soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'} icon={FolderClock} tone={expiredDocs.length > 0 ? 'danger' : 'success'} />
+        <KpiCard
+          to="/documentos"
+          label={staff !== null ? 'Documentos registrados' : 'Documentos vencidos'}
+          value={staffView || docsUnavailable ? NO_VALUE : loading ? null : staff !== null ? (staffDocuments.data?.length ?? 0) : expiredDocs.length}
+          hint={staff !== null ? 'Sin fecha de vencimiento registrada' : soonDocs.length > 0 ? `${soonDocs.length} por vencer en 45 días` : 'Sin vencimientos próximos'}
+          icon={FolderClock}
+          tone={staff !== null ? 'neutral' : expiredDocs.length > 0 ? 'danger' : 'success'}
+        />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -134,7 +153,7 @@ export function DashboardPage() {
             <div className="flex flex-col gap-3" aria-busy="true"><Skeleton className="h-14" /><Skeleton className="h-14" /></div>
           ) : (
             <>
-              <AlertList pending={pending} expired={expiredDocs} soon={soonDocs} quotes={pendingQuotes} now={now} />
+              <AlertList pending={pending} expired={staff !== null ? [] : expiredDocs} soon={staff !== null ? [] : soonDocs} quotes={pendingQuotes} now={now} />
               {(docsUnavailable || quotesUnavailable) && (
                 <p className="mt-3 text-xs text-ink-muted">
                   {docsUnavailable && quotesUnavailable
@@ -362,7 +381,7 @@ function AlertList({
   expired.forEach((d) => items.push({ key: `dv-${d.id}`, tone: 'danger', title: `Documento vencido`, text: `${d.name} · venció el ${formatDate(d.expiresAt)}`, to: '/documentos' }))
   soon.forEach((d) => items.push({ key: `ds-${d.id}`, tone: 'warning', title: `Documento por vencer`, text: `${d.name} · vence el ${formatDate(d.expiresAt)}`, to: '/documentos' }))
   quotes
-    .filter((q) => daysUntil(q.validUntil, now) <= 10)
+    .filter((q) => q.status === 'Pendiente' && daysUntil(q.validUntil, now) >= 0 && daysUntil(q.validUntil, now) <= 10)
     .forEach((q) => items.push({ key: `q-${q.id}`, tone: 'info', title: `Cotización por decidir`, text: `${q.number} · vigente hasta ${formatDate(q.validUntil)}`, to: '/cotizaciones' }))
 
   if (items.length === 0) {

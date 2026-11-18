@@ -104,7 +104,14 @@ def classify(question: str, focus: Focus | None = None) -> TurnPlan:
     ):
         return TurnPlan(
             "executive",
-            ("get_tenant_profile", "get_dashboard_summary", "list_operations", "list_requests"),
+            (
+                "get_tenant_profile",
+                "get_dashboard_summary",
+                "list_operations",
+                "list_requests",
+                "list_documents",
+                "list_quotes",
+            ),
             needs_profile=True,
             status="En tránsito",
             updates_focus=True,
@@ -120,6 +127,10 @@ def classify(question: str, focus: Focus | None = None) -> TurnPlan:
         return TurnPlan("operation_events", ("get_operation_events",), do_numbers=(do_number,))
     if do_number:
         return TurnPlan("operation_detail", ("get_operation_detail",), do_numbers=(do_number,))
+    if "documento" in text:
+        return TurnPlan("documents", ("list_documents",), needs_operations=False)
+    if "cotiz" in text:
+        return TurnPlan("quotes", ("list_quotes",), needs_operations=False)
     if "solicitud" in text:
         return TurnPlan("requests", ("list_requests",))
     if any(word in text for word in ("perfil", "nit", "datos de la empresa", "informacion de cuenta")):

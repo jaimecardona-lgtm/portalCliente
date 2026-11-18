@@ -6,6 +6,7 @@
  * - El tenant de trabajo se guarda solo en memoria de la pantalla: nunca en localStorage ni en la URL.
  * - No hay datos de todos los tenants: la lista llega ya filtrada por asignación y verificación.
  */
+import type { Quote, QuoteStatus } from '@/types/domain'
 import { PortalApiError } from './http-client'
 import { assertUuid, createAuthedRequester } from './authed-request'
 
@@ -53,6 +54,92 @@ export function tenantCategory(t: Pick<StaffTenant, 'integrationStatus' | 'qaSyn
 
 /** Texto obligatorio en las pantallas que muestran operaciones sintéticas (CLAUDE.md, modalidad QA). */
 export const QA_BANNER = 'ENTORNO QA · DATOS DE PRUEBA'
+
+export interface StaffDocument {
+  id: string
+  clientAccountId: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  sha256: string
+  version: number
+  updatedAt: string | null
+}
+
+export interface StaffDocumentLink {
+  url: string
+  expiresInSeconds: number
+  sha256: string
+  sizeBytes: number
+  fileName: string
+}
+
+const QUOTE_STATUSES: readonly QuoteStatus[] = ['Pendiente', 'Aceptada', 'Rechazada', 'Vencida']
+
+/** Convierte un decimal de la API en número exacto cuando la fracción cabe en enteros seguros. */
+export function decimalToNumber(raw: string): number {
+  const match = /^(\d+)\.(\d{1,3})$/.exec(raw)
+  if (!match) throw new PortalApiError('invalid_response', 'Respuesta no válida: monto.', 200)
+  const whole = Number(match[1])
+  const fraction = match[2]
+  if (!Number.isSafeInteger(whole)) throw new PortalApiError('invalid_response', 'Respuesta no válida: monto.', 200)
+  if (/^0+$/.test(fraction)) return whole
+  const minor = Number(fraction)
+  if (!Number.isSafeInteger(minor)) throw new PortalApiError('invalid_response', 'Respuesta no válida: monto.', 200)
+  return whole + minor / 10 ** fraction.length
+}
+
+export function toStaffDocument(raw: unknown): StaffDocument {
+  const row = raw as Record<string, unknown>
+  return {
+    id: requireString(row.id, 'id'),
+    clientAccountId: requireString(row.client_account_id, 'client_account_id'),
+    fileName: requireString(row.file_name, 'file_name'),
+    mimeType: requireString(row.mime_type, 'mime_type'),
+    sizeBytes: typeof row.size_bytes === 'number' ? row.size_bytes : Number.NaN,
+    sha256: requireString(row.sha256, 'sha256'),
+    version: typeof row.version === 'number' ? row.version : Number.NaN,
+    updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null,
+  }
+}
+
+export function toStaffQuote(raw: unknown): Quote {
+  const row = raw as Record<string, unknown>
+  const status = requireString(row.status, 'status')
+  if (!QUOTE_STATUSES.includes(status as QuoteStatus)) {
+    throw new PortalApiError('invalid_response', 'Respuesta no válida: status.', 200)
+  }
+  const currency = requireString(row.currency, 'currency')
+  if (currency !== 'COP' && currency !== 'USD' && currency !== 'EUR') {
+    throw new PortalApiError('invalid_response', 'Respuesta no válida: currency.', 200)
+  }
+  const lines = Array.isArray(row.lines) ? row.lines : []
+  return {
+    id: requireString(row.id, 'id'),
+    tenantId: requireString(row.tenant_id, 'tenant_id'),
+    number: requireString(row.number, 'number'),
+    issuedAt: requireString(row.issued_at, 'issued_at'),
+    validUntil: requireString(row.valid_until, 'valid_until'),
+    version: typeof row.version === 'number' ? row.version : 0,
+    service: requireString(row.service, 'service'),
+    origin: requireString(row.origin, 'origin'),
+    destination: requireString(row.destination, 'destination'),
+    currency,
+    status: status as QuoteStatus,
+    conditions: typeof row.conditions === 'string' ? row.conditions : '',
+    observations: typeof row.observations === 'string' ? row.observations : '',
+    lines: lines.map((line) => {
+      const item = line as Record<string, unknown>
+      return {
+        id: requireString(item.id, 'id'),
+        concept: requireString(item.concept, 'concept'),
+        quantity: decimalToNumber(requireString(item.quantity, 'quantity')),
+        unit: requireString(item.unit, 'unit'),
+        unitPrice: decimalToNumber(requireString(item.unit_amount, 'unit_amount')),
+      }
+    }),
+  }
+}
 
 export interface StaffClientAccount {
   id: string
@@ -130,7 +217,10 @@ export interface StaffApi {
   operationEvents(tenantId: string, operationId: string): Promise<unknown[]>
   /** Datos generales de la empresa autorizada (public.tenants). Campos ausentes llegan como null. */
   tenantProfile(tenantId: string): Promise<StaffTenantProfile>
-
+  documents(tenantId: string): Promise<StaffDocument[]>
+  documentLink(tenantId: string, documentId: string): Promise<StaffDocumentLink>
+  quotes(tenantId: string): Promise<Quote[]>
+  quote(tenantId: string, quoteId: string): Promise<Quote | null>
 }
 
 export interface StaffApiOptions {
@@ -389,6 +479,42 @@ export function createStaffApi(options: StaffApiOptions): StaffApi {
       assertUuid(operationId)
       const data = (await requester.send('GET', `/staff/tenants/${tenantId}/operations/${operationId}/events`)) as { items?: unknown[] } | null
       return data?.items ?? []
+    },
+    async documents(tenantId) {
+      assertUuid(tenantId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/documents`)) as { items?: unknown[] } | null
+      return (data?.items ?? []).map(toStaffDocument)
+    },
+    async documentLink(tenantId, documentId) {
+      assertUuid(tenantId)
+      assertUuid(documentId)
+      const data = (await requester.send(
+        'GET',
+        `/staff/tenants/${tenantId}/documents/${documentId}/link`,
+      )) as Record<string, unknown> | null
+      return {
+        url: requireString(data?.url, 'url'),
+        expiresInSeconds: typeof data?.expires_in_seconds === 'number' ? data.expires_in_seconds : 0,
+        sha256: requireString(data?.sha256, 'sha256'),
+        sizeBytes: typeof data?.size_bytes === 'number' ? data.size_bytes : 0,
+        fileName: requireString(data?.file_name, 'file_name'),
+      }
+    },
+    async quotes(tenantId) {
+      assertUuid(tenantId)
+      const data = (await requester.send('GET', `/staff/tenants/${tenantId}/quotes`)) as { items?: unknown[] } | null
+      return (data?.items ?? []).map(toStaffQuote)
+    },
+    async quote(tenantId, quoteId) {
+      assertUuid(tenantId)
+      assertUuid(quoteId)
+      try {
+        const data = (await requester.send('GET', `/staff/tenants/${tenantId}/quotes/${quoteId}`)) as { item?: unknown } | null
+        return data?.item ? toStaffQuote(data.item) : null
+      } catch (error) {
+        if (error instanceof PortalApiError && error.status === 404) return null
+        throw error
+      }
     },
   }
 }

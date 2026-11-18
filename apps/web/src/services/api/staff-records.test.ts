@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createStaffApi, QA_BANNER, tenantCategory, toStaffTenant, toStaffTenantProfile } from './staff-api'
+import { createStaffApi, decimalToNumber, QA_BANNER, tenantCategory, toStaffQuote, toStaffTenant, toStaffTenantProfile } from './staff-api'
 
 const BASE = 'https://api.prueba.test/api/v1'
 const TENANT = '3f9c1a2e-0000-4000-8000-0000000000e1'
@@ -127,5 +127,34 @@ describe('registros creados desde el portal', () => {
       api.createRequest('no-es-uuid', { requestType: 'consulta', subject: 'Asunto válido', description: 'Descripción válida de prueba.' }),
     ).rejects.toThrow()
     expect(f.calls).toHaveLength(0)
+  })
+})
+
+describe('montos de cotización', () => {
+  it('conserva pesos enteros sin interpretar el decimal como aproximación', () => {
+    expect(decimalToNumber('1800000.00')).toBe(1800000)
+    expect(decimalToNumber('2.000')).toBe(2)
+    const quote = toStaffQuote({
+      id: RECORD,
+      tenant_id: TENANT,
+      number: 'QA-COT-CAPACITY-01',
+      issued_at: '2026-11-01',
+      valid_until: '2026-12-31',
+      version: 1,
+      service: 'Transporte',
+      origin: 'Planta QA Norte',
+      destination: 'Patio QA Sur',
+      currency: 'COP',
+      status: 'Pendiente',
+      conditions: '',
+      observations: '',
+      lines: [
+        { id: RECORD, concept: 'Flete', quantity: '1.000', unit: 'servicio', unit_amount: '1800000.00' },
+        { id: TENANT, concept: 'Custodia', quantity: '2.000', unit: 'dia', unit_amount: '250000.00' },
+      ],
+    })
+    expect(quote.lines[0]?.unitPrice).toBe(1800000)
+    expect(quote.lines[1]?.quantity).toBe(2)
+    expect(quote.lines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0)).toBe(2300000)
   })
 })

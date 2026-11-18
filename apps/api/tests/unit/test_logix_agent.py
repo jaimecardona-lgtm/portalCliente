@@ -17,6 +17,7 @@ from app.integrations.openrouter import (
     validate_tool_call,
 )
 from app.services.logix_brief import compose
+from app.services.logix_tools import ToolResult
 from app.services.logix_intent import Focus, classify
 from app.services.logix_session import ConversationMemory
 from app.services.logix_tools import ToolResult
@@ -153,6 +154,22 @@ def test_la_memoria_caduca() -> None:
     memory.remember(user, tenant, Focus("transit", ("QA-DO-1",), in_transit=1))
     now = 30 * 60 + 1
     assert memory.focus(user, tenant) is None
+
+
+def test_documentos_y_cotizaciones_distinguen_vacio_de_no_autorizado() -> None:
+    assert classify("¿Qué documentos tiene esta empresa?").intent == "documents"
+    assert classify("Muéstrame las cotizaciones").intent == "quotes"
+    empty, _focus = compose(
+        classify("¿Qué documentos tiene esta empresa?"),
+        {"documents": ToolResult("list_documents", {"availability": "queried", "items": [], "returned": 0})},
+    )
+    denied, _focus = compose(
+        classify("Muéstrame las cotizaciones"),
+        {"quotes": ToolResult("list_quotes", {"availability": "unauthorized", "items": [], "returned": None})},
+    )
+    assert "0 registros" in empty.text
+    assert "no autorizada" in denied.text
+    assert "0 registros" not in denied.text
 
 
 def test_las_herramientas_rechazan_tenant_y_sql() -> None:

@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.db.models import OperationEvent, OperationRef
@@ -173,6 +174,87 @@ def list_requests(session: Session, tenant_id: UUID, *, limit: int = 10) -> Tool
     return ToolResult(
         name="list_requests",
         data={"items": items, "returned": len(items)},
+        sources=tuple(item["number"] for item in items),
+    )
+
+
+def _unavailable(name: str) -> ToolResult:
+    return ToolResult(
+        name=name,
+        data={"availability": "unavailable", "items": [], "returned": None},
+    )
+
+
+def list_documents(session: Session, tenant_id: UUID) -> ToolResult:
+    """Metadatos visibles para el personal. No incluye el archivo ni la ruta de Storage."""
+    del tenant_id
+    try:
+        with session.begin_nested():
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT file_name, size_bytes, version
+                        FROM client_documents
+                        WHERE status = 'available'
+                        ORDER BY file_name
+                        LIMIT 20
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+    except ProgrammingError:
+        return _unavailable("list_documents")
+    items = [
+        {"file_name": row["file_name"], "size_bytes": row["size_bytes"], "version": row["version"]}
+        for row in rows
+    ]
+    return ToolResult(
+        name="list_documents",
+        data={"availability": "queried", "items": items, "returned": len(items)},
+        sources=tuple(item["file_name"] for item in items),
+    )
+
+
+def list_quotes(session: Session, tenant_id: UUID) -> ToolResult:
+    """Números, estado, vigencia y total decimal. Sin archivos y sin enviar el cuerpo a un modelo."""
+    del tenant_id
+    try:
+        with session.begin_nested():
+            rows = (
+                session.execute(
+                    text(
+                        """
+                        SELECT q.number, q.status, q.valid_until::text AS valid_until, q.currency,
+                               COALESCE(SUM(l.quantity * l.unit_amount), 0)::text AS total
+                        FROM quotes q
+                        LEFT JOIN quote_lines l ON l.quote_id = q.id AND l.tenant_id = q.tenant_id
+                        GROUP BY q.id
+                        ORDER BY q.issued_on DESC, q.number
+                        LIMIT 20
+                        """
+                    )
+                )
+                .mappings()
+                .all()
+            )
+    except ProgrammingError:
+        return _unavailable("list_quotes")
+    items = [
+        {
+            "number": row["number"],
+            "status": row["status"],
+            "valid_until": row["valid_until"],
+            "currency": row["currency"],
+            "total": row["total"],
+        }
+        for row in rows
+    ]
+    return ToolResult(
+        name="list_quotes",
+        data={"availability": "queried", "items": items, "returned": len(items)},
         sources=tuple(item["number"] for item in items),
     )
 

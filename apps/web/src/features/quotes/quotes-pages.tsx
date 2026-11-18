@@ -13,14 +13,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, CalendarClock, Check, FileText, Info, SearchX, X } from 'lucide-react'
 import { useRepository } from '@/services/repositories'
 import { useActiveStaffTenant } from '@/services/auth/staff-context'
-import { StaffModuleNotice } from '@/features/support/staff-module-notice'
 import { useSession, tenantKey } from '@/features/auth/session-context'
+import { QA_BANNER } from '@/services/api/staff-api'
 import { useToast } from '@/components/ui/toast'
 import { Badge, Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton, type Tone } from '@/components/ui/primitives'
 import { cn, formatDate, formatMoney, formatNumber, daysUntil } from '@/lib/format'
 import type { Quote, QuoteStatus } from '@/types/domain'
 import { referenceNow } from '@/lib/clock'
-import { FEATURES, LOCAL_ACCESS_ENABLED } from '@/config/runtime'
+import { FEATURES, LOCAL_ACCESS_ENABLED, SUPABASE_ACCESS_ENABLED } from '@/config/runtime'
 import { canDecideQuote, effectiveQuoteStatus, quoteSubtotal } from './quote-rules'
 
 const QUOTE_TONE: Record<QuoteStatus, Tone> = {
@@ -38,13 +38,13 @@ export function QuotesListPage() {
   const repo = useRepository()
   const { session, staff } = useSession()
   const activeStaff = useActiveStaffTenant()
-  const staffView = staff !== null
   const tenantId = session?.tenantId ?? ''
   const now = useMemo(() => referenceNow(), [])
+  const canQuery = Boolean(tenantId) && (staff !== null || !SUPABASE_ACCESS_ENABLED)
   const quotes = useQuery({
     queryKey: tenantKey(tenantId, 'quotes'),
     queryFn: () => repo.listQuotes(tenantId),
-    enabled: Boolean(tenantId) && !staffView,
+    enabled: canQuery,
   })
 
   return (
@@ -58,11 +58,21 @@ export function QuotesListPage() {
         <p className="mt-1 text-sm text-ink-muted">Revise conceptos, vigencias y decida cuando el estado lo permita.</p>
       </header>
 
+      {activeStaff?.qaSynthetic && (
+        <p className="rounded-[var(--radius-card)] border border-warning-200 bg-warning-50 px-4 py-2 text-xs font-semibold text-ink">
+          {QA_BANNER}
+        </p>
+      )}
+
+      {staff && !tenantId && (
+        <Card className="p-6">
+          <p className="text-sm text-ink-soft">Seleccione y confirme una empresa para ver sus cotizaciones.</p>
+        </Card>
+      )}
+
       {quotes.isError && <Card><ErrorState message="No se pudieron cargar las cotizaciones." onRetry={() => void quotes.refetch()} /></Card>}
 
-      {staffView && <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>}
-
-      {quotes.isPending && !staffView && (
+      {quotes.isPending && canQuery && (
         <div className="grid gap-4 md:grid-cols-2" aria-busy="true"><Skeleton className="h-36" /><Skeleton className="h-36" /></div>
       )}
 
@@ -119,15 +129,22 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const canQuery = Boolean(tenantId) && (staff !== null || !SUPABASE_ACCESS_ENABLED)
   const quote = useQuery({
     queryKey: tenantKey(tenantId, 'quote', quoteId),
     queryFn: () => repo.getQuote(tenantId, quoteId),
-    enabled: Boolean(tenantId) && staff === null,
+    enabled: canQuery,
   })
 
-  if (staff) return <Card><StaffModuleNotice noun="cotizaciones" hasContext={Boolean(activeStaff)} /></Card>
+  if (staff && !tenantId) {
+    return (
+      <Card className="p-6">
+        <p className="text-sm text-ink-soft">Seleccione y confirme una empresa para ver esta cotización.</p>
+      </Card>
+    )
+  }
 
-  if (quote.isPending) {
+  if (quote.isPending && canQuery) {
     return <div className="flex flex-col gap-4" aria-busy="true"><Skeleton className="h-10 w-48" /><Skeleton className="h-64" /></div>
   }
   if (quote.isError) return <Card><ErrorState message="No se pudo cargar la cotización." onRetry={() => void quote.refetch()} /></Card>
@@ -164,6 +181,11 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
     <div className="flex flex-col gap-6">
       {LOCAL_ACCESS_ENABLED && DevDemoBanner && (
         <Suspense fallback={null}><DevDemoBanner /></Suspense>
+      )}
+      {activeStaff?.qaSynthetic && (
+        <p className="rounded-[var(--radius-card)] border border-warning-200 bg-warning-50 px-4 py-2 text-xs font-semibold text-ink">
+          {QA_BANNER}
+        </p>
       )}
       <nav aria-label="Volver">
         <Link to="/cotizaciones" className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-blue">
@@ -234,7 +256,9 @@ export function QuoteDetailPage({ quoteId }: { quoteId: string }) {
         <aside className="flex min-w-0 flex-col gap-5">
           <Card className="p-5 sm:p-6">
             <SectionHeading title="Decisión" />
-            {confirming ? (
+            {staff ? (
+              <p className="text-sm text-ink-soft">La decisión comercial no está disponible. El estado que se muestra es el registrado.</p>
+            ) : confirming ? (
               <div className="flex flex-col gap-3 animate-fade-in" role="group" aria-label="Confirmar decisión">
                 <p className="text-sm text-ink-soft">
                   ¿Confirma que desea <strong className="text-ink">{confirming === 'Aceptada' ? 'aceptar' : 'rechazar'}</strong> la cotización {q.number}?

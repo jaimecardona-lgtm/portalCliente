@@ -16,8 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_staff
 from app.api.v1 import AUTH_RESPONSES
-from app.core.errors import AccessDenied
+from app.core.errors import AccessDenied, AppError
 from app.services import staff as svc
+from app.services import staff_records
 from app.services.staff import StaffContext
 
 router = APIRouter(prefix="/api/v1/staff")
@@ -199,7 +200,13 @@ def _selected_tenant(
 
 
 def _active_selected_tenant(
-    session: Session, ctx: StaffContext, tenant_id: UUID, permission: str, request: Request
+    session: Session,
+    ctx: StaffContext,
+    tenant_id: UUID,
+    permission: str,
+    request: Request,
+    *,
+    message: str = "Seleccione y confirme esta empresa antes de crear la solicitud.",
 ) -> None:
     """Además del alcance, exige el último contexto confirmado por reautenticación."""
     _selected_tenant(session, ctx, tenant_id, permission, request)
@@ -213,10 +220,7 @@ def _active_selected_tenant(
             reason="active_context_mismatch",
         )
         session.commit()
-        raise AccessDenied(
-            "Seleccione y confirme esta empresa antes de crear la solicitud.",
-            code="tenant_context_mismatch",
-        )
+        raise AccessDenied(message, code="tenant_context_mismatch")
 
 
 class ClientAccountIn(BaseModel):
@@ -294,5 +298,63 @@ def staff_create_request(
         session, ctx, tenant_id, body.request_type, body.subject, body.description, body.operation_id
     )
     svc.audit(session, ctx, "record_create", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"item": item}
+
+
+_CONTEXT_MESSAGE = "Confirme esta empresa antes de consultar sus registros."
+
+
+@router.get("/tenants/{tenant_id}/documents", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_list_documents(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+    _active_selected_tenant(session, ctx, tenant_id, "documents.read", request, message=_CONTEXT_MESSAGE)
+    items = staff_records.list_documents(session)
+    svc.audit(session, ctx, "documents_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"items": items}
+
+
+@router.get(
+    "/tenants/{tenant_id}/documents/{document_id}/link",
+    tags=["personal interno"],
+    responses=_STAFF_RESPONSES,
+)
+def staff_document_link(
+    tenant_id: UUID, document_id: UUID, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
+    _active_selected_tenant(session, ctx, tenant_id, "documents.read", request, message=_CONTEXT_MESSAGE)
+    storage = request.app.state.storage
+    if storage is None:
+        raise AppError(
+            "El almacenamiento no está disponible.",
+            code="storage_not_configured",
+            status_code=503,
+        )
+    item = staff_records.signed_download(session, document_id, storage, request.app.state.settings)
+    svc.audit(session, ctx, "documents_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return item
+
+
+@router.get("/tenants/{tenant_id}/quotes", tags=["personal interno"], responses=_STAFF_RESPONSES)
+def staff_list_quotes(tenant_id: UUID, ctx: StaffDep, session: DbDep, request: Request) -> dict[str, Any]:
+    _active_selected_tenant(session, ctx, tenant_id, "quotes.read", request, message=_CONTEXT_MESSAGE)
+    items = staff_records.list_quotes(session)
+    svc.audit(session, ctx, "quotes_list", tenant_id=tenant_id, result="allowed")
+    session.commit()
+    return {"items": items}
+
+
+@router.get(
+    "/tenants/{tenant_id}/quotes/{quote_id}",
+    tags=["personal interno"],
+    responses=_STAFF_RESPONSES,
+)
+def staff_get_quote(
+    tenant_id: UUID, quote_id: UUID, ctx: StaffDep, session: DbDep, request: Request
+) -> dict[str, Any]:
+    _active_selected_tenant(session, ctx, tenant_id, "quotes.read", request, message=_CONTEXT_MESSAGE)
+    item = staff_records.get_quote(session, quote_id)
+    svc.audit(session, ctx, "quotes_list", tenant_id=tenant_id, result="allowed")
     session.commit()
     return {"item": item}

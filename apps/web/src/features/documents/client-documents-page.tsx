@@ -13,8 +13,7 @@ import { Download, FileText, RefreshCw, Replace, Trash2, UploadCloud } from 'luc
 import { Button, Card, EmptyState, ErrorState, SectionHeading, Skeleton } from '@/components/ui/primitives'
 import { SupabasePortalContext } from '@/services/auth/supabase-runtime'
 import { useSession } from '@/features/auth/session-context'
-import { useActiveStaffTenant } from '@/services/auth/staff-context'
-import { StaffModuleNotice } from '@/features/support/staff-module-notice'
+import { StaffDocumentsPanel } from './staff-documents-panel'
 import {
   checkFileBeforeUpload,
   documentErrorMessage,
@@ -56,7 +55,6 @@ export function ClientDocumentsPage() {
    * no se consulta ese endpoint y la vista muestra la disponibilidad real (sin declarar documentos).
    */
   const isStaff = staff !== null
-  const activeStaff = useActiveStaffTenant()
   const api = isStaff ? null : (portal?.documents ?? null)
 
   const access = useQuery({
@@ -152,6 +150,8 @@ export function ClientDocumentsPage() {
     }
   }
 
+  if (isStaff) return <StaffDocumentsPanel />
+
   return (
     <div className="flex flex-col gap-6">
       <SectionHeading
@@ -166,8 +166,6 @@ export function ClientDocumentsPage() {
           </p>
         </Card>
       )}
-
-      {isStaff && <Card><StaffModuleNotice noun="documentos" hasContext={Boolean(activeStaff)} /></Card>}
 
       {api !== null && access.isPending && <Skeleton className="h-40 w-full" />}
 
