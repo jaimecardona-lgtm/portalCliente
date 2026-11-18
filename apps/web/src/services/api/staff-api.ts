@@ -80,8 +80,8 @@ const QUOTE_STATUSES: readonly QuoteStatus[] = ['Pendiente', 'Aceptada', 'Rechaz
 export function decimalToNumber(raw: string): number {
   const match = /^(\d+)\.(\d{1,3})$/.exec(raw)
   if (!match) throw new PortalApiError('invalid_response', 'Respuesta no válida: monto.', 200)
-  const whole = Number(match[1])
-  const fraction = match[2]
+  const whole = Number(match[1]!)
+  const fraction = match[2]!
   if (!Number.isSafeInteger(whole)) throw new PortalApiError('invalid_response', 'Respuesta no válida: monto.', 200)
   if (/^0+$/.test(fraction)) return whole
   const minor = Number(fraction)
