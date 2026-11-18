@@ -17,7 +17,6 @@ from app.integrations.openrouter import (
     validate_tool_call,
 )
 from app.services.logix_brief import compose
-from app.services.logix_tools import ToolResult
 from app.services.logix_intent import Focus, classify
 from app.services.logix_session import ConversationMemory
 from app.services.logix_tools import ToolResult
@@ -165,7 +164,11 @@ def test_documentos_y_cotizaciones_distinguen_vacio_de_no_autorizado() -> None:
     )
     denied, _focus = compose(
         classify("Muéstrame las cotizaciones"),
-        {"quotes": ToolResult("list_quotes", {"availability": "unauthorized", "items": [], "returned": None})},
+        {
+            "quotes": ToolResult(
+                "list_quotes", {"availability": "unauthorized", "items": [], "returned": None}
+            )
+        },
     )
     assert "0 registros" in empty.text
     assert "no autorizada" in denied.text
