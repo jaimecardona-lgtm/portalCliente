@@ -132,8 +132,35 @@ def _simulate(session: Session, user_id: UUID) -> None:
     _print("Para retirar después: scripts/qa_documents_quotes.py --rollback")
 
 
+def _seed_is_owned(session: Session, entity: str, entity_id: UUID, tenant_id: UUID) -> bool:
+    """Only objects recorded by this exact batch may be reused or removed."""
+    return session.execute(
+        text(
+            """
+            SELECT 1 FROM qa_seed_records
+            WHERE batch = :batch AND entity = :entity
+              AND entity_id = :id AND tenant_id = :tenant
+            """
+        ),
+        {"batch": BATCH, "entity": entity, "id": entity_id, "tenant": tenant_id},
+    ).first() is not None
+
+
 def _insert_account(session: Session, account: AccountPlan, user_id: UUID) -> None:
     del user_id
+    existing = session.execute(
+        text("SELECT legal_name, tax_id FROM client_accounts WHERE id = :id"),
+        {"id": account.account_id},
+    ).mappings().first()
+    if existing is not None:
+        if (
+            not _seed_is_owned(session, "client_account", account.account_id, account.tenant_id)
+            or existing["legal_name"] != account.legal_name
+            or existing["tax_id"] != account.tax_id
+        ):
+            raise QaGuardError("La cuenta documental coincide con un registro ajeno o alterado. No se continúa.")
+        return
+
     inserted = session.execute(
         text(
             """
@@ -183,6 +210,25 @@ def _apply(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                 text("SELECT 1 FROM client_documents WHERE id = :id"),
                 {"id": document.document_id},
             ).first()
+            if exists is not None:
+                existing = session.execute(
+                    text(
+                        """
+                        SELECT file_name, sha256, storage_path, client_account_id
+                        FROM client_documents WHERE id = :id
+                        """
+                    ),
+                    {"id": document.document_id},
+                ).mappings().one()
+                if (
+                    not _seed_is_owned(session, "client_document", document.document_id, document.tenant_id)
+                    or existing["file_name"] != document.file_name
+                    or existing["sha256"] != document.sha256()
+                    or existing["storage_path"] != document.storage_path
+                    or existing["client_account_id"] != document.account_id
+                ):
+                    raise QaGuardError("Documento QA coincidente ajeno o alterado. No se continúa.")
+                continue
             if exists is None:
                 content = document.content()
                 path = build_object_path(
@@ -257,6 +303,19 @@ def _apply(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                 text("SELECT 1 FROM quotes WHERE id = :id"),
                 {"id": quote.quote_id},
             ).first()
+            if exists is not None:
+                existing = session.execute(
+                    text("SELECT number, source, external_id FROM quotes WHERE id = :id"),
+                    {"id": quote.quote_id},
+                ).mappings().one()
+                if (
+                    not _seed_is_owned(session, "quote", quote.quote_id, quote.tenant_id)
+                    or existing["number"] != quote.number
+                    or existing["source"] != "qa_synthetic"
+                    or existing["external_id"] != quote.external_id
+                ):
+                    raise QaGuardError("Cotización QA coincidente ajena o alterada. No se continúa.")
+                continue
             if exists is None:
                 session.execute(
                     text(
