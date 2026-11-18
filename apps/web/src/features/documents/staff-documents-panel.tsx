@@ -23,11 +23,12 @@ export function StaffDocumentsPanel() {
   const activeStaff = useActiveStaffTenant()
   const tenantId = session?.tenantId ?? ''
   const api = portal?.staffApi ?? null
+  const canQuery = Boolean(api && tenantId)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const docs = useQuery({
     queryKey: ['staff', 'documents', tenantId],
-    enabled: Boolean(api && tenantId),
+    enabled: canQuery,
     retry: false,
     queryFn: () => api!.documents(tenantId),
   })
@@ -35,10 +36,19 @@ export function StaffDocumentsPanel() {
   const openDocument = async (doc: StaffDocument) => {
     if (!api) return
     setDownloadError(null)
+    // Open during the user gesture. Opening after awaiting the signed URL
+    // is often blocked by browsers as an unsolicited popup.
+    const tab = window.open('about:blank', '_blank')
+    if (!tab) {
+      setDownloadError('El navegador bloqueó la pestaña de descarga. Permita ventanas emergentes para este portal.')
+      return
+    }
+    tab.opener = null
     try {
       const link = await api.documentLink(tenantId, doc.id)
-      window.open(link.url, '_blank', 'noopener,noreferrer')
+      tab.location.replace(link.url)
     } catch (error) {
+      tab.close()
       setDownloadError(staffErrorMessage(error))
     }
   }
@@ -59,7 +69,12 @@ export function StaffDocumentsPanel() {
           <p className="text-sm text-ink-soft">Seleccione y confirme una empresa para ver sus documentos.</p>
         </Card>
       )}
-      {docs.isPending && tenantId && <Skeleton className="h-40 w-full" />}
+      {docs.isLoading && canQuery && <Skeleton className="h-40 w-full" />}
+      {tenantId && !api && (
+        <Card className="p-6">
+          <p className="text-sm text-ink-soft">El servicio de documentos no está disponible en esta sesión.</p>
+        </Card>
+      )}
       {downloadError && <p role="alert" className="text-sm text-danger-700">{downloadError}</p>}
       {docs.isError && (
         <Card>
