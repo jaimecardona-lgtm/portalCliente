@@ -381,11 +381,17 @@ def _apply(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
     _print(f"Lote {BATCH} aplicado. Identificadores estables del catálogo QA.")
 
 
-def _rollback(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
+def _rollback(session: Session, user_id: UUID) -> list[str]:
+    """Remove seeded database rows first. Storage is deleted only after commit succeeds.
+
+    Keep the batch ledger until Storage confirms deletion, allowing safe retries.
+    """
     if not _tables_ready(session):
         raise QaGuardError("No existe el libro del lote. No hay nada que retirar.")
     tenants = _visible_tenants(session, user_id)
     assert_qa_only(tenants)
+    all_paths: list[str] = []
+    allowed_paths = {doc.storage_path for doc in DOCUMENTS}
     for tenant_id in (CAPACITY_ACCOUNT.tenant_id, CLM_ACCOUNT.tenant_id):
         with session.begin_nested():
             _role(session, user_id, tenant_id)
@@ -398,11 +404,14 @@ def _rollback(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                 ),
                 {"batch": BATCH, "tenant": tenant_id},
             ).scalars().all()
+            if any(path not in allowed_paths for path in paths):
+                raise QaGuardError("El libro QA contiene rutas de Storage no reconocidas. Reversión detenida.")
+            all_paths.extend(path for path in paths if path)
             session.execute(
                 text(
                     """
                     DELETE FROM quotes
-                    WHERE id IN (
+                    WHERE id IN(
                         SELECT entity_id FROM qa_seed_records
                         WHERE batch = :batch AND tenant_id = :tenant AND entity = 'quote'
                     )
@@ -422,8 +431,6 @@ def _rollback(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                 ),
                 {"batch": BATCH, "tenant": tenant_id},
             )
-            if paths:
-                storage.delete([path for path in paths if path])
             session.execute(
                 text(
                     """
@@ -436,11 +443,18 @@ def _rollback(session: Session, user_id: UUID, storage: ObjectStorage) -> None:
                 ),
                 {"batch": BATCH, "tenant": tenant_id},
             )
-            session.execute(
-                text("DELETE FROM qa_seed_records WHERE batch = :batch AND tenant_id = :tenant"),
-                {"batch": BATCH, "tenant": tenant_id},
-            )
-    _print(f"Lote {BATCH} retirado. Operaciones y solicitudes no se modificaron.")
+    return all_paths
+
+
+def _finish_rollback(session: Session, user_id: UUID) -> None:
+    """Clear ledger only after both database commit and Storage deletion succeeded."""
+    _confirm_staff(session, user_id)
+    for tenant_id in (CAPACITY_ACCOUNT.tenant_id, CLM_ACCOUNT.tenant_id):
+        _role(session, user_id, tenant_id)
+        session.execute(
+            text("DELETE FROM qa_seed_records WHERE batch = :batch AND tenant_id = :tenant"),
+            {"batch": BATCH, "tenant": tenant_id},
+        )
 
 
 def main() -> int:
@@ -459,6 +473,7 @@ def main() -> int:
         return 2
     storage = build_storage(settings)
     engine = create_db_engine(settings)
+    rollback_paths: list[str] | None = None
     try:
         with Session(engine) as session:
             with session.begin():
@@ -476,12 +491,22 @@ def main() -> int:
                     if args.apply:
                         _apply(session, user_id, storage)
                     else:
-                        _rollback(session, user_id, storage)
+                        rollback_paths = _rollback(session, user_id)
                 else:
                     _simulate(session, user_id)
                     ready = _tables_ready(session)
                     _print(f"Migración de cotizaciones presente: {'sí' if ready else 'no'}.")
                     _print(f"Storage configurado en el backend: {'sí' if storage is not None else 'no'}.")
+        # The DB transaction has committed successfully. Only now remove Storage objects.
+        # If deletion fails, keep the batch ledger for a later --rollback retry.
+        if rollback_paths is not None:
+            if rollback_paths:
+                assert storage is not None
+                storage.delete(rollback_paths)
+            with Session(engine) as session:
+                with session.begin():
+                    _finish_rollback(session, STAFF_USER)
+            _print(f"Lote {BATCH} retirado. Operaciones y solicitudes no se modificaron.")
     except QaGuardError as exc:
         _print(str(exc))
         return 2
