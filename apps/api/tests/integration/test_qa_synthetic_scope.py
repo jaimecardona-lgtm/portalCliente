@@ -319,3 +319,104 @@ def test_qa_grant_never_sets_verification(owner_engine, qa_user, qa_tenants) -> 
             {"a": qa_tenants.a, "b": qa_tenants.b},
         ).all()
     assert all(r[0] is None and r[1] is None for r in rows)
+
+
+def test_qa_documents_and_quotes_are_scoped_to_confirmed_staff_tenant(
+    client_qa_on, owner_engine, platform_admin_qa, qa_tenants, qa_flag
+) -> None:
+    """Read and signed-download endpoints must not expose the other tenant's records."""
+    document_id, account_id, quote_id = uuid4(), uuid4(), uuid4()
+    with owner_engine.begin() as conn:
+        set_qa_synthetic_environment(conn, True, AUTH)
+        conn.execute(
+            text(
+                """
+                INSERT INTO client_accounts (id, tenant_id, legal_name, origin)
+                VALUES (:id, :tenant, 'Cliente documental de prueba', 'portal_manual')
+                """
+            ),
+            {"id": account_id, "tenant": qa_tenants.a},
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO client_documents (
+                    id, tenant_id, client_account_id, file_name, mime_type, size_bytes,
+                    sha256, storage_path, uploaded_by, status
+                ) VALUES (
+                    :id, :tenant, :account, 'prueba-qa.pdf', 'application/pdf', 128,
+                    :sha, :path, :user, 'available'
+                )
+                """
+            ),
+            {
+                "id": document_id,
+                "tenant": qa_tenants.a,
+                "account": account_id,
+                "sha": "a" * 64,
+                "path": f"tenants/{qa_tenants.a}/test/{document_id}.pdf",
+                "user": platform_admin_qa,
+            },
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO quotes (
+                    id, tenant_id, number, source, issued_on, valid_until,
+                    service, origin_place, destination_place, currency, status, created_by
+                ) VALUES (
+                    :id, :tenant, 'QA-COT-TST-001', 'qa_synthetic',
+                    '2026-11-01', '2026-12-31', 'Flete de prueba',
+                    'Bodega QA Uno', 'Bodega QA Dos', 'COP', 'pendiente', :user
+                )
+                """
+            ),
+            {"id": quote_id, "tenant": qa_tenants.a, "user": platform_admin_qa},
+        )
+
+    class FakeSignedStorage:
+        def sign_download(self, path: str, expires_in: int) -> str:
+            assert expires_in > 0
+            return "https://descarga.test/documento-qa"
+
+    client_qa_on.app.state.storage = FakeSignedStorage()
+    assert switch_context(client_qa_on, platform_admin_qa, qa_tenants.a).status_code == 200
+
+    docs_a = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/documents", headers=_h(platform_admin_qa)
+    )
+    quotes_a = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/quotes", headers=_h(platform_admin_qa)
+    )
+    assert docs_a.status_code == 200
+    assert [doc["id"] for doc in docs_a.json()["items"]] == [str(document_id)]
+    assert quotes_a.status_code == 200
+    assert [quote["id"] for quote in quotes_a.json()["items"]] == [str(quote_id)]
+
+    link_a = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.a}/documents/{document_id}/link",
+        headers=_h(platform_admin_qa),
+    )
+    assert link_a.status_code == 200
+    assert link_a.json()["url"] == "https://descarga.test/documento-qa"
+
+    assert switch_context(client_qa_on, platform_admin_qa, qa_tenants.b).status_code == 200
+    docs_b = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/documents", headers=_h(platform_admin_qa)
+    )
+    quotes_b = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/quotes", headers=_h(platform_admin_qa)
+    )
+    assert docs_b.status_code == 200 and docs_b.json()["items"] == []
+    assert quotes_b.status_code == 200 and quotes_b.json()["items"] == []
+
+    cross_doc = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/documents/{document_id}/link",
+        headers=_h(platform_admin_qa),
+    )
+    cross_quote = client_qa_on.get(
+        f"/api/v1/staff/tenants/{qa_tenants.b}/quotes/{quote_id}",
+        headers=_h(platform_admin_qa),
+    )
+    assert cross_doc.status_code == 404
+    assert cross_quote.status_code == 404
